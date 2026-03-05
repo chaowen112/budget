@@ -1,0 +1,255 @@
+syntax = "proto3";
+
+package budget.v1;
+
+option go_package = "github.com/chaowen/budget/gen/budget/v1;budgetv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "budget/v1/common.proto";
+
+// SpendingByCategory for reports
+message SpendingByCategory {
+  string category_id = 1;
+  string category_name = 2;
+  Money amount = 3;
+  double percentage = 4;
+  int32 transaction_count = 5;
+}
+
+// BudgetSummary for reports
+message BudgetSummary {
+  string category_id = 1;
+  string category_name = 2;
+  Money budgeted = 3;
+  Money spent = 4;
+  Money remaining = 5;
+  double percentage_used = 6;
+  bool is_over_budget = 7;
+}
+
+// WeeklyReport
+message WeeklyReport {
+  google.protobuf.Timestamp week_start = 1;
+  google.protobuf.Timestamp week_end = 2;
+  Money total_income = 3;
+  Money total_expenses = 4;
+  Money net_savings = 5;
+  repeated SpendingByCategory spending_by_category = 6;
+  repeated BudgetSummary budget_summaries = 7;
+  Money daily_average_spending = 8;
+}
+
+// MonthlyReport
+message MonthlyReport {
+  string month = 1;  // Format: YYYY-MM
+  Money total_income = 2;
+  Money total_expenses = 3;
+  Money net_savings = 4;
+  double savings_rate = 5;  // Percentage of income saved
+  repeated SpendingByCategory spending_by_category = 6;
+  repeated BudgetSummary budget_summaries = 7;
+  Money daily_average_spending = 8;
+  
+  // Comparison with previous month
+  Money income_change = 9;
+  Money expense_change = 10;
+  double income_change_percentage = 11;
+  double expense_change_percentage = 12;
+}
+
+// NetWorthReport
+message NetWorthReport {
+  google.protobuf.Timestamp as_of = 1;
+  Money total_assets = 2;
+  Money total_liabilities = 3;
+  Money net_worth = 4;
+  string base_currency = 5;
+  
+  // Breakdown by category
+  repeated AssetCategorySummary asset_breakdown = 6;
+  
+  // Change from previous period
+  Money net_worth_change = 7;
+  double net_worth_change_percentage = 8;
+}
+
+message AssetCategorySummary {
+  string category = 1;
+  Money total_value = 2;
+  double percentage_of_total = 3;
+  int32 asset_count = 4;
+}
+
+// SavingGoalReport
+message SavingGoalReport {
+  string goal_id = 1;
+  string goal_name = 2;
+  Money target_amount = 3;
+  Money current_amount = 4;
+  double percentage_complete = 5;
+  google.protobuf.Timestamp deadline = 6;
+  int32 days_remaining = 7;
+  Money required_monthly_saving = 8;
+  Money current_monthly_saving = 9;  // Based on recent history
+  bool is_on_track = 10;
+  google.protobuf.Timestamp projected_completion = 11;
+}
+
+// BudgetTrackingReport - Are we on track?
+message BudgetTrackingReport {
+  PeriodType period_type = 1;
+  google.protobuf.Timestamp period_start = 2;
+  google.protobuf.Timestamp period_end = 3;
+  int32 days_elapsed = 4;
+  int32 days_remaining = 5;
+  double period_progress_percentage = 6;  // How far into the period
+  
+  Money total_budgeted = 7;
+  Money total_spent = 8;
+  Money expected_spent = 9;  // Based on period progress
+  double budget_utilization = 10;  // Actual vs expected
+  
+  bool is_on_track = 11;
+  string status_message = 12;
+  Money projected_end_of_period_spending = 13;
+  
+  repeated BudgetSummary category_details = 14;
+}
+
+// GetWeeklyReportRequest
+message GetWeeklyReportRequest {
+  google.protobuf.Timestamp week_of = 1;  // Any date within the desired week
+}
+
+message GetWeeklyReportResponse {
+  WeeklyReport report = 1;
+}
+
+// GetMonthlyReportRequest
+message GetMonthlyReportRequest {
+  string month = 1;  // Format: YYYY-MM, empty for current month
+}
+
+message GetMonthlyReportResponse {
+  MonthlyReport report = 1;
+}
+
+// GetNetWorthReportRequest
+message GetNetWorthReportRequest {
+  google.protobuf.Timestamp as_of = 1;  // Optional, defaults to now
+}
+
+message GetNetWorthReportResponse {
+  NetWorthReport report = 1;
+}
+
+// GetSavingGoalsReportRequest
+message GetSavingGoalsReportRequest {
+  bool include_completed = 1;
+}
+
+message GetSavingGoalsReportResponse {
+  repeated SavingGoalReport goals = 1;
+  int32 total_goals = 2;
+  int32 on_track_count = 3;
+  int32 behind_schedule_count = 4;
+}
+
+// GetBudgetTrackingReportRequest
+message GetBudgetTrackingReportRequest {
+  PeriodType period_type = 1;  // defaults to monthly
+}
+
+message GetBudgetTrackingReportResponse {
+  BudgetTrackingReport report = 1;
+}
+
+// GetSpendingTrendRequest
+message GetSpendingTrendRequest {
+  int32 months = 1;  // Number of months to include (default: 6)
+  string category_id = 2;  // Optional: filter by category
+}
+
+message SpendingTrendPoint {
+  string month = 1;
+  Money amount = 2;
+}
+
+message GetSpendingTrendResponse {
+  repeated SpendingTrendPoint trend = 1;
+  Money average = 2;
+  Money min = 3;
+  Money max = 4;
+  string trend_direction = 5;  // "increasing", "decreasing", "stable"
+}
+
+// GetNetWorthTrendRequest
+message GetNetWorthTrendRequest {
+  int32 months = 1;  // Number of months (default: 12)
+}
+
+message NetWorthTrendPoint {
+  string month = 1;
+  Money net_worth = 2;
+  Money assets = 3;
+  Money liabilities = 4;
+}
+
+message GetNetWorthTrendResponse {
+  repeated NetWorthTrendPoint trend = 1;
+  Money total_change = 2;
+  double total_change_percentage = 3;
+}
+
+// ReportService provides various financial reports
+service ReportService {
+  // Get weekly spending report
+  rpc GetWeeklyReport(GetWeeklyReportRequest) returns (GetWeeklyReportResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/reports/weekly"
+    };
+  }
+
+  // Get monthly spending report
+  rpc GetMonthlyReport(GetMonthlyReportRequest) returns (GetMonthlyReportResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/reports/monthly"
+    };
+  }
+
+  // Get net worth report
+  rpc GetNetWorthReport(GetNetWorthReportRequest) returns (GetNetWorthReportResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/reports/net-worth"
+    };
+  }
+
+  // Get saving goals report
+  rpc GetSavingGoalsReport(GetSavingGoalsReportRequest) returns (GetSavingGoalsReportResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/reports/goals"
+    };
+  }
+
+  // Get budget tracking report
+  rpc GetBudgetTrackingReport(GetBudgetTrackingReportRequest) returns (GetBudgetTrackingReportResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/reports/budget-tracking"
+    };
+  }
+
+  // Get spending trend over time
+  rpc GetSpendingTrend(GetSpendingTrendRequest) returns (GetSpendingTrendResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/reports/spending-trend"
+    };
+  }
+
+  // Get net worth trend over time
+  rpc GetNetWorthTrend(GetNetWorthTrendRequest) returns (GetNetWorthTrendResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/reports/net-worth-trend"
+    };
+  }
+}

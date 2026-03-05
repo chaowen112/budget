@@ -1,0 +1,152 @@
+syntax = "proto3";
+
+package budget.v1;
+
+option go_package = "github.com/chaowen/budget/gen/budget/v1;budgetv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// CPFAccount represents a user's CPF account balances
+message CPFAccount {
+  string id = 1;
+  string user_id = 2;
+  string oa_balance = 3;  // Ordinary Account
+  string sa_balance = 4;  // Special Account
+  string ma_balance = 5;  // Medisave Account
+  string total_balance = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// CPFContribution represents a monthly CPF contribution
+message CPFContribution {
+  string id = 1;
+  string contribution_month = 2;  // Format: YYYY-MM
+  string employee_amount = 3;
+  string employer_amount = 4;
+  string total_amount = 5;
+  string oa_amount = 6;
+  string sa_amount = 7;
+  string ma_amount = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// CPFProjection for future value estimation
+message CPFProjection {
+  string target_age = 1;
+  string projected_oa = 2;
+  string projected_sa = 3;
+  string projected_ma = 4;
+  string projected_total = 5;
+  string oa_interest_rate = 6;  // e.g., "2.5%"
+  string sa_ma_interest_rate = 7;  // e.g., "4.0%"
+}
+
+// GetCPFAccountRequest
+message GetCPFAccountRequest {}
+
+message GetCPFAccountResponse {
+  CPFAccount account = 1;
+}
+
+// UpdateCPFBalancesRequest
+message UpdateCPFBalancesRequest {
+  string oa_balance = 1;
+  string sa_balance = 2;
+  string ma_balance = 3;
+}
+
+message UpdateCPFBalancesResponse {
+  CPFAccount account = 1;
+}
+
+// RecordCPFContributionRequest
+message RecordCPFContributionRequest {
+  string contribution_month = 1;  // Format: YYYY-MM
+  string employee_amount = 2;
+  string employer_amount = 3;
+  string oa_amount = 4;
+  string sa_amount = 5;
+  string ma_amount = 6;
+}
+
+message RecordCPFContributionResponse {
+  CPFContribution contribution = 1;
+}
+
+// ListCPFContributionsRequest
+message ListCPFContributionsRequest {
+  int32 year = 1;  // Optional filter by year
+}
+
+message ListCPFContributionsResponse {
+  repeated CPFContribution contributions = 1;
+  string total_employee = 2;
+  string total_employer = 3;
+  string total_contributions = 4;
+}
+
+// GetCPFProjectionRequest
+message GetCPFProjectionRequest {
+  int32 current_age = 1;
+  int32 target_age = 2;
+  string monthly_contribution = 3;  // Optional: assumed monthly contribution
+}
+
+message GetCPFProjectionResponse {
+  CPFProjection projection = 1;
+}
+
+// DeleteCPFContributionRequest
+message DeleteCPFContributionRequest {
+  string id = 1;
+}
+
+message DeleteCPFContributionResponse {}
+
+// CPFService manages Singapore CPF accounts
+service CPFService {
+  // Get CPF account balances
+  rpc GetCPFAccount(GetCPFAccountRequest) returns (GetCPFAccountResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/cpf"
+    };
+  }
+
+  // Update CPF balances
+  rpc UpdateCPFBalances(UpdateCPFBalancesRequest) returns (UpdateCPFBalancesResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/cpf"
+      body: "*"
+    };
+  }
+
+  // Record a monthly CPF contribution
+  rpc RecordCPFContribution(RecordCPFContributionRequest) returns (RecordCPFContributionResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/cpf/contributions"
+      body: "*"
+    };
+  }
+
+  // List CPF contributions
+  rpc ListCPFContributions(ListCPFContributionsRequest) returns (ListCPFContributionsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/cpf/contributions"
+    };
+  }
+
+  // Delete a CPF contribution
+  rpc DeleteCPFContribution(DeleteCPFContributionRequest) returns (DeleteCPFContributionResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/cpf/contributions/{id}"
+    };
+  }
+
+  // Get CPF projection
+  rpc GetCPFProjection(GetCPFProjectionRequest) returns (GetCPFProjectionResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/cpf/projection"
+    };
+  }
+}

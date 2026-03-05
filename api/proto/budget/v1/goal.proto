@@ -1,0 +1,252 @@
+syntax = "proto3";
+
+package budget.v1;
+
+option go_package = "github.com/chaowen/budget/gen/budget/v1;budgetv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "budget/v1/common.proto";
+
+// SavingGoal represents a savings target
+message SavingGoal {
+  string id = 1;
+  string name = 2;
+  Money target_amount = 3;
+  Money current_amount = 4;
+  google.protobuf.Timestamp deadline = 5;
+  repeated string linked_asset_ids = 6;
+  string notes = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+// GoalProgress shows progress toward a saving goal
+message GoalProgress {
+  SavingGoal goal = 1;
+  double percentage_complete = 2;
+  Money amount_remaining = 3;
+  int32 days_remaining = 4;
+  Money required_monthly_saving = 5;  // To reach goal on time
+  bool is_on_track = 6;
+  string status_message = 7;  // e.g., "On track", "Behind schedule"
+}
+
+// CreateSavingGoalRequest
+message CreateSavingGoalRequest {
+  string name = 1;
+  Money target_amount = 2;
+  google.protobuf.Timestamp deadline = 3;
+  repeated string linked_asset_ids = 4;
+  string notes = 5;
+}
+
+message CreateSavingGoalResponse {
+  SavingGoal goal = 1;
+}
+
+// GetSavingGoalRequest
+message GetSavingGoalRequest {
+  string id = 1;
+}
+
+message GetSavingGoalResponse {
+  SavingGoal goal = 1;
+}
+
+// ListSavingGoalsRequest
+message ListSavingGoalsRequest {
+  bool include_completed = 1;
+}
+
+message ListSavingGoalsResponse {
+  repeated SavingGoal goals = 1;
+}
+
+// UpdateSavingGoalRequest
+message UpdateSavingGoalRequest {
+  string id = 1;
+  string name = 2;
+  Money target_amount = 3;
+  google.protobuf.Timestamp deadline = 4;
+  repeated string linked_asset_ids = 5;
+  string notes = 6;
+}
+
+message UpdateSavingGoalResponse {
+  SavingGoal goal = 1;
+}
+
+// UpdateGoalProgressRequest - manually update current amount
+message UpdateGoalProgressRequest {
+  string id = 1;
+  Money current_amount = 2;
+}
+
+message UpdateGoalProgressResponse {
+  SavingGoal goal = 1;
+}
+
+// DeleteSavingGoalRequest
+message DeleteSavingGoalRequest {
+  string id = 1;
+}
+
+message DeleteSavingGoalResponse {}
+
+// GetGoalProgressRequest
+message GetGoalProgressRequest {
+  string id = 1;
+}
+
+message GetGoalProgressResponse {
+  GoalProgress progress = 1;
+}
+
+// GetAllGoalsProgressRequest
+message GetAllGoalsProgressRequest {
+  bool include_completed = 1;
+}
+
+message GetAllGoalsProgressResponse {
+  repeated GoalProgress progress = 1;
+}
+
+// NetWorthGoal represents a user's target net worth milestone
+message NetWorthGoal {
+  string id = 1;
+  string name = 2;  // e.g., "House Down Payment", "Retirement"
+  Money target_amount = 3;
+  string notes = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// NetWorthGoalProgress shows progress toward the net worth goal
+message NetWorthGoalProgress {
+  NetWorthGoal goal = 1;
+  Money current_net_worth = 2;
+  double percentage_complete = 3;
+  Money amount_remaining = 4;
+  int32 estimated_months_to_goal = 5;  // Based on monthly savings rate
+}
+
+// SetNetWorthGoalRequest - create or update the net worth goal
+message SetNetWorthGoalRequest {
+  string name = 1;
+  Money target_amount = 2;
+  string notes = 3;
+}
+
+message SetNetWorthGoalResponse {
+  NetWorthGoal goal = 1;
+}
+
+// GetNetWorthGoalRequest
+message GetNetWorthGoalRequest {}
+
+message GetNetWorthGoalResponse {
+  NetWorthGoal goal = 1;  // null if no goal set
+}
+
+// DeleteNetWorthGoalRequest
+message DeleteNetWorthGoalRequest {}
+
+message DeleteNetWorthGoalResponse {}
+
+// GetNetWorthGoalProgressRequest
+message GetNetWorthGoalProgressRequest {}
+
+message GetNetWorthGoalProgressResponse {
+  NetWorthGoalProgress progress = 1;  // null if no goal set
+}
+
+// SavingGoalService manages saving goals
+service SavingGoalService {
+  // Create a new saving goal
+  rpc CreateSavingGoal(CreateSavingGoalRequest) returns (CreateSavingGoalResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/goals"
+      body: "*"
+    };
+  }
+
+  // Get a saving goal by ID
+  rpc GetSavingGoal(GetSavingGoalRequest) returns (GetSavingGoalResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/goals/{id}"
+    };
+  }
+
+  // List all saving goals
+  rpc ListSavingGoals(ListSavingGoalsRequest) returns (ListSavingGoalsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/goals"
+    };
+  }
+
+  // Update a saving goal
+  rpc UpdateSavingGoal(UpdateSavingGoalRequest) returns (UpdateSavingGoalResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/goals/{id}"
+      body: "*"
+    };
+  }
+
+  // Update goal progress (current amount)
+  rpc UpdateGoalProgress(UpdateGoalProgressRequest) returns (UpdateGoalProgressResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/goals/{id}/progress"
+      body: "*"
+    };
+  }
+
+  // Delete a saving goal
+  rpc DeleteSavingGoal(DeleteSavingGoalRequest) returns (DeleteSavingGoalResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/goals/{id}"
+    };
+  }
+
+  // Get progress for a specific goal
+  rpc GetGoalProgress(GetGoalProgressRequest) returns (GetGoalProgressResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/goals/{id}/progress"
+    };
+  }
+
+  // Get progress for all goals
+  rpc GetAllGoalsProgress(GetAllGoalsProgressRequest) returns (GetAllGoalsProgressResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/goals/progress"
+    };
+  }
+
+  // Set (create or update) the user's net worth goal
+  rpc SetNetWorthGoal(SetNetWorthGoalRequest) returns (SetNetWorthGoalResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/net-worth-goal"
+      body: "*"
+    };
+  }
+
+  // Get the user's net worth goal
+  rpc GetNetWorthGoal(GetNetWorthGoalRequest) returns (GetNetWorthGoalResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/net-worth-goal"
+    };
+  }
+
+  // Delete the user's net worth goal
+  rpc DeleteNetWorthGoal(DeleteNetWorthGoalRequest) returns (DeleteNetWorthGoalResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/net-worth-goal"
+    };
+  }
+
+  // Get progress for the net worth goal
+  rpc GetNetWorthGoalProgress(GetNetWorthGoalProgressRequest) returns (GetNetWorthGoalProgressResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/net-worth-goal/progress"
+    };
+  }
+}

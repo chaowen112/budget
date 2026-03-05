@@ -1,0 +1,4031 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "budget/v1/common.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "AssetService"
+    },
+    {
+      "name": "BudgetService"
+    },
+    {
+      "name": "CategoryService"
+    },
+    {
+      "name": "CPFService"
+    },
+    {
+      "name": "CurrencyService"
+    },
+    {
+      "name": "SavingGoalService"
+    },
+    {
+      "name": "ReportService"
+    },
+    {
+      "name": "TransactionService"
+    },
+    {
+      "name": "UserService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/asset-types": {
+      "get": {
+        "summary": "List available asset types",
+        "operationId": "AssetService_ListAssetTypes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListAssetTypesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "category",
+            "description": "Optional filter\n\n - ASSET_CATEGORY_RETIREMENT: CPF, 401k, etc.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ASSET_CATEGORY_UNSPECIFIED",
+              "ASSET_CATEGORY_CASH",
+              "ASSET_CATEGORY_BANK",
+              "ASSET_CATEGORY_INVESTMENT",
+              "ASSET_CATEGORY_RETIREMENT",
+              "ASSET_CATEGORY_PROPERTY",
+              "ASSET_CATEGORY_LIABILITY",
+              "ASSET_CATEGORY_CUSTOM"
+            ],
+            "default": "ASSET_CATEGORY_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "AssetService"
+        ]
+      }
+    },
+    "/api/v1/assets": {
+      "get": {
+        "summary": "List all assets",
+        "operationId": "AssetService_ListAssets",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListAssetsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "category",
+            "description": " - ASSET_CATEGORY_RETIREMENT: CPF, 401k, etc.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ASSET_CATEGORY_UNSPECIFIED",
+              "ASSET_CATEGORY_CASH",
+              "ASSET_CATEGORY_BANK",
+              "ASSET_CATEGORY_INVESTMENT",
+              "ASSET_CATEGORY_RETIREMENT",
+              "ASSET_CATEGORY_PROPERTY",
+              "ASSET_CATEGORY_LIABILITY",
+              "ASSET_CATEGORY_CUSTOM"
+            ],
+            "default": "ASSET_CATEGORY_UNSPECIFIED"
+          },
+          {
+            "name": "includeLiabilities",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AssetService"
+        ]
+      },
+      "post": {
+        "summary": "Create a new asset",
+        "operationId": "AssetService_CreateAsset",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateAssetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateAssetRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AssetService"
+        ]
+      }
+    },
+    "/api/v1/assets/{assetId}/history": {
+      "get": {
+        "summary": "Get asset value history",
+        "operationId": "AssetService_GetAssetHistory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetAssetHistoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "dateRange.startDate",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "dateRange.endDate",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          }
+        ],
+        "tags": [
+          "AssetService"
+        ]
+      }
+    },
+    "/api/v1/assets/{assetId}/snapshots": {
+      "post": {
+        "summary": "Record a value snapshot for historical tracking",
+        "operationId": "AssetService_RecordAssetSnapshot",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RecordAssetSnapshotResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AssetServiceRecordAssetSnapshotBody"
+            }
+          }
+        ],
+        "tags": [
+          "AssetService"
+        ]
+      }
+    },
+    "/api/v1/assets/{id}": {
+      "get": {
+        "summary": "Get an asset by ID",
+        "operationId": "AssetService_GetAsset",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetAssetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AssetService"
+        ]
+      },
+      "delete": {
+        "summary": "Delete an asset",
+        "operationId": "AssetService_DeleteAsset",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteAssetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AssetService"
+        ]
+      },
+      "patch": {
+        "summary": "Update an asset",
+        "operationId": "AssetService_UpdateAsset",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateAssetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AssetServiceUpdateAssetBody"
+            }
+          }
+        ],
+        "tags": [
+          "AssetService"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Login with email and password",
+        "operationId": "UserService_Login",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1LoginResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1LoginRequest"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "summary": "Logout and invalidate refresh token",
+        "operationId": "UserService_Logout",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1LogoutResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1LogoutRequest"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "summary": "Refresh access token",
+        "operationId": "UserService_RefreshToken",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RefreshTokenResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RefreshTokenRequest"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "summary": "Register a new user",
+        "operationId": "UserService_Register",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RegisterResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RegisterRequest"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/budgets": {
+      "get": {
+        "summary": "List all budgets",
+        "operationId": "BudgetService_ListBudgets",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListBudgetsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "periodType",
+            "description": "Optional filter",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "PERIOD_TYPE_UNSPECIFIED",
+              "PERIOD_TYPE_DAILY",
+              "PERIOD_TYPE_WEEKLY",
+              "PERIOD_TYPE_MONTHLY",
+              "PERIOD_TYPE_YEARLY"
+            ],
+            "default": "PERIOD_TYPE_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "BudgetService"
+        ]
+      },
+      "post": {
+        "summary": "Create a new budget",
+        "operationId": "BudgetService_CreateBudget",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateBudgetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateBudgetRequest"
+            }
+          }
+        ],
+        "tags": [
+          "BudgetService"
+        ]
+      }
+    },
+    "/api/v1/budgets/status": {
+      "get": {
+        "summary": "Get status of all budgets",
+        "operationId": "BudgetService_GetAllBudgetStatuses",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetAllBudgetStatusesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "periodType",
+            "description": "Optional filter",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "PERIOD_TYPE_UNSPECIFIED",
+              "PERIOD_TYPE_DAILY",
+              "PERIOD_TYPE_WEEKLY",
+              "PERIOD_TYPE_MONTHLY",
+              "PERIOD_TYPE_YEARLY"
+            ],
+            "default": "PERIOD_TYPE_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "BudgetService"
+        ]
+      }
+    },
+    "/api/v1/budgets/{budgetId}/status": {
+      "get": {
+        "summary": "Get status of a specific budget",
+        "operationId": "BudgetService_GetBudgetStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetBudgetStatusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "budgetId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "BudgetService"
+        ]
+      }
+    },
+    "/api/v1/budgets/{id}": {
+      "get": {
+        "summary": "Get a budget by ID",
+        "operationId": "BudgetService_GetBudget",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetBudgetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "BudgetService"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a budget",
+        "operationId": "BudgetService_DeleteBudget",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteBudgetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "BudgetService"
+        ]
+      },
+      "patch": {
+        "summary": "Update a budget",
+        "operationId": "BudgetService_UpdateBudget",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateBudgetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/BudgetServiceUpdateBudgetBody"
+            }
+          }
+        ],
+        "tags": [
+          "BudgetService"
+        ]
+      }
+    },
+    "/api/v1/categories": {
+      "get": {
+        "summary": "List all categories (system + user custom)",
+        "operationId": "CategoryService_ListCategories",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCategoriesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "type",
+            "description": "Optional filter by type",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "TRANSACTION_TYPE_UNSPECIFIED",
+              "TRANSACTION_TYPE_EXPENSE",
+              "TRANSACTION_TYPE_INCOME"
+            ],
+            "default": "TRANSACTION_TYPE_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "CategoryService"
+        ]
+      },
+      "post": {
+        "summary": "Create a custom category",
+        "operationId": "CategoryService_CreateCategory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateCategoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateCategoryRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CategoryService"
+        ]
+      }
+    },
+    "/api/v1/categories/{id}": {
+      "get": {
+        "summary": "Get a category by ID",
+        "operationId": "CategoryService_GetCategory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCategoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CategoryService"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a custom category",
+        "operationId": "CategoryService_DeleteCategory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteCategoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CategoryService"
+        ]
+      },
+      "patch": {
+        "summary": "Update a custom category",
+        "operationId": "CategoryService_UpdateCategory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateCategoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CategoryServiceUpdateCategoryBody"
+            }
+          }
+        ],
+        "tags": [
+          "CategoryService"
+        ]
+      }
+    },
+    "/api/v1/cpf": {
+      "get": {
+        "summary": "Get CPF account balances",
+        "operationId": "CPFService_GetCPFAccount",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCPFAccountResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "CPFService"
+        ]
+      },
+      "put": {
+        "summary": "Update CPF balances",
+        "operationId": "CPFService_UpdateCPFBalances",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateCPFBalancesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1UpdateCPFBalancesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CPFService"
+        ]
+      }
+    },
+    "/api/v1/cpf/contributions": {
+      "get": {
+        "summary": "List CPF contributions",
+        "operationId": "CPFService_ListCPFContributions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCPFContributionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "year",
+            "description": "Optional filter by year",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "CPFService"
+        ]
+      },
+      "post": {
+        "summary": "Record a monthly CPF contribution",
+        "operationId": "CPFService_RecordCPFContribution",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RecordCPFContributionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RecordCPFContributionRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CPFService"
+        ]
+      }
+    },
+    "/api/v1/cpf/contributions/{id}": {
+      "delete": {
+        "summary": "Delete a CPF contribution",
+        "operationId": "CPFService_DeleteCPFContribution",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteCPFContributionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CPFService"
+        ]
+      }
+    },
+    "/api/v1/cpf/projection": {
+      "get": {
+        "summary": "Get CPF projection",
+        "operationId": "CPFService_GetCPFProjection",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCPFProjectionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "currentAge",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "targetAge",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "monthlyContribution",
+            "description": "Optional: assumed monthly contribution",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CPFService"
+        ]
+      }
+    },
+    "/api/v1/currencies": {
+      "get": {
+        "summary": "List supported currencies",
+        "operationId": "CurrencyService_ListCurrencies",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCurrenciesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "activeOnly",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "CurrencyService"
+        ]
+      }
+    },
+    "/api/v1/currencies/convert": {
+      "get": {
+        "summary": "Convert an amount between currencies",
+        "operationId": "CurrencyService_ConvertCurrency",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ConvertCurrencyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "amount",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "fromCurrency",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "toCurrency",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CurrencyService"
+        ]
+      }
+    },
+    "/api/v1/currencies/rate": {
+      "get": {
+        "summary": "Get exchange rate between two currencies",
+        "operationId": "CurrencyService_GetExchangeRate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetExchangeRateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "fromCurrency",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "toCurrency",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CurrencyService"
+        ]
+      }
+    },
+    "/api/v1/currencies/sync": {
+      "post": {
+        "summary": "Sync exchange rates from external API",
+        "operationId": "CurrencyService_SyncExchangeRates",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SyncExchangeRatesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1SyncExchangeRatesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CurrencyService"
+        ]
+      }
+    },
+    "/api/v1/goals": {
+      "get": {
+        "summary": "List all saving goals",
+        "operationId": "SavingGoalService_ListSavingGoals",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListSavingGoalsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "includeCompleted",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "SavingGoalService"
+        ]
+      },
+      "post": {
+        "summary": "Create a new saving goal",
+        "operationId": "SavingGoalService_CreateSavingGoal",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateSavingGoalResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateSavingGoalRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SavingGoalService"
+        ]
+      }
+    },
+    "/api/v1/goals/progress": {
+      "get": {
+        "summary": "Get progress for all goals",
+        "operationId": "SavingGoalService_GetAllGoalsProgress",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetAllGoalsProgressResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "includeCompleted",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "SavingGoalService"
+        ]
+      }
+    },
+    "/api/v1/goals/{id}": {
+      "get": {
+        "summary": "Get a saving goal by ID",
+        "operationId": "SavingGoalService_GetSavingGoal",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetSavingGoalResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SavingGoalService"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a saving goal",
+        "operationId": "SavingGoalService_DeleteSavingGoal",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteSavingGoalResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SavingGoalService"
+        ]
+      },
+      "patch": {
+        "summary": "Update a saving goal",
+        "operationId": "SavingGoalService_UpdateSavingGoal",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateSavingGoalResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SavingGoalServiceUpdateSavingGoalBody"
+            }
+          }
+        ],
+        "tags": [
+          "SavingGoalService"
+        ]
+      }
+    },
+    "/api/v1/goals/{id}/progress": {
+      "get": {
+        "summary": "Get progress for a specific goal",
+        "operationId": "SavingGoalService_GetGoalProgress",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetGoalProgressResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SavingGoalService"
+        ]
+      },
+      "put": {
+        "summary": "Update goal progress (current amount)",
+        "operationId": "SavingGoalService_UpdateGoalProgress",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateGoalProgressResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SavingGoalServiceUpdateGoalProgressBody"
+            }
+          }
+        ],
+        "tags": [
+          "SavingGoalService"
+        ]
+      }
+    },
+    "/api/v1/net-worth-goal": {
+      "get": {
+        "summary": "Get the user's net worth goal",
+        "operationId": "SavingGoalService_GetNetWorthGoal",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetNetWorthGoalResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "SavingGoalService"
+        ]
+      },
+      "delete": {
+        "summary": "Delete the user's net worth goal",
+        "operationId": "SavingGoalService_DeleteNetWorthGoal",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteNetWorthGoalResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "SavingGoalService"
+        ]
+      },
+      "put": {
+        "summary": "Set (create or update) the user's net worth goal",
+        "operationId": "SavingGoalService_SetNetWorthGoal",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetNetWorthGoalResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1SetNetWorthGoalRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SavingGoalService"
+        ]
+      }
+    },
+    "/api/v1/net-worth-goal/progress": {
+      "get": {
+        "summary": "Get progress for the net worth goal",
+        "operationId": "SavingGoalService_GetNetWorthGoalProgress",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetNetWorthGoalProgressResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "SavingGoalService"
+        ]
+      }
+    },
+    "/api/v1/reports/budget-tracking": {
+      "get": {
+        "summary": "Get budget tracking report",
+        "operationId": "ReportService_GetBudgetTrackingReport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetBudgetTrackingReportResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "periodType",
+            "description": "defaults to monthly",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "PERIOD_TYPE_UNSPECIFIED",
+              "PERIOD_TYPE_DAILY",
+              "PERIOD_TYPE_WEEKLY",
+              "PERIOD_TYPE_MONTHLY",
+              "PERIOD_TYPE_YEARLY"
+            ],
+            "default": "PERIOD_TYPE_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "ReportService"
+        ]
+      }
+    },
+    "/api/v1/reports/goals": {
+      "get": {
+        "summary": "Get saving goals report",
+        "operationId": "ReportService_GetSavingGoalsReport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetSavingGoalsReportResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "includeCompleted",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "ReportService"
+        ]
+      }
+    },
+    "/api/v1/reports/monthly": {
+      "get": {
+        "summary": "Get monthly spending report",
+        "operationId": "ReportService_GetMonthlyReport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetMonthlyReportResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "month",
+            "description": "Format: YYYY-MM, empty for current month",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ReportService"
+        ]
+      }
+    },
+    "/api/v1/reports/net-worth": {
+      "get": {
+        "summary": "Get net worth report",
+        "operationId": "ReportService_GetNetWorthReport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetNetWorthReportResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "asOf",
+            "description": "Optional, defaults to now",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          }
+        ],
+        "tags": [
+          "ReportService"
+        ]
+      }
+    },
+    "/api/v1/reports/net-worth-trend": {
+      "get": {
+        "summary": "Get net worth trend over time",
+        "operationId": "ReportService_GetNetWorthTrend",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetNetWorthTrendResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "months",
+            "description": "Number of months (default: 12)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "ReportService"
+        ]
+      }
+    },
+    "/api/v1/reports/spending-trend": {
+      "get": {
+        "summary": "Get spending trend over time",
+        "operationId": "ReportService_GetSpendingTrend",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetSpendingTrendResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "months",
+            "description": "Number of months to include (default: 6)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "categoryId",
+            "description": "Optional: filter by category",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ReportService"
+        ]
+      }
+    },
+    "/api/v1/reports/weekly": {
+      "get": {
+        "summary": "Get weekly spending report",
+        "operationId": "ReportService_GetWeeklyReport",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetWeeklyReportResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "weekOf",
+            "description": "Any date within the desired week",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          }
+        ],
+        "tags": [
+          "ReportService"
+        ]
+      }
+    },
+    "/api/v1/transactions": {
+      "get": {
+        "summary": "List transactions with filters",
+        "operationId": "TransactionService_ListTransactions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListTransactionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pagination.page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pagination.pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "dateRange.startDate",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "dateRange.endDate",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "TRANSACTION_TYPE_UNSPECIFIED",
+              "TRANSACTION_TYPE_EXPENSE",
+              "TRANSACTION_TYPE_INCOME"
+            ],
+            "default": "TRANSACTION_TYPE_UNSPECIFIED"
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TransactionService"
+        ]
+      },
+      "post": {
+        "summary": "Create a new transaction",
+        "operationId": "TransactionService_CreateTransaction",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateTransactionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateTransactionRequest"
+            }
+          }
+        ],
+        "tags": [
+          "TransactionService"
+        ]
+      }
+    },
+    "/api/v1/transactions/{id}": {
+      "get": {
+        "summary": "Get a transaction by ID",
+        "operationId": "TransactionService_GetTransaction",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetTransactionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TransactionService"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a transaction",
+        "operationId": "TransactionService_DeleteTransaction",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteTransactionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TransactionService"
+        ]
+      },
+      "patch": {
+        "summary": "Update a transaction",
+        "operationId": "TransactionService_UpdateTransaction",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateTransactionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TransactionServiceUpdateTransactionBody"
+            }
+          }
+        ],
+        "tags": [
+          "TransactionService"
+        ]
+      }
+    },
+    "/api/v1/users/me": {
+      "get": {
+        "summary": "Get current user profile",
+        "operationId": "UserService_GetProfile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetProfileResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "UserService"
+        ]
+      },
+      "patch": {
+        "summary": "Update user profile",
+        "operationId": "UserService_UpdateProfile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateProfileResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1UpdateProfileRequest"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/users/me/password": {
+      "post": {
+        "summary": "Change password",
+        "operationId": "UserService_ChangePassword",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ChangePasswordResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ChangePasswordRequest"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "AssetServiceRecordAssetSnapshotBody": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "RecordAssetSnapshotRequest"
+    },
+    "AssetServiceUpdateAssetBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "currentValue": {
+          "type": "string"
+        },
+        "customFields": {
+          "type": "object"
+        }
+      },
+      "title": "UpdateAssetRequest"
+    },
+    "BudgetServiceUpdateBudgetBody": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "periodType": {
+          "$ref": "#/definitions/v1PeriodType"
+        },
+        "startDate": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "UpdateBudgetRequest"
+    },
+    "CategoryServiceUpdateCategoryBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        }
+      },
+      "title": "UpdateCategoryRequest"
+    },
+    "SavingGoalServiceUpdateGoalProgressBody": {
+      "type": "object",
+      "properties": {
+        "currentAmount": {
+          "$ref": "#/definitions/v1Money"
+        }
+      },
+      "title": "UpdateGoalProgressRequest - manually update current amount"
+    },
+    "SavingGoalServiceUpdateSavingGoalBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "targetAmount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "deadline": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "linkedAssetIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "title": "UpdateSavingGoalRequest"
+    },
+    "TransactionServiceUpdateTransactionBody": {
+      "type": "object",
+      "properties": {
+        "categoryId": {
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "transactionDate": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "description": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "title": "UpdateTransactionRequest"
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "protobufNullValue": {
+      "type": "string",
+      "enum": [
+        "NULL_VALUE"
+      ],
+      "default": "NULL_VALUE",
+      "description": "`NullValue` is a singleton enumeration to represent the null value for the\n`Value` type union.\n\nThe JSON representation for `NullValue` is JSON `null`.\n\n - NULL_VALUE: Null value."
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1Asset": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "assetTypeId": {
+          "type": "string"
+        },
+        "assetTypeName": {
+          "type": "string"
+        },
+        "category": {
+          "$ref": "#/definitions/v1AssetCategory"
+        },
+        "name": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "currentValue": {
+          "type": "string",
+          "title": "Decimal string"
+        },
+        "isLiability": {
+          "type": "boolean"
+        },
+        "customFields": {
+          "type": "object",
+          "title": "Flexible custom data"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "Asset represents a user's asset or liability"
+    },
+    "v1AssetCategory": {
+      "type": "string",
+      "enum": [
+        "ASSET_CATEGORY_UNSPECIFIED",
+        "ASSET_CATEGORY_CASH",
+        "ASSET_CATEGORY_BANK",
+        "ASSET_CATEGORY_INVESTMENT",
+        "ASSET_CATEGORY_RETIREMENT",
+        "ASSET_CATEGORY_PROPERTY",
+        "ASSET_CATEGORY_LIABILITY",
+        "ASSET_CATEGORY_CUSTOM"
+      ],
+      "default": "ASSET_CATEGORY_UNSPECIFIED",
+      "description": "- ASSET_CATEGORY_RETIREMENT: CPF, 401k, etc.",
+      "title": "AssetCategory for grouping asset types"
+    },
+    "v1AssetCategorySummary": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "totalValue": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "percentageOfTotal": {
+          "type": "number",
+          "format": "double"
+        },
+        "assetCount": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1AssetSnapshot": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "AssetSnapshot for historical tracking"
+    },
+    "v1AssetType": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "category": {
+          "$ref": "#/definitions/v1AssetCategory"
+        }
+      },
+      "title": "AssetType represents a type of asset"
+    },
+    "v1Budget": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "categoryId": {
+          "type": "string"
+        },
+        "categoryName": {
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "periodType": {
+          "$ref": "#/definitions/v1PeriodType"
+        },
+        "startDate": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "Budget represents a spending limit for a category"
+    },
+    "v1BudgetStatus": {
+      "type": "object",
+      "properties": {
+        "budget": {
+          "$ref": "#/definitions/v1Budget"
+        },
+        "spent": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "remaining": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "percentageUsed": {
+          "type": "number",
+          "format": "double"
+        },
+        "isOverBudget": {
+          "type": "boolean"
+        }
+      },
+      "title": "BudgetStatus shows current spending vs budget"
+    },
+    "v1BudgetSummary": {
+      "type": "object",
+      "properties": {
+        "categoryId": {
+          "type": "string"
+        },
+        "categoryName": {
+          "type": "string"
+        },
+        "budgeted": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "spent": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "remaining": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "percentageUsed": {
+          "type": "number",
+          "format": "double"
+        },
+        "isOverBudget": {
+          "type": "boolean"
+        }
+      },
+      "title": "BudgetSummary for reports"
+    },
+    "v1BudgetTrackingReport": {
+      "type": "object",
+      "properties": {
+        "periodType": {
+          "$ref": "#/definitions/v1PeriodType"
+        },
+        "periodStart": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "periodEnd": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "daysElapsed": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "daysRemaining": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "periodProgressPercentage": {
+          "type": "number",
+          "format": "double",
+          "title": "How far into the period"
+        },
+        "totalBudgeted": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "totalSpent": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "expectedSpent": {
+          "$ref": "#/definitions/v1Money",
+          "title": "Based on period progress"
+        },
+        "budgetUtilization": {
+          "type": "number",
+          "format": "double",
+          "title": "Actual vs expected"
+        },
+        "isOnTrack": {
+          "type": "boolean"
+        },
+        "statusMessage": {
+          "type": "string"
+        },
+        "projectedEndOfPeriodSpending": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "categoryDetails": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1BudgetSummary"
+          }
+        }
+      },
+      "title": "BudgetTrackingReport - Are we on track?"
+    },
+    "v1CPFAccount": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "oaBalance": {
+          "type": "string",
+          "title": "Ordinary Account"
+        },
+        "saBalance": {
+          "type": "string",
+          "title": "Special Account"
+        },
+        "maBalance": {
+          "type": "string",
+          "title": "Medisave Account"
+        },
+        "totalBalance": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "CPFAccount represents a user's CPF account balances"
+    },
+    "v1CPFContribution": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "contributionMonth": {
+          "type": "string",
+          "title": "Format: YYYY-MM"
+        },
+        "employeeAmount": {
+          "type": "string"
+        },
+        "employerAmount": {
+          "type": "string"
+        },
+        "totalAmount": {
+          "type": "string"
+        },
+        "oaAmount": {
+          "type": "string"
+        },
+        "saAmount": {
+          "type": "string"
+        },
+        "maAmount": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "CPFContribution represents a monthly CPF contribution"
+    },
+    "v1CPFProjection": {
+      "type": "object",
+      "properties": {
+        "targetAge": {
+          "type": "string"
+        },
+        "projectedOa": {
+          "type": "string"
+        },
+        "projectedSa": {
+          "type": "string"
+        },
+        "projectedMa": {
+          "type": "string"
+        },
+        "projectedTotal": {
+          "type": "string"
+        },
+        "oaInterestRate": {
+          "type": "string",
+          "title": "e.g., \"2.5%\""
+        },
+        "saMaInterestRate": {
+          "type": "string",
+          "title": "e.g., \"4.0%\""
+        }
+      },
+      "title": "CPFProjection for future value estimation"
+    },
+    "v1Category": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/v1TransactionType",
+          "title": "expense or income"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "isSystem": {
+          "type": "boolean",
+          "title": "System categories cannot be deleted"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "Category represents a spending/income category"
+    },
+    "v1ChangePasswordRequest": {
+      "type": "object",
+      "properties": {
+        "currentPassword": {
+          "type": "string"
+        },
+        "newPassword": {
+          "type": "string"
+        }
+      },
+      "title": "ChangePasswordRequest"
+    },
+    "v1ChangePasswordResponse": {
+      "type": "object"
+    },
+    "v1ConvertCurrencyResponse": {
+      "type": "object",
+      "properties": {
+        "originalAmount": {
+          "type": "string"
+        },
+        "convertedAmount": {
+          "type": "string"
+        },
+        "fromCurrency": {
+          "type": "string"
+        },
+        "toCurrency": {
+          "type": "string"
+        },
+        "rate": {
+          "type": "string"
+        }
+      }
+    },
+    "v1CreateAssetRequest": {
+      "type": "object",
+      "properties": {
+        "assetTypeId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "currentValue": {
+          "type": "string"
+        },
+        "isLiability": {
+          "type": "boolean"
+        },
+        "customFields": {
+          "type": "object"
+        }
+      },
+      "title": "CreateAssetRequest"
+    },
+    "v1CreateAssetResponse": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "$ref": "#/definitions/v1Asset"
+        }
+      }
+    },
+    "v1CreateBudgetRequest": {
+      "type": "object",
+      "properties": {
+        "categoryId": {
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "periodType": {
+          "$ref": "#/definitions/v1PeriodType"
+        },
+        "startDate": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "CreateBudgetRequest"
+    },
+    "v1CreateBudgetResponse": {
+      "type": "object",
+      "properties": {
+        "budget": {
+          "$ref": "#/definitions/v1Budget"
+        }
+      }
+    },
+    "v1CreateCategoryRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/v1TransactionType"
+        },
+        "icon": {
+          "type": "string"
+        }
+      },
+      "title": "CreateCategoryRequest"
+    },
+    "v1CreateCategoryResponse": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "$ref": "#/definitions/v1Category"
+        }
+      }
+    },
+    "v1CreateSavingGoalRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "targetAmount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "deadline": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "linkedAssetIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "title": "CreateSavingGoalRequest"
+    },
+    "v1CreateSavingGoalResponse": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "$ref": "#/definitions/v1SavingGoal"
+        }
+      }
+    },
+    "v1CreateTransactionRequest": {
+      "type": "object",
+      "properties": {
+        "categoryId": {
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "type": {
+          "$ref": "#/definitions/v1TransactionType"
+        },
+        "transactionDate": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "description": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "title": "CreateTransactionRequest"
+    },
+    "v1CreateTransactionResponse": {
+      "type": "object",
+      "properties": {
+        "transaction": {
+          "$ref": "#/definitions/v1Transaction"
+        }
+      }
+    },
+    "v1Currency": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "title": "ISO 4217 code"
+        },
+        "name": {
+          "type": "string"
+        },
+        "symbol": {
+          "type": "string"
+        },
+        "isActive": {
+          "type": "boolean"
+        }
+      },
+      "title": "Currency represents a supported currency"
+    },
+    "v1DateRange": {
+      "type": "object",
+      "properties": {
+        "startDate": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endDate": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "Date range for filtering"
+    },
+    "v1DeleteAssetResponse": {
+      "type": "object"
+    },
+    "v1DeleteBudgetResponse": {
+      "type": "object"
+    },
+    "v1DeleteCPFContributionResponse": {
+      "type": "object"
+    },
+    "v1DeleteCategoryResponse": {
+      "type": "object"
+    },
+    "v1DeleteNetWorthGoalResponse": {
+      "type": "object"
+    },
+    "v1DeleteSavingGoalResponse": {
+      "type": "object"
+    },
+    "v1DeleteTransactionResponse": {
+      "type": "object"
+    },
+    "v1ExchangeRate": {
+      "type": "object",
+      "properties": {
+        "fromCurrency": {
+          "type": "string"
+        },
+        "toCurrency": {
+          "type": "string"
+        },
+        "rate": {
+          "type": "string"
+        },
+        "fetchedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "ExchangeRate between two currencies"
+    },
+    "v1GetAllBudgetStatusesResponse": {
+      "type": "object",
+      "properties": {
+        "statuses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1BudgetStatus"
+          }
+        },
+        "totalBudgeted": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "totalSpent": {
+          "$ref": "#/definitions/v1Money"
+        }
+      }
+    },
+    "v1GetAllGoalsProgressResponse": {
+      "type": "object",
+      "properties": {
+        "progress": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1GoalProgress"
+          }
+        }
+      }
+    },
+    "v1GetAssetHistoryResponse": {
+      "type": "object",
+      "properties": {
+        "snapshots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AssetSnapshot"
+          }
+        }
+      }
+    },
+    "v1GetAssetResponse": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "$ref": "#/definitions/v1Asset"
+        }
+      }
+    },
+    "v1GetBudgetResponse": {
+      "type": "object",
+      "properties": {
+        "budget": {
+          "$ref": "#/definitions/v1Budget"
+        }
+      }
+    },
+    "v1GetBudgetStatusResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/v1BudgetStatus"
+        }
+      }
+    },
+    "v1GetBudgetTrackingReportResponse": {
+      "type": "object",
+      "properties": {
+        "report": {
+          "$ref": "#/definitions/v1BudgetTrackingReport"
+        }
+      }
+    },
+    "v1GetCPFAccountResponse": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/definitions/v1CPFAccount"
+        }
+      }
+    },
+    "v1GetCPFProjectionResponse": {
+      "type": "object",
+      "properties": {
+        "projection": {
+          "$ref": "#/definitions/v1CPFProjection"
+        }
+      }
+    },
+    "v1GetCategoryResponse": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "$ref": "#/definitions/v1Category"
+        }
+      }
+    },
+    "v1GetExchangeRateResponse": {
+      "type": "object",
+      "properties": {
+        "rate": {
+          "$ref": "#/definitions/v1ExchangeRate"
+        }
+      }
+    },
+    "v1GetGoalProgressResponse": {
+      "type": "object",
+      "properties": {
+        "progress": {
+          "$ref": "#/definitions/v1GoalProgress"
+        }
+      }
+    },
+    "v1GetMonthlyReportResponse": {
+      "type": "object",
+      "properties": {
+        "report": {
+          "$ref": "#/definitions/v1MonthlyReport"
+        }
+      }
+    },
+    "v1GetNetWorthGoalProgressResponse": {
+      "type": "object",
+      "properties": {
+        "progress": {
+          "$ref": "#/definitions/v1NetWorthGoalProgress",
+          "title": "null if no goal set"
+        }
+      }
+    },
+    "v1GetNetWorthGoalResponse": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "$ref": "#/definitions/v1NetWorthGoal",
+          "title": "null if no goal set"
+        }
+      }
+    },
+    "v1GetNetWorthReportResponse": {
+      "type": "object",
+      "properties": {
+        "report": {
+          "$ref": "#/definitions/v1NetWorthReport"
+        }
+      }
+    },
+    "v1GetNetWorthTrendResponse": {
+      "type": "object",
+      "properties": {
+        "trend": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1NetWorthTrendPoint"
+          }
+        },
+        "totalChange": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "totalChangePercentage": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "v1GetProfileResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/v1User"
+        }
+      }
+    },
+    "v1GetSavingGoalResponse": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "$ref": "#/definitions/v1SavingGoal"
+        }
+      }
+    },
+    "v1GetSavingGoalsReportResponse": {
+      "type": "object",
+      "properties": {
+        "goals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SavingGoalReport"
+          }
+        },
+        "totalGoals": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "onTrackCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "behindScheduleCount": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1GetSpendingTrendResponse": {
+      "type": "object",
+      "properties": {
+        "trend": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SpendingTrendPoint"
+          }
+        },
+        "average": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "min": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "max": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "trendDirection": {
+          "type": "string",
+          "title": "\"increasing\", \"decreasing\", \"stable\""
+        }
+      }
+    },
+    "v1GetTransactionResponse": {
+      "type": "object",
+      "properties": {
+        "transaction": {
+          "$ref": "#/definitions/v1Transaction"
+        }
+      }
+    },
+    "v1GetWeeklyReportResponse": {
+      "type": "object",
+      "properties": {
+        "report": {
+          "$ref": "#/definitions/v1WeeklyReport"
+        }
+      }
+    },
+    "v1GoalProgress": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "$ref": "#/definitions/v1SavingGoal"
+        },
+        "percentageComplete": {
+          "type": "number",
+          "format": "double"
+        },
+        "amountRemaining": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "daysRemaining": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "requiredMonthlySaving": {
+          "$ref": "#/definitions/v1Money",
+          "title": "To reach goal on time"
+        },
+        "isOnTrack": {
+          "type": "boolean"
+        },
+        "statusMessage": {
+          "type": "string",
+          "title": "e.g., \"On track\", \"Behind schedule\""
+        }
+      },
+      "title": "GoalProgress shows progress toward a saving goal"
+    },
+    "v1ListAssetTypesResponse": {
+      "type": "object",
+      "properties": {
+        "assetTypes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AssetType"
+          }
+        }
+      }
+    },
+    "v1ListAssetsResponse": {
+      "type": "object",
+      "properties": {
+        "assets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Asset"
+          }
+        },
+        "totalAssetsValue": {
+          "type": "string"
+        },
+        "totalLiabilitiesValue": {
+          "type": "string"
+        },
+        "netWorth": {
+          "type": "string"
+        },
+        "baseCurrency": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ListBudgetsResponse": {
+      "type": "object",
+      "properties": {
+        "budgets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Budget"
+          }
+        }
+      }
+    },
+    "v1ListCPFContributionsResponse": {
+      "type": "object",
+      "properties": {
+        "contributions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CPFContribution"
+          }
+        },
+        "totalEmployee": {
+          "type": "string"
+        },
+        "totalEmployer": {
+          "type": "string"
+        },
+        "totalContributions": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ListCategoriesResponse": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Category"
+          }
+        }
+      }
+    },
+    "v1ListCurrenciesResponse": {
+      "type": "object",
+      "properties": {
+        "currencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Currency"
+          }
+        }
+      }
+    },
+    "v1ListSavingGoalsResponse": {
+      "type": "object",
+      "properties": {
+        "goals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SavingGoal"
+          }
+        }
+      }
+    },
+    "v1ListTransactionsResponse": {
+      "type": "object",
+      "properties": {
+        "transactions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Transaction"
+          }
+        },
+        "pagination": {
+          "$ref": "#/definitions/v1PaginationResponse"
+        }
+      }
+    },
+    "v1LoginRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
+      },
+      "title": "LoginRequest for user authentication"
+    },
+    "v1LoginResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/v1User"
+        },
+        "accessToken": {
+          "type": "string"
+        },
+        "refreshToken": {
+          "type": "string"
+        }
+      }
+    },
+    "v1LogoutRequest": {
+      "type": "object",
+      "properties": {
+        "refreshToken": {
+          "type": "string"
+        }
+      },
+      "title": "LogoutRequest to invalidate refresh token"
+    },
+    "v1LogoutResponse": {
+      "type": "object"
+    },
+    "v1Money": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "string",
+          "title": "Decimal string to avoid floating point issues"
+        },
+        "currency": {
+          "type": "string",
+          "title": "ISO 4217 currency code (e.g., \"SGD\", \"USD\")"
+        }
+      },
+      "title": "Money represents a monetary amount with currency"
+    },
+    "v1MonthlyReport": {
+      "type": "object",
+      "properties": {
+        "month": {
+          "type": "string",
+          "title": "Format: YYYY-MM"
+        },
+        "totalIncome": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "totalExpenses": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "netSavings": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "savingsRate": {
+          "type": "number",
+          "format": "double",
+          "title": "Percentage of income saved"
+        },
+        "spendingByCategory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SpendingByCategory"
+          }
+        },
+        "budgetSummaries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1BudgetSummary"
+          }
+        },
+        "dailyAverageSpending": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "incomeChange": {
+          "$ref": "#/definitions/v1Money",
+          "title": "Comparison with previous month"
+        },
+        "expenseChange": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "incomeChangePercentage": {
+          "type": "number",
+          "format": "double"
+        },
+        "expenseChangePercentage": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "title": "MonthlyReport"
+    },
+    "v1NetWorthGoal": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "title": "e.g., \"House Down Payment\", \"Retirement\""
+        },
+        "targetAmount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "NetWorthGoal represents a user's target net worth milestone"
+    },
+    "v1NetWorthGoalProgress": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "$ref": "#/definitions/v1NetWorthGoal"
+        },
+        "currentNetWorth": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "percentageComplete": {
+          "type": "number",
+          "format": "double"
+        },
+        "amountRemaining": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "estimatedMonthsToGoal": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Based on monthly savings rate"
+        }
+      },
+      "title": "NetWorthGoalProgress shows progress toward the net worth goal"
+    },
+    "v1NetWorthReport": {
+      "type": "object",
+      "properties": {
+        "asOf": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "totalAssets": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "totalLiabilities": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "netWorth": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "baseCurrency": {
+          "type": "string"
+        },
+        "assetBreakdown": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AssetCategorySummary"
+          },
+          "title": "Breakdown by category"
+        },
+        "netWorthChange": {
+          "$ref": "#/definitions/v1Money",
+          "title": "Change from previous period"
+        },
+        "netWorthChangePercentage": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "title": "NetWorthReport"
+    },
+    "v1NetWorthTrendPoint": {
+      "type": "object",
+      "properties": {
+        "month": {
+          "type": "string"
+        },
+        "netWorth": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "assets": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "liabilities": {
+          "$ref": "#/definitions/v1Money"
+        }
+      }
+    },
+    "v1PaginationRequest": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "pageSize": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "title": "Pagination request parameters"
+    },
+    "v1PaginationResponse": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "pageSize": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "totalCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "totalPages": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "title": "Pagination response metadata"
+    },
+    "v1PeriodType": {
+      "type": "string",
+      "enum": [
+        "PERIOD_TYPE_UNSPECIFIED",
+        "PERIOD_TYPE_DAILY",
+        "PERIOD_TYPE_WEEKLY",
+        "PERIOD_TYPE_MONTHLY",
+        "PERIOD_TYPE_YEARLY"
+      ],
+      "default": "PERIOD_TYPE_UNSPECIFIED",
+      "title": "Period type for budgets"
+    },
+    "v1RecordAssetSnapshotResponse": {
+      "type": "object",
+      "properties": {
+        "snapshot": {
+          "$ref": "#/definitions/v1AssetSnapshot"
+        }
+      }
+    },
+    "v1RecordCPFContributionRequest": {
+      "type": "object",
+      "properties": {
+        "contributionMonth": {
+          "type": "string",
+          "title": "Format: YYYY-MM"
+        },
+        "employeeAmount": {
+          "type": "string"
+        },
+        "employerAmount": {
+          "type": "string"
+        },
+        "oaAmount": {
+          "type": "string"
+        },
+        "saAmount": {
+          "type": "string"
+        },
+        "maAmount": {
+          "type": "string"
+        }
+      },
+      "title": "RecordCPFContributionRequest"
+    },
+    "v1RecordCPFContributionResponse": {
+      "type": "object",
+      "properties": {
+        "contribution": {
+          "$ref": "#/definitions/v1CPFContribution"
+        }
+      }
+    },
+    "v1RefreshTokenRequest": {
+      "type": "object",
+      "properties": {
+        "refreshToken": {
+          "type": "string"
+        }
+      },
+      "title": "RefreshTokenRequest to get new access token"
+    },
+    "v1RefreshTokenResponse": {
+      "type": "object",
+      "properties": {
+        "accessToken": {
+          "type": "string"
+        },
+        "refreshToken": {
+          "type": "string"
+        }
+      }
+    },
+    "v1RegisterRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "baseCurrency": {
+          "type": "string",
+          "title": "Default: SGD"
+        }
+      },
+      "title": "RegisterRequest for user registration"
+    },
+    "v1RegisterResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/v1User"
+        },
+        "accessToken": {
+          "type": "string"
+        },
+        "refreshToken": {
+          "type": "string"
+        }
+      }
+    },
+    "v1SavingGoal": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "targetAmount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "currentAmount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "deadline": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "linkedAssetIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "SavingGoal represents a savings target"
+    },
+    "v1SavingGoalReport": {
+      "type": "object",
+      "properties": {
+        "goalId": {
+          "type": "string"
+        },
+        "goalName": {
+          "type": "string"
+        },
+        "targetAmount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "currentAmount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "percentageComplete": {
+          "type": "number",
+          "format": "double"
+        },
+        "deadline": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "daysRemaining": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "requiredMonthlySaving": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "currentMonthlySaving": {
+          "$ref": "#/definitions/v1Money",
+          "title": "Based on recent history"
+        },
+        "isOnTrack": {
+          "type": "boolean"
+        },
+        "projectedCompletion": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "SavingGoalReport"
+    },
+    "v1SetNetWorthGoalRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "targetAmount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "title": "SetNetWorthGoalRequest - create or update the net worth goal"
+    },
+    "v1SetNetWorthGoalResponse": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "$ref": "#/definitions/v1NetWorthGoal"
+        }
+      }
+    },
+    "v1SpendingByCategory": {
+      "type": "object",
+      "properties": {
+        "categoryId": {
+          "type": "string"
+        },
+        "categoryName": {
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "percentage": {
+          "type": "number",
+          "format": "double"
+        },
+        "transactionCount": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "title": "SpendingByCategory for reports"
+    },
+    "v1SpendingTrendPoint": {
+      "type": "object",
+      "properties": {
+        "month": {
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/definitions/v1Money"
+        }
+      }
+    },
+    "v1SyncExchangeRatesRequest": {
+      "type": "object",
+      "properties": {
+        "baseCurrency": {
+          "type": "string",
+          "title": "Optional, defaults to user's base currency"
+        }
+      },
+      "title": "SyncExchangeRatesRequest - triggers a manual sync"
+    },
+    "v1SyncExchangeRatesResponse": {
+      "type": "object",
+      "properties": {
+        "ratesUpdated": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "syncedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1Transaction": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "categoryId": {
+          "type": "string"
+        },
+        "categoryName": {
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "type": {
+          "$ref": "#/definitions/v1TransactionType"
+        },
+        "transactionDate": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "description": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "Transaction represents a spending or income record"
+    },
+    "v1TransactionType": {
+      "type": "string",
+      "enum": [
+        "TRANSACTION_TYPE_UNSPECIFIED",
+        "TRANSACTION_TYPE_EXPENSE",
+        "TRANSACTION_TYPE_INCOME"
+      ],
+      "default": "TRANSACTION_TYPE_UNSPECIFIED",
+      "title": "Transaction type"
+    },
+    "v1UpdateAssetResponse": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "$ref": "#/definitions/v1Asset"
+        }
+      }
+    },
+    "v1UpdateBudgetResponse": {
+      "type": "object",
+      "properties": {
+        "budget": {
+          "$ref": "#/definitions/v1Budget"
+        }
+      }
+    },
+    "v1UpdateCPFBalancesRequest": {
+      "type": "object",
+      "properties": {
+        "oaBalance": {
+          "type": "string"
+        },
+        "saBalance": {
+          "type": "string"
+        },
+        "maBalance": {
+          "type": "string"
+        }
+      },
+      "title": "UpdateCPFBalancesRequest"
+    },
+    "v1UpdateCPFBalancesResponse": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/definitions/v1CPFAccount"
+        }
+      }
+    },
+    "v1UpdateCategoryResponse": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "$ref": "#/definitions/v1Category"
+        }
+      }
+    },
+    "v1UpdateGoalProgressResponse": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "$ref": "#/definitions/v1SavingGoal"
+        }
+      }
+    },
+    "v1UpdateProfileRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "baseCurrency": {
+          "type": "string"
+        }
+      },
+      "title": "UpdateProfileRequest"
+    },
+    "v1UpdateProfileResponse": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "$ref": "#/definitions/v1User"
+        }
+      }
+    },
+    "v1UpdateSavingGoalResponse": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "$ref": "#/definitions/v1SavingGoal"
+        }
+      }
+    },
+    "v1UpdateTransactionResponse": {
+      "type": "object",
+      "properties": {
+        "transaction": {
+          "$ref": "#/definitions/v1Transaction"
+        }
+      }
+    },
+    "v1User": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "baseCurrency": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "User represents a user account"
+    },
+    "v1WeeklyReport": {
+      "type": "object",
+      "properties": {
+        "weekStart": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "weekEnd": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "totalIncome": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "totalExpenses": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "netSavings": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "spendingByCategory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SpendingByCategory"
+          }
+        },
+        "budgetSummaries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1BudgetSummary"
+          }
+        },
+        "dailyAverageSpending": {
+          "$ref": "#/definitions/v1Money"
+        }
+      },
+      "title": "WeeklyReport"
+    }
+  }
+}

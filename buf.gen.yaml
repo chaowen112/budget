@@ -1,0 +1,24 @@
+version: v1
+managed:
+  enabled: true
+  go_package_prefix:
+    default: github.com/chaowen/budget/gen
+    except:
+      - buf.build/googleapis/googleapis
+plugins:
+  - plugin: buf.build/protocolbuffers/go
+    out: gen
+    opt: paths=source_relative
+  - plugin: buf.build/grpc/go
+    out: gen
+    opt: paths=source_relative
+  - plugin: buf.build/grpc-ecosystem/gateway
+    out: gen
+    opt:
+      - paths=source_relative
+      - generate_unbound_methods=true
+  - plugin: buf.build/grpc-ecosystem/openapiv2
+    out: api/openapi
+    opt:
+      - allow_merge=true
+      - merge_file_name=budget

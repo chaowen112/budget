@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package budget.v1;
+
+option go_package = "github.com/chaowen/budget/gen/budget/v1;budgetv1";
+
+import "google/protobuf/timestamp.proto";
+
+// Money represents a monetary amount with currency
+message Money {
+  string amount = 1;  // Decimal string to avoid floating point issues
+  string currency = 2;  // ISO 4217 currency code (e.g., "SGD", "USD")
+}
+
+// Pagination request parameters
+message PaginationRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+// Pagination response metadata
+message PaginationResponse {
+  int32 page = 1;
+  int32 page_size = 2;
+  int32 total_count = 3;
+  int32 total_pages = 4;
+}
+
+// Date range for filtering
+message DateRange {
+  google.protobuf.Timestamp start_date = 1;
+  google.protobuf.Timestamp end_date = 2;
+}
+
+// Period type for budgets
+enum PeriodType {
+  PERIOD_TYPE_UNSPECIFIED = 0;
+  PERIOD_TYPE_DAILY = 1;
+  PERIOD_TYPE_WEEKLY = 2;
+  PERIOD_TYPE_MONTHLY = 3;
+  PERIOD_TYPE_YEARLY = 4;
+}
+
+// Transaction type
+enum TransactionType {
+  TRANSACTION_TYPE_UNSPECIFIED = 0;
+  TRANSACTION_TYPE_EXPENSE = 1;
+  TRANSACTION_TYPE_INCOME = 2;
+}

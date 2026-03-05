@@ -1,0 +1,201 @@
+syntax = "proto3";
+
+package budget.v1;
+
+option go_package = "github.com/chaowen/budget/gen/budget/v1;budgetv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "budget/v1/common.proto";
+
+// AssetCategory for grouping asset types
+enum AssetCategory {
+  ASSET_CATEGORY_UNSPECIFIED = 0;
+  ASSET_CATEGORY_CASH = 1;
+  ASSET_CATEGORY_BANK = 2;
+  ASSET_CATEGORY_INVESTMENT = 3;
+  ASSET_CATEGORY_RETIREMENT = 4;  // CPF, 401k, etc.
+  ASSET_CATEGORY_PROPERTY = 5;
+  ASSET_CATEGORY_LIABILITY = 6;
+  ASSET_CATEGORY_CUSTOM = 7;
+}
+
+// AssetType represents a type of asset
+message AssetType {
+  string id = 1;
+  string name = 2;
+  AssetCategory category = 3;
+}
+
+// Asset represents a user's asset or liability
+message Asset {
+  string id = 1;
+  string asset_type_id = 2;
+  string asset_type_name = 3;
+  AssetCategory category = 4;
+  string name = 5;
+  string currency = 6;
+  string current_value = 7;  // Decimal string
+  bool is_liability = 8;
+  google.protobuf.Struct custom_fields = 9;  // Flexible custom data
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+// AssetSnapshot for historical tracking
+message AssetSnapshot {
+  string id = 1;
+  string asset_id = 2;
+  string value = 3;
+  google.protobuf.Timestamp recorded_at = 4;
+}
+
+// ListAssetTypesRequest
+message ListAssetTypesRequest {
+  AssetCategory category = 1;  // Optional filter
+}
+
+message ListAssetTypesResponse {
+  repeated AssetType asset_types = 1;
+}
+
+// CreateAssetRequest
+message CreateAssetRequest {
+  string asset_type_id = 1;
+  string name = 2;
+  string currency = 3;
+  string current_value = 4;
+  bool is_liability = 5;
+  google.protobuf.Struct custom_fields = 6;
+}
+
+message CreateAssetResponse {
+  Asset asset = 1;
+}
+
+// GetAssetRequest
+message GetAssetRequest {
+  string id = 1;
+}
+
+message GetAssetResponse {
+  Asset asset = 1;
+}
+
+// ListAssetsRequest
+message ListAssetsRequest {
+  AssetCategory category = 1;
+  bool include_liabilities = 2;
+  string currency = 3;
+}
+
+message ListAssetsResponse {
+  repeated Asset assets = 1;
+  string total_assets_value = 2;
+  string total_liabilities_value = 3;
+  string net_worth = 4;
+  string base_currency = 5;
+}
+
+// UpdateAssetRequest
+message UpdateAssetRequest {
+  string id = 1;
+  string name = 2;
+  string current_value = 3;
+  google.protobuf.Struct custom_fields = 4;
+}
+
+message UpdateAssetResponse {
+  Asset asset = 1;
+}
+
+// DeleteAssetRequest
+message DeleteAssetRequest {
+  string id = 1;
+}
+
+message DeleteAssetResponse {}
+
+// RecordAssetSnapshotRequest
+message RecordAssetSnapshotRequest {
+  string asset_id = 1;
+  string value = 2;
+  google.protobuf.Timestamp recorded_at = 3;
+}
+
+message RecordAssetSnapshotResponse {
+  AssetSnapshot snapshot = 1;
+}
+
+// GetAssetHistoryRequest
+message GetAssetHistoryRequest {
+  string asset_id = 1;
+  DateRange date_range = 2;
+}
+
+message GetAssetHistoryResponse {
+  repeated AssetSnapshot snapshots = 1;
+}
+
+// AssetService manages user assets and liabilities
+service AssetService {
+  // List available asset types
+  rpc ListAssetTypes(ListAssetTypesRequest) returns (ListAssetTypesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/asset-types"
+    };
+  }
+
+  // Create a new asset
+  rpc CreateAsset(CreateAssetRequest) returns (CreateAssetResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/assets"
+      body: "*"
+    };
+  }
+
+  // Get an asset by ID
+  rpc GetAsset(GetAssetRequest) returns (GetAssetResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/assets/{id}"
+    };
+  }
+
+  // List all assets
+  rpc ListAssets(ListAssetsRequest) returns (ListAssetsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/assets"
+    };
+  }
+
+  // Update an asset
+  rpc UpdateAsset(UpdateAssetRequest) returns (UpdateAssetResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/assets/{id}"
+      body: "*"
+    };
+  }
+
+  // Delete an asset
+  rpc DeleteAsset(DeleteAssetRequest) returns (DeleteAssetResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/assets/{id}"
+    };
+  }
+
+  // Record a value snapshot for historical tracking
+  rpc RecordAssetSnapshot(RecordAssetSnapshotRequest) returns (RecordAssetSnapshotResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/assets/{asset_id}/snapshots"
+      body: "*"
+    };
+  }
+
+  // Get asset value history
+  rpc GetAssetHistory(GetAssetHistoryRequest) returns (GetAssetHistoryResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/assets/{asset_id}/history"
+    };
+  }
+}

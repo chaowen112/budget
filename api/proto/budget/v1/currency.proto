@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package budget.v1;
+
+option go_package = "github.com/chaowen/budget/gen/budget/v1;budgetv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// Currency represents a supported currency
+message Currency {
+  string code = 1;  // ISO 4217 code
+  string name = 2;
+  string symbol = 3;
+  bool is_active = 4;
+}
+
+// ExchangeRate between two currencies
+message ExchangeRate {
+  string from_currency = 1;
+  string to_currency = 2;
+  string rate = 3;
+  google.protobuf.Timestamp fetched_at = 4;
+}
+
+// ListCurrenciesRequest
+message ListCurrenciesRequest {
+  bool active_only = 1;
+}
+
+message ListCurrenciesResponse {
+  repeated Currency currencies = 1;
+}
+
+// GetExchangeRateRequest
+message GetExchangeRateRequest {
+  string from_currency = 1;
+  string to_currency = 2;
+}
+
+message GetExchangeRateResponse {
+  ExchangeRate rate = 1;
+}
+
+// ConvertCurrencyRequest
+message ConvertCurrencyRequest {
+  string amount = 1;
+  string from_currency = 2;
+  string to_currency = 3;
+}
+
+message ConvertCurrencyResponse {
+  string original_amount = 1;
+  string converted_amount = 2;
+  string from_currency = 3;
+  string to_currency = 4;
+  string rate = 5;
+}
+
+// SyncExchangeRatesRequest - triggers a manual sync
+message SyncExchangeRatesRequest {
+  string base_currency = 1;  // Optional, defaults to user's base currency
+}
+
+message SyncExchangeRatesResponse {
+  int32 rates_updated = 1;
+  google.protobuf.Timestamp synced_at = 2;
+}
+
+// CurrencyService manages currencies and exchange rates
+service CurrencyService {
+  // List supported currencies
+  rpc ListCurrencies(ListCurrenciesRequest) returns (ListCurrenciesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/currencies"
+    };
+  }
+
+  // Get exchange rate between two currencies
+  rpc GetExchangeRate(GetExchangeRateRequest) returns (GetExchangeRateResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/currencies/rate"
+    };
+  }
+
+  // Convert an amount between currencies
+  rpc ConvertCurrency(ConvertCurrencyRequest) returns (ConvertCurrencyResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/currencies/convert"
+    };
+  }
+
+  // Sync exchange rates from external API
+  rpc SyncExchangeRates(SyncExchangeRatesRequest) returns (SyncExchangeRatesResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/currencies/sync"
+      body: "*"
+    };
+  }
+}

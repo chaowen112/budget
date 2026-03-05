@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package budget.v1;
+
+option go_package = "github.com/chaowen/budget/gen/budget/v1;budgetv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "budget/v1/common.proto";
+
+// Transaction represents a spending or income record
+message Transaction {
+  string id = 1;
+  string category_id = 2;
+  string category_name = 3;
+  Money amount = 4;
+  TransactionType type = 5;
+  google.protobuf.Timestamp transaction_date = 6;
+  string description = 7;
+  repeated string tags = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// CreateTransactionRequest
+message CreateTransactionRequest {
+  string category_id = 1;
+  Money amount = 2;
+  TransactionType type = 3;
+  google.protobuf.Timestamp transaction_date = 4;
+  string description = 5;
+  repeated string tags = 6;
+}
+
+message CreateTransactionResponse {
+  Transaction transaction = 1;
+}
+
+// GetTransactionRequest
+message GetTransactionRequest {
+  string id = 1;
+}
+
+message GetTransactionResponse {
+  Transaction transaction = 1;
+}
+
+// ListTransactionsRequest
+message ListTransactionsRequest {
+  PaginationRequest pagination = 1;
+  DateRange date_range = 2;
+  string category_id = 3;
+  TransactionType type = 4;
+  repeated string tags = 5;
+  string currency = 6;
+}
+
+message ListTransactionsResponse {
+  repeated Transaction transactions = 1;
+  PaginationResponse pagination = 2;
+}
+
+// UpdateTransactionRequest
+message UpdateTransactionRequest {
+  string id = 1;
+  string category_id = 2;
+  Money amount = 3;
+  google.protobuf.Timestamp transaction_date = 4;
+  string description = 5;
+  repeated string tags = 6;
+}
+
+message UpdateTransactionResponse {
+  Transaction transaction = 1;
+}
+
+// DeleteTransactionRequest
+message DeleteTransactionRequest {
+  string id = 1;
+}
+
+message DeleteTransactionResponse {}
+
+// TransactionService manages spending and income records
+service TransactionService {
+  // Create a new transaction
+  rpc CreateTransaction(CreateTransactionRequest) returns (CreateTransactionResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/transactions"
+      body: "*"
+    };
+  }
+
+  // Get a transaction by ID
+  rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/transactions/{id}"
+    };
+  }
+
+  // List transactions with filters
+  rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/transactions"
+    };
+  }
+
+  // Update a transaction
+  rpc UpdateTransaction(UpdateTransactionRequest) returns (UpdateTransactionResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/transactions/{id}"
+      body: "*"
+    };
+  }
+
+  // Delete a transaction
+  rpc DeleteTransaction(DeleteTransactionRequest) returns (DeleteTransactionResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/transactions/{id}"
+    };
+  }
+}

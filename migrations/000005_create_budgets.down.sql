@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS budgets;
+DROP TYPE IF EXISTS period_type;

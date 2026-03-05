@@ -1,0 +1,152 @@
+syntax = "proto3";
+
+package budget.v1;
+
+option go_package = "github.com/chaowen/budget/gen/budget/v1;budgetv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "budget/v1/common.proto";
+
+// Budget represents a spending limit for a category
+message Budget {
+  string id = 1;
+  string category_id = 2;
+  string category_name = 3;
+  Money amount = 4;
+  PeriodType period_type = 5;
+  google.protobuf.Timestamp start_date = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// BudgetStatus shows current spending vs budget
+message BudgetStatus {
+  Budget budget = 1;
+  Money spent = 2;
+  Money remaining = 3;
+  double percentage_used = 4;
+  bool is_over_budget = 5;
+}
+
+// CreateBudgetRequest
+message CreateBudgetRequest {
+  string category_id = 1;
+  Money amount = 2;
+  PeriodType period_type = 3;
+  google.protobuf.Timestamp start_date = 4;
+}
+
+message CreateBudgetResponse {
+  Budget budget = 1;
+}
+
+// GetBudgetRequest
+message GetBudgetRequest {
+  string id = 1;
+}
+
+message GetBudgetResponse {
+  Budget budget = 1;
+}
+
+// ListBudgetsRequest
+message ListBudgetsRequest {
+  PeriodType period_type = 1;  // Optional filter
+}
+
+message ListBudgetsResponse {
+  repeated Budget budgets = 1;
+}
+
+// UpdateBudgetRequest
+message UpdateBudgetRequest {
+  string id = 1;
+  Money amount = 2;
+  PeriodType period_type = 3;
+  google.protobuf.Timestamp start_date = 4;
+}
+
+message UpdateBudgetResponse {
+  Budget budget = 1;
+}
+
+// DeleteBudgetRequest
+message DeleteBudgetRequest {
+  string id = 1;
+}
+
+message DeleteBudgetResponse {}
+
+// GetBudgetStatusRequest
+message GetBudgetStatusRequest {
+  string budget_id = 1;
+}
+
+message GetBudgetStatusResponse {
+  BudgetStatus status = 1;
+}
+
+// GetAllBudgetStatusesRequest
+message GetAllBudgetStatusesRequest {
+  PeriodType period_type = 1;  // Optional filter
+}
+
+message GetAllBudgetStatusesResponse {
+  repeated BudgetStatus statuses = 1;
+  Money total_budgeted = 2;
+  Money total_spent = 3;
+}
+
+// BudgetService manages spending budgets
+service BudgetService {
+  // Create a new budget
+  rpc CreateBudget(CreateBudgetRequest) returns (CreateBudgetResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/budgets"
+      body: "*"
+    };
+  }
+
+  // Get a budget by ID
+  rpc GetBudget(GetBudgetRequest) returns (GetBudgetResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/budgets/{id}"
+    };
+  }
+
+  // List all budgets
+  rpc ListBudgets(ListBudgetsRequest) returns (ListBudgetsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/budgets"
+    };
+  }
+
+  // Update a budget
+  rpc UpdateBudget(UpdateBudgetRequest) returns (UpdateBudgetResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/budgets/{id}"
+      body: "*"
+    };
+  }
+
+  // Delete a budget
+  rpc DeleteBudget(DeleteBudgetRequest) returns (DeleteBudgetResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/budgets/{id}"
+    };
+  }
+
+  // Get status of a specific budget
+  rpc GetBudgetStatus(GetBudgetStatusRequest) returns (GetBudgetStatusResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/budgets/{budget_id}/status"
+    };
+  }
+
+  // Get status of all budgets
+  rpc GetAllBudgetStatuses(GetAllBudgetStatusesRequest) returns (GetAllBudgetStatusesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/budgets/status"
+    };
+  }
+}

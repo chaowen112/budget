@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package budget.v1;
+
+option go_package = "github.com/chaowen/budget/gen/budget/v1;budgetv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// User represents a user account
+message User {
+  string id = 1;
+  string email = 2;
+  string name = 3;
+  string base_currency = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+// RegisterRequest for user registration
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string name = 3;
+  string base_currency = 4;  // Default: SGD
+}
+
+message RegisterResponse {
+  User user = 1;
+  string access_token = 2;
+  string refresh_token = 3;
+}
+
+// LoginRequest for user authentication
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  User user = 1;
+  string access_token = 2;
+  string refresh_token = 3;
+}
+
+// RefreshTokenRequest to get new access token
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message RefreshTokenResponse {
+  string access_token = 2;
+  string refresh_token = 3;
+}
+
+// GetProfileRequest - empty, uses auth context
+message GetProfileRequest {}
+
+message GetProfileResponse {
+  User user = 1;
+}
+
+// UpdateProfileRequest
+message UpdateProfileRequest {
+  string name = 1;
+  string base_currency = 2;
+}
+
+message UpdateProfileResponse {
+  User user = 1;
+}
+
+// ChangePasswordRequest
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+
+message ChangePasswordResponse {}
+
+// LogoutRequest to invalidate refresh token
+message LogoutRequest {
+  string refresh_token = 1;
+}
+
+message LogoutResponse {}
+
+// UserService handles user authentication and profile management
+service UserService {
+  // Register a new user
+  rpc Register(RegisterRequest) returns (RegisterResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/register"
+      body: "*"
+    };
+  }
+
+  // Login with email and password
+  rpc Login(LoginRequest) returns (LoginResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/login"
+      body: "*"
+    };
+  }
+
+  // Refresh access token
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/refresh"
+      body: "*"
+    };
+  }
+
+  // Get current user profile
+  rpc GetProfile(GetProfileRequest) returns (GetProfileResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/users/me"
+    };
+  }
+
+  // Update user profile
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/users/me"
+      body: "*"
+    };
+  }
+
+  // Change password
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/users/me/password"
+      body: "*"
+    };
+  }
+
+  // Logout and invalidate refresh token
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/logout"
+      body: "*"
+    };
+  }
+}
