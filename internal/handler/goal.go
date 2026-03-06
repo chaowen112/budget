@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -226,15 +227,49 @@ func (h *GoalHandler) UpdateGoalProgress(ctx context.Context, req *pb.UpdateGoal
 		return nil, status.Error(codes.Internal, "failed to get saving goal")
 	}
 
+	previousAmount := goal.CurrentAmount
 	goal.CurrentAmount = currentAmount
 
 	if err := h.goalRepo.UpdateProgress(ctx, goal); err != nil {
 		return nil, status.Error(codes.Internal, "failed to update goal progress")
 	}
 
+	changeSource := "manual"
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if sources := md.Get("x-goal-change-source"); len(sources) > 0 && sources[0] != "" {
+			changeSource = sources[0]
+		}
+	}
+	delta := currentAmount.Sub(previousAmount)
+	if !delta.IsZero() {
+		_ = h.goalRepo.RecordContribution(ctx, goal.ID, delta, goal.CurrentAmount, changeSource, time.Now())
+	}
+
+	_ = h.goalRepo.RecordProgressSnapshot(ctx, goal.ID, goal.CurrentAmount, time.Now())
+
 	return &pb.UpdateGoalProgressResponse{
 		Goal: goalToProto(goal),
 	}, nil
+}
+
+// GetProgressHistory returns goal + snapshot history for custom HTTP endpoints.
+func (h *GoalHandler) GetProgressHistory(ctx context.Context, userID, goalID uuid.UUID) (*model.SavingGoal, []model.GoalProgressSnapshot, []model.GoalContribution, error) {
+	goal, err := h.goalRepo.GetByID(ctx, goalID, userID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	snapshots, err := h.goalRepo.GetProgressSnapshots(ctx, goalID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	contributions, err := h.goalRepo.GetContributions(ctx, goalID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return goal, snapshots, contributions, nil
 }
 
 func (h *GoalHandler) DeleteSavingGoal(ctx context.Context, req *pb.DeleteSavingGoalRequest) (*pb.DeleteSavingGoalResponse, error) {

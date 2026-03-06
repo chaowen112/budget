@@ -1,18 +1,28 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { transactionApi, categoryApi } from '../api'
-import { formatMoney, formatDate, numberToMoney, moneyToNumber } from '../lib/utils'
+import { formatDate, numberToMoney, moneyToNumber } from '../lib/utils'
 import { useAuth } from '../store/AuthContext'
-import type { Transaction, CategoryType } from '../types'
-import { Plus, Pencil, Trash2, X, Search } from 'lucide-react'
+import { useCurrency, DISPLAY_CURRENCIES } from '../store/CurrencyContext'
+import type { Transaction, Category, CategoryType } from '../types'
+import { Plus, Pencil, Trash2, Search, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import { Button, Modal, FormField, Input, Select } from '../components/ui'
+
+const CREATE_CATEGORY_OPTION = '__create_new_category__'
 
 export default function Transactions() {
   const { user } = useAuth()
+  const { formatConverted } = useCurrency()
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCategory, setFilterCategory] = useState<string>('')
+  const [transactionCategoryId, setTransactionCategoryId] = useState('')
+  const [showQuickCategoryForm, setShowQuickCategoryForm] = useState(false)
+  const [quickCategoryName, setQuickCategoryName] = useState('')
+  const [quickCategoryType, setQuickCategoryType] = useState<CategoryType>('TRANSACTION_TYPE_EXPENSE')
 
   const { data: transactionsData, isLoading } = useQuery({
     queryKey: ['transactions'],
@@ -49,9 +59,27 @@ export default function Transactions() {
     },
   })
 
+  const createCategoryMutation = useMutation({
+    mutationFn: categoryApi.create,
+    onSuccess: (createdCategory) => {
+      queryClient.setQueryData<Category[]>(['categories'], (existing = []) => {
+        if (existing.some((c) => c.id === createdCategory.id)) {
+          return existing
+        }
+        return [...existing, createdCategory].sort((a, b) => a.name.localeCompare(b.name))
+      })
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      setTransactionCategoryId(createdCategory.id)
+      setQuickCategoryName('')
+      setShowQuickCategoryForm(false)
+    },
+  })
+
   const transactions = transactionsData?.transactions || []
+  const hasCategories = (categories?.length || 0) > 0
   const filteredTransactions = transactions.filter((t) => {
-    const matchesSearch = !searchTerm || 
+    const matchesSearch =
+      !searchTerm ||
       t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.categoryName?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCategory = !filterCategory || t.categoryId === filterCategory
@@ -62,12 +90,12 @@ export default function Transactions() {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
     const amount = parseFloat(formData.get('amount') as string)
+    const currency = (formData.get('currency') as string) || user?.baseCurrency || 'SGD'
     const dateStr = formData.get('date') as string
-    // Convert date string to ISO timestamp
     const transactionDate = new Date(dateStr).toISOString()
     const data = {
-      categoryId: formData.get('categoryId') as string,
-      amount: numberToMoney(amount, user?.baseCurrency || 'SGD'),
+      categoryId: (formData.get('categoryId') as string) || transactionCategoryId,
+      amount: numberToMoney(amount, currency),
       description: formData.get('description') as string,
       transactionDate,
     }
@@ -83,112 +111,180 @@ export default function Transactions() {
     return categories?.find((c) => c.id === categoryId)?.type
   }
 
+  const closeModal = () => {
+    setIsModalOpen(false)
+    setEditingTransaction(null)
+    setTransactionCategoryId('')
+    setShowQuickCategoryForm(false)
+    setQuickCategoryName('')
+    setQuickCategoryType('TRANSACTION_TYPE_EXPENSE')
+  }
+
+  const handleTransactionCategoryChange = (value: string) => {
+    if (value === CREATE_CATEGORY_OPTION) {
+      setShowQuickCategoryForm(true)
+      setTransactionCategoryId('')
+      setQuickCategoryType('TRANSACTION_TYPE_EXPENSE')
+      return
+    }
+
+    setShowQuickCategoryForm(false)
+    setTransactionCategoryId(value)
+  }
+
+  const handleQuickCategoryCreate = () => {
+    const trimmed = quickCategoryName.trim()
+    if (!trimmed) return
+    createCategoryMutation.mutate({
+      name: trimmed,
+      type: quickCategoryType,
+    })
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
-          <p className="text-gray-500">Track your income and expenses</p>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Transactions
+          </h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+            Track your income and expenses
+          </p>
         </div>
-        <button
+        <Button
+          icon={<Plus className="h-4 w-4" />}
           onClick={() => {
             setEditingTransaction(null)
+            setTransactionCategoryId('')
             setIsModalOpen(true)
           }}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
-          <Plus className="h-5 w-5 mr-2" />
           Add Transaction
-        </button>
+        </Button>
       </div>
 
+      {!hasCategories && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+          You have no categories yet. Create one in this form or in{' '}
+          <Link to="/settings" className="font-medium underline underline-offset-2">
+            Settings
+          </Link>{' '}
+          before adding transactions.
+        </div>
+      )}
+
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <input
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 dark:text-zinc-500 pointer-events-none" />
+          <Input
             type="text"
             placeholder="Search transactions..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="pl-9"
           />
         </div>
-        <select
+        <Select
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="sm:w-48"
         >
           <option value="">All Categories</option>
           {categories?.map((cat) => (
             <option key={cat.id} value={cat.id}>{cat.name}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {/* Transactions List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="flex items-center justify-center py-16">
+            <svg className="animate-spin h-6 w-6 text-violet-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
           </div>
         ) : filteredTransactions.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            No transactions found
+          <div className="flex flex-col items-center justify-center py-16 text-zinc-400 dark:text-zinc-500">
+            <Search className="h-8 w-8 mb-3 opacity-40" />
+            <p className="text-sm">No transactions found</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {filteredTransactions.map((transaction) => {
               const isExpense = getCategoryType(transaction.categoryId) === 'TRANSACTION_TYPE_EXPENSE'
               return (
-                <div key={transaction.id} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3">
-                        <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                          isExpense ? 'bg-red-100' : 'bg-green-100'
-                        }`}>
-                          <span className={`text-lg ${isExpense ? 'text-red-600' : 'text-green-600'}`}>
-                            {isExpense ? '-' : '+'}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900 truncate">
-                            {transaction.description || transaction.categoryName}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {transaction.categoryName} • {formatDate(transaction.transactionDate)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className={`font-semibold ${isExpense ? 'text-red-600' : 'text-green-600'}`}>
-                        {isExpense ? '-' : '+'}{formatMoney(transaction.amount)}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            setEditingTransaction(transaction)
-                            setIsModalOpen(true)
-                          }}
-                          className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm('Delete this transaction?')) {
-                              deleteMutation.mutate(transaction.id)
-                            }
-                          }}
-                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
+                <div
+                  key={transaction.id}
+                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors duration-150 group"
+                >
+                  {/* Icon */}
+                  <div
+                    className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      isExpense
+                        ? 'bg-red-50 dark:bg-red-500/10'
+                        : 'bg-emerald-50 dark:bg-emerald-500/10'
+                    }`}
+                  >
+                    {isExpense ? (
+                      <ArrowDownLeft className="h-4 w-4 text-red-500 dark:text-red-400" />
+                    ) : (
+                      <ArrowUpRight className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                    )}
+                  </div>
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                      {transaction.description || transaction.categoryName}
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      {transaction.categoryName} · {formatDate(transaction.transactionDate)}
+                      {transaction.amount.currency !== 'SGD' && (
+                        <span className="ml-1.5 text-zinc-400 dark:text-zinc-500">
+                          ({transaction.amount.currency})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Amount */}
+                  <span
+                    className={`text-sm font-semibold tabular-nums flex-shrink-0 ${
+                      isExpense
+                        ? 'text-red-500 dark:text-red-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                    }`}
+                  >
+                    {isExpense ? '-' : '+'}{formatConverted(transaction.amount)}
+                  </span>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                    <button
+                      onClick={() => {
+                        setEditingTransaction(transaction)
+                        setTransactionCategoryId(transaction.categoryId)
+                        setIsModalOpen(true)
+                      }}
+                      className="h-7 w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-150"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this transaction?')) {
+                          deleteMutation.mutate(transaction.id)
+                        }
+                      }}
+                      className="h-7 w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors duration-150"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
               )
@@ -198,101 +294,145 @@ export default function Transactions() {
       </div>
 
       {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold">
-                {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
-              </h2>
-              <button
-                onClick={() => {
-                  setIsModalOpen(false)
-                  setEditingTransaction(null)
-                }}
-                className="p-2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select
-                  name="categoryId"
-                  required
-                  defaultValue={editingTransaction?.categoryId || ''}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      <Modal
+        open={isModalOpen}
+        onClose={closeModal}
+        title={editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button variant="secondary" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="transaction-form"
+              loading={createMutation.isPending || updateMutation.isPending}
+            >
+              {editingTransaction ? 'Update' : 'Add'}
+            </Button>
+          </div>
+        }
+      >
+        <form id="transaction-form" onSubmit={handleSubmit} className="space-y-4">
+          <FormField label="Category">
+            <Select
+              name="categoryId"
+              required
+              value={transactionCategoryId}
+              onChange={(e) => handleTransactionCategoryChange(e.target.value)}
+            >
+              <option value="">Select category</option>
+              <option value={CREATE_CATEGORY_OPTION}>+ Create new category...</option>
+              <optgroup label="Expenses">
+                {categories
+                  ?.filter((c) => c.type === 'TRANSACTION_TYPE_EXPENSE')
+                  .map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+              </optgroup>
+              <optgroup label="Income">
+                {categories
+                  ?.filter((c) => c.type === 'TRANSACTION_TYPE_INCOME')
+                  .map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+              </optgroup>
+            </Select>
+          </FormField>
+
+          {showQuickCategoryForm && (
+            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Input
+                  type="text"
+                  value={quickCategoryName}
+                  onChange={(e) => setQuickCategoryName(e.target.value)}
+                  placeholder="Category name"
+                  className="sm:col-span-2"
+                />
+                <Select
+                  value={quickCategoryType}
+                  onChange={(e) => setQuickCategoryType(e.target.value as CategoryType)}
                 >
-                  <option value="">Select category</option>
-                  <optgroup label="Expenses">
-                    {categories?.filter((c) => c.type === 'TRANSACTION_TYPE_EXPENSE').map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Income">
-                    {categories?.filter((c) => c.type === 'TRANSACTION_TYPE_INCOME').map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </optgroup>
-                </select>
+                  <option value="TRANSACTION_TYPE_EXPENSE">Expense</option>
+                  <option value="TRANSACTION_TYPE_INCOME">Income</option>
+                </Select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                <input
+              <div className="flex gap-2 justify-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setShowQuickCategoryForm(false)
+                    setQuickCategoryName('')
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  loading={createCategoryMutation.isPending}
+                  onClick={handleQuickCategoryCreate}
+                >
+                  Add Category
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Amount + Currency side by side */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <FormField label="Amount">
+                <Input
                   type="number"
                   name="amount"
                   step="0.01"
                   min="0"
                   required
                   defaultValue={editingTransaction ? moneyToNumber(editingTransaction.amount) : ''}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="0.00"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <input
-                  type="text"
-                  name="description"
-                  defaultValue={editingTransaction?.description || ''}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="What was this for?"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                <input
-                  type="date"
-                  name="date"
-                  required
-                  defaultValue={editingTransaction?.transactionDate?.split('T')[0] || new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsModalOpen(false)
-                    setEditingTransaction(null)
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              </FormField>
+            </div>
+            <div>
+              <FormField label="Currency">
+                <Select
+                  name="currency"
+                  defaultValue={editingTransaction?.amount.currency || 'SGD'}
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {editingTransaction ? 'Update' : 'Add'}
-                </button>
-              </div>
-            </form>
+                  {DISPLAY_CURRENCIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </Select>
+              </FormField>
+            </div>
           </div>
-        </div>
-      )}
+
+          <FormField label="Description">
+            <Input
+              type="text"
+              name="description"
+              defaultValue={editingTransaction?.description || ''}
+              placeholder="What was this for?"
+            />
+          </FormField>
+
+          <FormField label="Date">
+            <Input
+              type="date"
+              name="date"
+              required
+              defaultValue={
+                editingTransaction?.transactionDate?.split('T')[0] ||
+                new Date().toISOString().split('T')[0]
+              }
+            />
+          </FormField>
+        </form>
+      </Modal>
     </div>
   )
 }

@@ -3,9 +3,11 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/shopspring/decimal"
 
 	"github.com/chaowen/budget/internal/model"
 )
@@ -17,6 +19,93 @@ var (
 
 type GoalRepository struct {
 	db *DB
+}
+
+// RecordProgressSnapshot stores one historical point for a saving goal.
+func (r *GoalRepository) RecordProgressSnapshot(ctx context.Context, goalID uuid.UUID, amount decimal.Decimal, recordedAt time.Time) error {
+	if recordedAt.IsZero() {
+		recordedAt = time.Now()
+	}
+
+	query := `
+		INSERT INTO goal_progress_snapshots (goal_id, amount, recorded_at)
+		VALUES ($1, $2, $3)
+	`
+
+	_, err := r.db.Pool.Exec(ctx, query, goalID, amount, recordedAt)
+	return err
+}
+
+// GetProgressSnapshots returns progress history for a goal ordered by recorded_at ASC.
+func (r *GoalRepository) GetProgressSnapshots(ctx context.Context, goalID uuid.UUID) ([]model.GoalProgressSnapshot, error) {
+	query := `
+		SELECT id, goal_id, amount, recorded_at
+		FROM goal_progress_snapshots
+		WHERE goal_id = $1
+		ORDER BY recorded_at ASC
+	`
+
+	rows, err := r.db.Pool.Query(ctx, query, goalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var snapshots []model.GoalProgressSnapshot
+	for rows.Next() {
+		var s model.GoalProgressSnapshot
+		if err := rows.Scan(&s.ID, &s.GoalID, &s.Amount, &s.RecordedAt); err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, s)
+	}
+
+	return snapshots, rows.Err()
+}
+
+// RecordContribution stores one add/remove event for a saving goal.
+func (r *GoalRepository) RecordContribution(ctx context.Context, goalID uuid.UUID, amountDelta, balanceAfter decimal.Decimal, source string, recordedAt time.Time) error {
+	if recordedAt.IsZero() {
+		recordedAt = time.Now()
+	}
+	if source == "" {
+		source = "manual"
+	}
+
+	query := `
+		INSERT INTO goal_contributions (goal_id, amount_delta, balance_after, source, recorded_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`
+
+	_, err := r.db.Pool.Exec(ctx, query, goalID, amountDelta, balanceAfter, source, recordedAt)
+	return err
+}
+
+// GetContributions returns contribution history for a goal ordered by recorded_at ASC.
+func (r *GoalRepository) GetContributions(ctx context.Context, goalID uuid.UUID) ([]model.GoalContribution, error) {
+	query := `
+		SELECT id, goal_id, amount_delta, balance_after, source, recorded_at
+		FROM goal_contributions
+		WHERE goal_id = $1
+		ORDER BY recorded_at ASC
+	`
+
+	rows, err := r.db.Pool.Query(ctx, query, goalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var contributions []model.GoalContribution
+	for rows.Next() {
+		var c model.GoalContribution
+		if err := rows.Scan(&c.ID, &c.GoalID, &c.AmountDelta, &c.BalanceAfter, &c.Source, &c.RecordedAt); err != nil {
+			return nil, err
+		}
+		contributions = append(contributions, c)
+	}
+
+	return contributions, rows.Err()
 }
 
 func NewGoalRepository(db *DB) *GoalRepository {

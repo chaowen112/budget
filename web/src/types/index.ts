@@ -111,6 +111,36 @@ export interface GoalProgress {
   statusMessage?: string
 }
 
+export interface GoalHistoryPoint {
+  id: string
+  goalId: string
+  amount: string
+  recordedAt: string
+}
+
+export interface GoalContribution {
+  id: string
+  goalId: string
+  amountDelta: string
+  balanceAfter: string
+  source: string
+  recordedAt: string
+}
+
+export interface GoalHistory {
+  goal: {
+    id: string
+    name: string
+    targetAmount: string
+    currentAmount: string
+    currency: string
+    createdAt: string
+    deadline?: string
+  }
+  history: GoalHistoryPoint[]
+  contributions?: GoalContribution[]
+}
+
 // Net Worth Goal types
 export interface NetWorthGoal {
   id: string
@@ -159,6 +189,13 @@ export interface Asset {
   updatedAt: string
 }
 
+export interface AssetSnapshot {
+  id: string
+  assetId: string
+  value: string
+  recordedAt: string
+}
+
 // Report types
 export interface CategorySpending {
   categoryId: string
@@ -187,6 +224,19 @@ export interface NetWorthReport {
     total: Money
     percentage: number
   }[]
+}
+
+export interface NetWorthTrendPoint {
+  month: string
+  netWorth: Money
+  assets: Money
+  liabilities: Money
+}
+
+export interface NetWorthTrendReport {
+  trend: NetWorthTrendPoint[]
+  totalChange: Money
+  totalChangePercentage: number
 }
 
 // Currency types

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { reportApi, budgetApi, goalApi } from '../api'
-import { formatMoney, moneyToNumber } from '../lib/utils'
+import { moneyToNumber } from '../lib/utils'
 import { useAuth } from '../store/AuthContext'
+import { useCurrency } from '../store/CurrencyContext'
 import type { Money } from '../types'
 import {
   TrendingUp,
@@ -12,26 +13,47 @@ import {
   PiggyBank,
   ArrowUpRight,
   ArrowDownRight,
-  Home,
   Pencil,
-  X,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react'
 import {
   PieChart,
   Pie,
   Cell,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
   Tooltip,
 } from 'recharts'
+import { MetricCard, BentoCard, Modal, ProgressBar, Button, Input, FormField, PageSpinner } from '../components/ui'
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
+const CHART_COLORS = [
+  '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b',
+  '#ef4444', '#ec4899', '#3b82f6', '#84cc16',
+]
+
+// Custom chart tooltip
+function ChartTooltip({ active, payload, label, formatter }: {
+  active?: boolean
+  payload?: { name: string; value: number; color: string }[]
+  label?: string
+  formatter?: (value: number) => string
+}) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-zinc-900 dark:bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 shadow-xl text-xs">
+      {label && <p className="text-zinc-400 mb-1">{label}</p>}
+      {payload.map((p, i) => (
+        <p key={i} className="font-semibold" style={{ color: p.color }}>
+          {p.name}: {formatter ? formatter(p.value) : p.value}
+        </p>
+      ))}
+    </div>
+  )
+}
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const { formatConverted } = useCurrency()
   const queryClient = useQueryClient()
   const currentDate = new Date()
   const currentMonth = currentDate.getMonth() + 1
@@ -43,23 +65,18 @@ export default function Dashboard() {
     queryKey: ['monthlyReport', currentYear, currentMonth],
     queryFn: () => reportApi.getMonthlyReport(currentYear, currentMonth),
   })
-
   const { data: netWorthReport, isLoading: isLoadingNetWorth } = useQuery({
     queryKey: ['netWorthReport'],
     queryFn: () => reportApi.getNetWorthReport(),
   })
-
   const { data: budgetStatuses, isLoading: isLoadingBudgets } = useQuery({
     queryKey: ['budgetStatuses'],
     queryFn: () => budgetApi.getAllStatuses(),
   })
-
   const { data: goalProgress, isLoading: isLoadingGoals } = useQuery({
     queryKey: ['goalProgress'],
     queryFn: () => goalApi.getAllProgress(),
   })
-
-  // Net Worth Goal API queries
   const { data: netWorthGoalProgress, isLoading: isLoadingNetWorthGoal } = useQuery({
     queryKey: ['netWorthGoalProgress'],
     queryFn: () => goalApi.getNetWorthGoalProgress(),
@@ -73,424 +90,397 @@ export default function Dashboard() {
       setIsGoalModalOpen(false)
     },
   })
-
   const deleteNetWorthGoalMutation = useMutation({
     mutationFn: () => goalApi.deleteNetWorthGoal(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['netWorthGoalProgress'] })
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['netWorthGoalProgress'] }),
   })
 
   const isLoading = isLoadingReport || isLoadingNetWorth || isLoadingBudgets || isLoadingGoals || isLoadingNetWorthGoal
 
-  // Net worth goal calculations from backend
   const netWorthGoal = netWorthGoalProgress?.goal || null
-  const currentNetWorth = moneyToNumber(netWorthGoalProgress?.currentNetWorth || netWorthReport?.netWorth || { amount: '0', currency: 'SGD' })
+  const currentNetWorth = moneyToNumber(
+    netWorthGoalProgress?.currentNetWorth || netWorthReport?.netWorth || { amount: '0', currency: 'SGD' }
+  )
   const monthlySavings = moneyToNumber(monthlyReport?.netSavings || { amount: '0', currency: 'SGD' })
-  
   const goalProgress_pct = netWorthGoalProgress?.percentageComplete ?? 0
-  const amountRemaining = moneyToNumber(netWorthGoalProgress?.amountRemaining || { amount: '0', currency: 'SGD' })
+  const amountRemaining = moneyToNumber(
+    netWorthGoalProgress?.amountRemaining || { amount: '0', currency: 'SGD' }
+  )
   const monthsToGoal = netWorthGoalProgress?.estimatedMonthsToGoal ?? null
+  const savingsRate = monthlyReport?.savingsRate ?? 0
+  const currency = user?.baseCurrency || 'SGD'
+
+  const spendingData = monthlyReport?.spendingByCategory?.map((cat, i) => ({
+    name: cat.categoryName,
+    value: moneyToNumber(cat.amount),
+    color: CHART_COLORS[i % CHART_COLORS.length],
+  })) || []
 
   const handleGoalSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const targetAmount = parseFloat(formData.get('targetAmount') as string)
-    const name = formData.get('name') as string
-
+    const fd = new FormData(e.currentTarget)
+    const targetAmount = parseFloat(fd.get('targetAmount') as string)
+    const name = fd.get('name') as string
     if (targetAmount > 0) {
       setNetWorthGoalMutation.mutate({
         name: name || 'Net Worth Goal',
-        targetAmount: {
-          amount: targetAmount.toString(),
-          currency: user?.baseCurrency || 'SGD',
-        },
+        targetAmount: { amount: targetAmount.toString(), currency },
       })
     }
   }
 
-  const handleDeleteGoal = () => {
-    if (confirm('Delete this net worth goal?')) {
-      deleteNetWorthGoalMutation.mutate()
-    }
-  }
-
-  const spendingData = monthlyReport?.spendingByCategory?.map((cat, index) => ({
-    name: cat.categoryName,
-    value: moneyToNumber(cat.amount),
-    color: COLORS[index % COLORS.length],
-  })) || []
-
-  const savingsRate = monthlyReport?.savingsRate ?? 0
+  const monthName = new Date(currentYear, currentMonth - 1).toLocaleString('default', { month: 'long' })
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">Welcome back, {user?.name}</p>
+      {/* Page header */}
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-xs font-medium tracking-wide text-zinc-400 dark:text-zinc-500 uppercase mb-1">
+            {monthName} {currentYear}
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Good {currentDate.getHours() < 12 ? 'morning' : currentDate.getHours() < 18 ? 'afternoon' : 'evening'},{' '}
+            {user?.name?.split(' ')[0]}
+          </h1>
+        </div>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
+        <PageSpinner />
       ) : (
         <>
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Total Income */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Monthly Income</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {formatMoney(monthlyReport?.totalIncome)}
-                  </p>
-                </div>
-                <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
-            </div>
+          {/* ── Bento Grid ────────────────────────────────── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
 
-            {/* Total Expenses */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Monthly Expenses</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {formatMoney(monthlyReport?.totalExpenses)}
-                  </p>
-                </div>
-                <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <TrendingDown className="h-6 w-6 text-red-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Net Savings */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Net Savings</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {formatMoney(monthlyReport?.netSavings)}
-                  </p>
-                  <p className={`text-sm ${savingsRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {savingsRate >= 0 ? <ArrowUpRight className="inline h-4 w-4" /> : <ArrowDownRight className="inline h-4 w-4" />}
-                    {Math.abs(savingsRate).toFixed(1)}% savings rate
-                  </p>
-                </div>
-                <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                  <PiggyBank className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Net Worth */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Net Worth</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {formatMoney(netWorthReport?.netWorth)}
-                  </p>
-                </div>
-                <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center">
-                  <Wallet className="h-6 w-6 text-purple-600" />
-                </div>
-              </div>
-            </div>
+            {/* Row 1: 4 metric cards */}
+            <MetricCard
+              label="Monthly Income"
+              value={formatConverted(monthlyReport?.totalIncome)}
+              icon={TrendingUp}
+              accent="emerald"
+            />
+            <MetricCard
+              label="Monthly Expenses"
+              value={formatConverted(monthlyReport?.totalExpenses)}
+              icon={TrendingDown}
+              accent="red"
+            />
+            <MetricCard
+              label="Net Savings"
+              value={formatConverted(monthlyReport?.netSavings)}
+              icon={PiggyBank}
+              accent="violet"
+              subtext={`${savingsRate >= 0 ? '▲' : '▼'} ${Math.abs(savingsRate).toFixed(1)}% savings rate`}
+              subtextPositive={savingsRate >= 0}
+            />
+            <MetricCard
+              label="Net Worth"
+              value={formatConverted(netWorthReport?.netWorth)}
+              icon={Wallet}
+              accent="blue"
+            />
           </div>
 
-          {/* Net Worth Goal Widget */}
-          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 shadow-sm text-white">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <Home className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold">
-                    {netWorthGoal ? netWorthGoal.name : 'Net Worth Goal'}
-                  </h2>
-                  <p className="text-sm text-white/80">
-                    {netWorthGoal ? 'Track your progress' : 'Set a target to track'}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsGoalModalOpen(true)}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-              >
-                <Pencil className="h-5 w-5" />
-              </button>
-            </div>
+          {/* Row 2: Net Worth Goal (wide) + Spending Donut */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
-            {netWorthGoal ? (
-              <>
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <p className="text-sm text-white/70">Current</p>
-                    <p className="text-xl font-bold">
-                      {formatMoney({ amount: currentNetWorth.toString(), currency: user?.baseCurrency || 'SGD' })}
-                    </p>
+            {/* Net Worth Goal — spans 3/5 */}
+            <BentoCard colSpan={1} className="lg:col-span-3 p-0 overflow-hidden" hover={false}>
+              <div className="relative bg-gradient-to-br from-violet-600 via-violet-700 to-indigo-800 dark:from-violet-700 dark:via-violet-800 dark:to-indigo-900 rounded-2xl p-6 h-full min-h-[220px]">
+                {/* subtle noise overlay */}
+                <div className="absolute inset-0 rounded-2xl opacity-[0.03] bg-[url('data:image/svg+xml,%3Csvg viewBox%3D%220 0 256 256%22 xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cfilter id%3D%22noise%22%3E%3CfeTurbulence type%3D%22fractalNoise%22 baseFrequency%3D%220.9%22 numOctaves%3D%224%22 stitchTiles%3D%22stitch%22%2F%3E%3C%2Ffilter%3E%3Crect width%3D%22100%25%22 height%3D%22100%25%22 filter%3D%22url(%23noise)%22%2F%3E%3C%2Fsvg%3E')]" />
+
+                <div className="relative flex items-start justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-white/15 flex items-center justify-center">
+                      <Sparkles className="h-4 w-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-white/60 uppercase tracking-wide">Net Worth Goal</p>
+                      <h2 className="text-base font-semibold text-white leading-snug">
+                        {netWorthGoal ? netWorthGoal.name : 'No goal set yet'}
+                      </h2>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-white/70">Target</p>
-                    <p className="text-xl font-bold">
-                      {formatMoney(netWorthGoal.targetAmount)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-white/70">Remaining</p>
-                    <p className="text-xl font-bold">
-                      {formatMoney({ amount: amountRemaining.toString(), currency: user?.baseCurrency || 'SGD' })}
-                    </p>
-                  </div>
+                  <button
+                    onClick={() => setIsGoalModalOpen(true)}
+                    className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all duration-150"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
                 </div>
 
-                <div className="mb-2">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>Progress</span>
-                    <span className="font-semibold">{goalProgress_pct.toFixed(1)}%</span>
-                  </div>
-                  <div className="h-3 bg-white/20 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-white rounded-full transition-all duration-500"
-                      style={{ width: `${goalProgress_pct}%` }}
-                    />
-                  </div>
-                </div>
+                {netWorthGoal ? (
+                  <div className="relative space-y-4">
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { label: 'Current', value: formatConverted({ amount: currentNetWorth.toString(), currency }) },
+                        { label: 'Target',  value: formatConverted(netWorthGoal.targetAmount) },
+                        { label: 'Remaining', value: formatConverted({ amount: amountRemaining.toString(), currency }) },
+                      ].map((s) => (
+                        <div key={s.label} className="bg-white/10 rounded-xl px-3 py-2.5">
+                          <p className="text-xs text-white/60 mb-0.5">{s.label}</p>
+                          <p className="text-sm font-semibold text-white">{s.value}</p>
+                        </div>
+                      ))}
+                    </div>
 
-                {monthsToGoal !== null && monthsToGoal > 0 && (
-                  <p className="text-sm text-white/80 mt-3">
-                    At your current savings rate ({formatMoney({ amount: monthlySavings.toString(), currency: user?.baseCurrency || 'SGD' })}/month), 
-                    you'll reach your goal in approximately <strong>{monthsToGoal} months</strong> ({(monthsToGoal / 12).toFixed(1)} years)
-                  </p>
-                )}
-                {monthsToGoal === -1 && (
-                  <p className="text-sm text-white/80 mt-3">
-                    Start saving to see your estimated time to reach this goal
-                  </p>
-                )}
-                {goalProgress_pct >= 100 && (
-                  <p className="text-sm font-semibold mt-3">
-                    Congratulations! You've reached your net worth goal!
-                  </p>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-white/80 mb-3">
-                  Set a net worth goal to track your progress towards major financial milestones like buying a house
-                </p>
-                <button
-                  onClick={() => setIsGoalModalOpen(true)}
-                  className="px-4 py-2 bg-white text-indigo-600 rounded-lg font-medium hover:bg-white/90 transition-colors"
-                >
-                  Set Goal
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Spending by Category */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Spending by Category</h2>
-              {spendingData.length > 0 ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={spendingData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={2}
-                        dataKey="value"
-                      >
-                        {spendingData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value: number | undefined) => value !== undefined ? formatMoney({ amount: value.toString(), currency: user?.baseCurrency || 'SGD' }) : ''}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-64 flex items-center justify-center text-gray-500">
-                  No spending data for this month
-                </div>
-              )}
-              {/* Legend */}
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                {spendingData.slice(0, 6).map((item, index) => (
-                  <div key={index} className="flex items-center text-sm">
-                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: item.color }} />
-                    <span className="truncate text-gray-600">{item.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Budget Status */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Budget Status</h2>
-              {budgetStatuses && budgetStatuses.length > 0 ? (
-                <div className="space-y-4">
-                  {budgetStatuses.slice(0, 5).map((status) => (
-                    <div key={status.budget.id}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-600">{status.budget.categoryName}</span>
-                        <span className="text-gray-900">
-                          {formatMoney(status.spent)} / {formatMoney(status.budget.amount)}
-                        </span>
+                    <div>
+                      <div className="flex justify-between text-xs text-white/70 mb-1.5">
+                        <span>Progress</span>
+                        <span className="font-semibold text-white">{goalProgress_pct.toFixed(1)}%</span>
                       </div>
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full ${
-                            status.percentageUsed > 100
-                              ? 'bg-red-500'
-                              : status.percentageUsed > 80
-                              ? 'bg-yellow-500'
-                              : 'bg-green-500'
-                          }`}
-                          style={{ width: `${Math.min(status.percentageUsed, 100)}%` }}
+                          className="h-full bg-white rounded-full transition-all duration-700"
+                          style={{ width: `${Math.min(goalProgress_pct, 100)}%` }}
                         />
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    {goalProgress_pct >= 100 ? (
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-white">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Goal reached — congratulations!
+                      </p>
+                    ) : monthsToGoal !== null && monthsToGoal > 0 ? (
+                      <p className="text-xs text-white/70">
+                        At{' '}
+                        <span className="text-white font-medium">
+                          {formatConverted({ amount: monthlySavings.toString(), currency })}/mo
+                        </span>{' '}
+                        savings — roughly{' '}
+                        <span className="text-white font-medium">{monthsToGoal} months</span> to go
+                      </p>
+                    ) : (
+                      <p className="text-xs text-white/70">Start saving to see your estimated timeline</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative flex flex-col items-start gap-3">
+                    <p className="text-sm text-white/70 max-w-xs">
+                      Set a net worth target to track your progress towards major financial milestones.
+                    </p>
+                    <button
+                      onClick={() => setIsGoalModalOpen(true)}
+                      className="px-4 py-1.5 bg-white text-violet-700 text-sm font-semibold rounded-lg hover:bg-white/90 transition-colors"
+                    >
+                      Set goal
+                    </button>
+                  </div>
+                )}
+              </div>
+            </BentoCard>
+
+            {/* Spending Donut — spans 2/5 */}
+            <BentoCard colSpan={1} className="lg:col-span-2 p-6">
+              <p className="text-xs font-medium tracking-wide text-zinc-400 dark:text-zinc-500 uppercase mb-4">
+                Spending by Category
+              </p>
+              {spendingData.length > 0 ? (
+                <>
+                  <div className="h-44">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={spendingData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={52}
+                          outerRadius={72}
+                          paddingAngle={2}
+                          dataKey="value"
+                          strokeWidth={0}
+                        >
+                          {spendingData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={<ChartTooltip formatter={(v) => formatConverted({ amount: v.toString(), currency })} />}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-3 space-y-1.5">
+                    {spendingData.slice(0, 4).map((item, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                          <span className="text-zinc-600 dark:text-zinc-400 truncate max-w-[100px]">{item.name}</span>
+                        </div>
+                         <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                           {formatConverted({ amount: item.value.toString(), currency })}
+                         </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : (
-                <div className="h-64 flex items-center justify-center text-gray-500">
-                  No budgets set up yet
+                <div className="h-44 flex items-center justify-center">
+                  <p className="text-sm text-zinc-400 dark:text-zinc-500">No spending data this month</p>
                 </div>
               )}
-            </div>
+            </BentoCard>
           </div>
 
-          {/* Goals Progress */}
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Saving Goals</h2>
-              <Target className="h-5 w-5 text-gray-400" />
-            </div>
-            {goalProgress && goalProgress.length > 0 ? (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={goalProgress.slice(0, 5).map((g) => ({
-                    name: g.goal.name,
-                    progress: g.percentageComplete,
-                    target: 100,
-                  }))}>
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value: number | undefined) => value !== undefined ? `${value.toFixed(1)}%` : ''} />
-                    <Bar dataKey="progress" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+          {/* Row 3: Budget Status + Saving Goals Bar Chart */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            {/* Budget Status */}
+            <BentoCard className="p-6">
+              <div className="flex items-center justify-between mb-5">
+                <p className="text-xs font-medium tracking-wide text-zinc-400 dark:text-zinc-500 uppercase">
+                  Budget Status
+                </p>
+                <Target className="h-4 w-4 text-zinc-300 dark:text-zinc-600" />
               </div>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-gray-500">
-                No saving goals set up yet
+              {budgetStatuses && budgetStatuses.length > 0 ? (
+                <div className="space-y-4">
+                  {budgetStatuses.slice(0, 5).map((status) => {
+                    const pct = status.percentageUsed
+                    const variant = pct > 100 ? 'danger' : pct > 80 ? 'warning' : 'success'
+                    return (
+                      <div key={status.budget.id}>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                            {status.budget.categoryName}
+                          </span>
+                           <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                             {formatConverted(status.spent)}{' '}
+                             <span className="text-zinc-400 dark:text-zinc-600">/</span>{' '}
+                             {formatConverted(status.budget.amount)}
+                           </span>
+                        </div>
+                        <ProgressBar value={pct} variant={variant} />
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="py-10 text-center">
+                  <p className="text-sm text-zinc-400 dark:text-zinc-500">No budgets set up yet</p>
+                </div>
+              )}
+            </BentoCard>
+
+            {/* Saving Goals */}
+            <BentoCard className="p-6">
+              <div className="flex items-center justify-between mb-5">
+                <p className="text-xs font-medium tracking-wide text-zinc-400 dark:text-zinc-500 uppercase">
+                  Saving Goals
+                </p>
+                <div className="flex items-center gap-1 text-xs text-zinc-400">
+                  {savingsRate >= 0
+                    ? <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" />
+                    : <ArrowDownRight className="h-3.5 w-3.5 text-red-500" />
+                  }
+                </div>
               </div>
-            )}
+              {goalProgress && goalProgress.length > 0 ? (
+                <div className="space-y-4">
+                  {goalProgress.slice(0, 5).map((progress) => {
+                    const pct = progress.percentageComplete
+                    const variant = pct >= 100 ? 'success' : progress.isOnTrack ? 'default' : 'warning'
+                    return (
+                      <div key={progress.goal.id}>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate pr-2">
+                            {progress.goal.name}
+                          </span>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+                            {pct.toFixed(1)}%
+                          </span>
+                        </div>
+                        <ProgressBar value={pct} variant={variant} />
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="py-10 text-center">
+                  <p className="text-sm text-zinc-400 dark:text-zinc-500">No saving goals set up yet</p>
+                </div>
+              )}
+            </BentoCard>
           </div>
         </>
       )}
 
-      {/* Net Worth Goal Modal */}
-      {isGoalModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold">
-                {netWorthGoal ? 'Edit Net Worth Goal' : 'Set Net Worth Goal'}
-              </h2>
-              <button
-                onClick={() => setIsGoalModalOpen(false)}
-                className="p-2 text-gray-400 hover:text-gray-600"
+      {/* ── Net Worth Goal Modal ───────────────────────────── */}
+      <Modal
+        open={isGoalModalOpen}
+        onClose={() => setIsGoalModalOpen(false)}
+        title={netWorthGoal ? 'Edit Net Worth Goal' : 'Set Net Worth Goal'}
+        footer={
+          <div className="flex items-center gap-2">
+            {netWorthGoal && (
+              <Button
+                variant="danger"
+                size="sm"
+                loading={deleteNetWorthGoalMutation.isPending}
+                onClick={() => {
+                  if (confirm('Delete this net worth goal?')) deleteNetWorthGoalMutation.mutate()
+                }}
               >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <form onSubmit={handleGoalSubmit} className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Goal Name
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  defaultValue={netWorthGoal?.name || ''}
-                  placeholder="e.g., House Down Payment, Retirement"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Target Net Worth ({user?.baseCurrency || 'SGD'})
-                </label>
-                <input
-                  type="number"
-                  name="targetAmount"
-                  required
-                  min="1"
-                  step="1"
-                  defaultValue={netWorthGoal ? moneyToNumber(netWorthGoal.targetAmount) : ''}
-                  placeholder="e.g., 500000"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
-                <p>
-                  <strong>Current Net Worth:</strong>{' '}
-                  {formatMoney({ amount: currentNetWorth.toString(), currency: user?.baseCurrency || 'SGD' })}
-                </p>
-                {monthlySavings > 0 && (
-                  <p className="mt-1">
-                    <strong>Monthly Savings:</strong>{' '}
-                    {formatMoney({ amount: monthlySavings.toString(), currency: user?.baseCurrency || 'SGD' })}
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-3 pt-2">
-                {netWorthGoal && (
-                  <button
-                    type="button"
-                    onClick={handleDeleteGoal}
-                    disabled={deleteNetWorthGoalMutation.isPending}
-                    className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
-                  >
-                    {deleteNetWorthGoalMutation.isPending ? 'Deleting...' : 'Delete'}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setIsGoalModalOpen(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={setNetWorthGoalMutation.isPending}
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {setNetWorthGoalMutation.isPending ? 'Saving...' : netWorthGoal ? 'Update' : 'Set Goal'}
-                </button>
-              </div>
-            </form>
+                Delete
+              </Button>
+            )}
+            <div className="flex-1" />
+            <Button variant="secondary" size="sm" onClick={() => setIsGoalModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              form="goal-form"
+              type="submit"
+              loading={setNetWorthGoalMutation.isPending}
+            >
+              {netWorthGoal ? 'Update' : 'Set Goal'}
+            </Button>
           </div>
-        </div>
-      )}
+        }
+      >
+        <form id="goal-form" onSubmit={handleGoalSubmit} className="space-y-4">
+          <FormField label="Goal Name" htmlFor="goal-name">
+            <Input
+              id="goal-name"
+              name="name"
+              defaultValue={netWorthGoal?.name || ''}
+              placeholder="e.g., House Down Payment, Retirement"
+            />
+          </FormField>
+          <FormField label={`Target Net Worth (${currency})`} htmlFor="goal-target">
+            <Input
+              id="goal-target"
+              type="number"
+              name="targetAmount"
+              required
+              min="1"
+              step="1"
+              defaultValue={netWorthGoal ? moneyToNumber(netWorthGoal.targetAmount) : ''}
+              placeholder="500000"
+            />
+          </FormField>
+          <div className="rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 px-4 py-3 space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-zinc-500 dark:text-zinc-400">Current Net Worth</span>
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {formatConverted({ amount: currentNetWorth.toString(), currency })}
+                </span>
+              </div>
+              {monthlySavings > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-zinc-500 dark:text-zinc-400">Monthly Savings</span>
+                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                    {formatConverted({ amount: monthlySavings.toString(), currency })}
+                  </span>
+              </div>
+            )}
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

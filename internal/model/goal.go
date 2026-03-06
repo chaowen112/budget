@@ -22,6 +22,24 @@ type SavingGoal struct {
 	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
+// GoalProgressSnapshot stores historical progress points for a goal.
+type GoalProgressSnapshot struct {
+	ID         uuid.UUID       `json:"id"`
+	GoalID     uuid.UUID       `json:"goal_id"`
+	Amount     decimal.Decimal `json:"amount"`
+	RecordedAt time.Time       `json:"recorded_at"`
+}
+
+// GoalContribution stores each add/remove money event for a goal.
+type GoalContribution struct {
+	ID           uuid.UUID       `json:"id"`
+	GoalID       uuid.UUID       `json:"goal_id"`
+	AmountDelta  decimal.Decimal `json:"amount_delta"`
+	BalanceAfter decimal.Decimal `json:"balance_after"`
+	Source       string          `json:"source"`
+	RecordedAt   time.Time       `json:"recorded_at"`
+}
+
 // PercentageComplete returns the completion percentage
 func (g *SavingGoal) PercentageComplete() float64 {
 	if g.TargetAmount.IsZero() {

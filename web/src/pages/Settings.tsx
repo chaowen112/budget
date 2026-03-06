@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../store/AuthContext'
-import { authApi } from '../api'
-import { User, Key, Globe } from 'lucide-react'
+import { authApi, categoryApi } from '../api'
+import { User, Globe, Key, Info, CheckCircle2, AlertCircle, ExternalLink, FolderTree, Plus, Pencil, Trash2, X } from 'lucide-react'
+import { Button, FormField, Input, Select } from '../components/ui'
 
 export default function Settings() {
   const { user, refreshUser } = useAuth()
@@ -11,6 +13,15 @@ export default function Settings() {
   const [baseCurrency, setBaseCurrency] = useState(user?.baseCurrency || 'SGD')
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryType, setNewCategoryType] = useState<'TRANSACTION_TYPE_EXPENSE' | 'TRANSACTION_TYPE_INCOME'>('TRANSACTION_TYPE_EXPENSE')
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [editingCategoryName, setEditingCategoryName] = useState('')
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => categoryApi.list(),
+  })
 
   const updateProfileMutation = useMutation({
     mutationFn: authApi.updateProfile,
@@ -26,140 +37,337 @@ export default function Settings() {
     },
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const createCategoryMutation = useMutation({
+    mutationFn: categoryApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      queryClient.invalidateQueries({ queryKey: ['budgetStatuses'] })
+      setNewCategoryName('')
+      setSuccessMessage('Category created')
+      setTimeout(() => setSuccessMessage(''), 3000)
+    },
+    onError: () => {
+      setErrorMessage('Failed to create category')
+      setTimeout(() => setErrorMessage(''), 3000)
+    },
+  })
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => categoryApi.update(id, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      queryClient.invalidateQueries({ queryKey: ['budgetStatuses'] })
+      setEditingCategoryId(null)
+      setEditingCategoryName('')
+      setSuccessMessage('Category updated')
+      setTimeout(() => setSuccessMessage(''), 3000)
+    },
+    onError: () => {
+      setErrorMessage('Failed to update category')
+      setTimeout(() => setErrorMessage(''), 3000)
+    },
+  })
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: categoryApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      queryClient.invalidateQueries({ queryKey: ['budgetStatuses'] })
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      setSuccessMessage('Category deleted')
+      setTimeout(() => setSuccessMessage(''), 3000)
+    },
+    onError: () => {
+      setErrorMessage('Failed to delete category. Remove linked transactions/budgets first.')
+      setTimeout(() => setErrorMessage(''), 3500)
+    },
+  })
+
+  const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     updateProfileMutation.mutate({ name, baseCurrency })
   }
 
+  const handleCreateCategory = (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = newCategoryName.trim()
+    if (!trimmed) return
+    createCategoryMutation.mutate({
+      name: trimmed,
+      type: newCategoryType,
+    })
+  }
+
+  const beginEditCategory = (id: string, currentName: string) => {
+    setEditingCategoryId(id)
+    setEditingCategoryName(currentName)
+  }
+
+  const saveEditCategory = (id: string) => {
+    const trimmed = editingCategoryName.trim()
+    if (!trimmed) return
+    updateCategoryMutation.mutate({ id, name: trimmed })
+  }
+
+  const sectionClass =
+    'bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden'
+  const sectionHeaderClass =
+    'flex items-center gap-2.5 px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800'
+  const expenseCategories = categories.filter((c) => c.type === 'TRANSACTION_TYPE_EXPENSE')
+  const incomeCategories = categories.filter((c) => c.type === 'TRANSACTION_TYPE_INCOME')
+
   return (
     <div className="space-y-6 max-w-2xl">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-500">Manage your account preferences</p>
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Settings</h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">Manage your account preferences</p>
       </div>
 
+      {/* Toast Messages */}
       {successMessage && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+        <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-sm text-emerald-700 dark:text-emerald-400">
+          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
           {successMessage}
         </div>
       )}
-
       {errorMessage && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-sm text-red-700 dark:text-red-400">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
           {errorMessage}
         </div>
       )}
 
-      {/* Profile Settings */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-4 border-b border-gray-100 flex items-center gap-2">
-          <User className="h-5 w-5 text-gray-400" />
-          <h2 className="font-semibold text-gray-900">Profile</h2>
+      {/* Profile */}
+      <div className={sectionClass}>
+        <div className={sectionHeaderClass}>
+          <div className="h-7 w-7 rounded-lg bg-violet-50 dark:bg-violet-500/10 flex items-center justify-center">
+            <User className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+          </div>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Profile</h2>
         </div>
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
+        <form onSubmit={handleProfileSubmit} className="p-5 space-y-4">
+          <FormField label="Email" hint="Cannot be changed">
+            <Input
               type="email"
               value={user?.email || ''}
               disabled
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
             />
-            <p className="mt-1 text-xs text-gray-500">Email cannot be changed</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-            <input
+          </FormField>
+          <FormField label="Name">
+            <Input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Your name"
             />
-          </div>
-          <button
+          </FormField>
+          <Button
             type="submit"
-            disabled={updateProfileMutation.isPending}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            loading={updateProfileMutation.isPending}
+            size="sm"
           >
-            {updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'}
-          </button>
+            Save Changes
+          </Button>
         </form>
       </div>
 
-      {/* Currency Settings */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-4 border-b border-gray-100 flex items-center gap-2">
-          <Globe className="h-5 w-5 text-gray-400" />
-          <h2 className="font-semibold text-gray-900">Currency</h2>
+      {/* Currency */}
+      <div className={sectionClass}>
+        <div className={sectionHeaderClass}>
+          <div className="h-7 w-7 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
+            <Globe className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Currency</h2>
         </div>
-        <div className="p-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Base Currency</label>
-            <select
+        <div className="p-5 space-y-4">
+          <FormField label="Base Currency" hint="All amounts display in this currency">
+            <Select
               value={baseCurrency}
               onChange={(e) => setBaseCurrency(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="SGD">SGD - Singapore Dollar</option>
-              <option value="USD">USD - US Dollar</option>
-              <option value="EUR">EUR - Euro</option>
-              <option value="GBP">GBP - British Pound</option>
-              <option value="JPY">JPY - Japanese Yen</option>
-              <option value="CNY">CNY - Chinese Yuan</option>
-              <option value="MYR">MYR - Malaysian Ringgit</option>
-              <option value="AUD">AUD - Australian Dollar</option>
-              <option value="HKD">HKD - Hong Kong Dollar</option>
-              <option value="THB">THB - Thai Baht</option>
-            </select>
-            <p className="mt-1 text-xs text-gray-500">
-              All amounts will be displayed in this currency
-            </p>
-          </div>
-          <button
+              <option value="SGD">SGD — Singapore Dollar</option>
+              <option value="USD">USD — US Dollar</option>
+              <option value="EUR">EUR — Euro</option>
+              <option value="GBP">GBP — British Pound</option>
+              <option value="JPY">JPY — Japanese Yen</option>
+              <option value="CNY">CNY — Chinese Yuan</option>
+              <option value="MYR">MYR — Malaysian Ringgit</option>
+              <option value="AUD">AUD — Australian Dollar</option>
+              <option value="HKD">HKD — Hong Kong Dollar</option>
+              <option value="THB">THB — Thai Baht</option>
+            </Select>
+          </FormField>
+          <Button
+            size="sm"
             onClick={() => updateProfileMutation.mutate({ baseCurrency })}
             disabled={updateProfileMutation.isPending || baseCurrency === user?.baseCurrency}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            loading={updateProfileMutation.isPending}
           >
             Update Currency
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* API Documentation Link */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-4 border-b border-gray-100 flex items-center gap-2">
-          <Key className="h-5 w-5 text-gray-400" />
-          <h2 className="font-semibold text-gray-900">API Documentation</h2>
+      {/* Categories */}
+      <div className={sectionClass}>
+        <div className={sectionHeaderClass}>
+          <div className="h-7 w-7 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center">
+            <FolderTree className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Categories</h2>
         </div>
-        <div className="p-4">
-          <p className="text-sm text-gray-600 mb-4">
+        <div className="p-5 space-y-5">
+          <form onSubmit={handleCreateCategory} className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+            <Input
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              placeholder="New category name"
+              className="sm:col-span-2"
+            />
+            <Select
+              value={newCategoryType}
+              onChange={(e) => setNewCategoryType(e.target.value as 'TRANSACTION_TYPE_EXPENSE' | 'TRANSACTION_TYPE_INCOME')}
+            >
+              <option value="TRANSACTION_TYPE_EXPENSE">Expense</option>
+              <option value="TRANSACTION_TYPE_INCOME">Income</option>
+            </Select>
+            <Button
+              type="submit"
+              icon={<Plus className="h-4 w-4" />}
+              loading={createCategoryMutation.isPending}
+            >
+              Add
+            </Button>
+          </form>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              { label: 'Expense Categories', items: expenseCategories },
+              { label: 'Income Categories', items: incomeCategories },
+            ].map((group) => (
+              <div key={group.label} className="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{group.label}</p>
+                </div>
+                {group.items.length === 0 ? (
+                  <div className="px-3 py-4 text-xs text-zinc-500 dark:text-zinc-400">No categories yet.</div>
+                ) : (
+                  <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    {group.items.map((cat) => (
+                      <div key={cat.id} className="px-3 py-2.5 flex items-center gap-2">
+                        {editingCategoryId === cat.id ? (
+                          <>
+                            <Input
+                              value={editingCategoryName}
+                              onChange={(e) => setEditingCategoryName(e.target.value)}
+                              className="h-8"
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => saveEditCategory(cat.id)}
+                              loading={updateCategoryMutation.isPending}
+                            >
+                              Save
+                            </Button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCategoryId(null)
+                                setEditingCategoryName('')
+                              }}
+                              className="h-8 w-8 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-sm text-zinc-800 dark:text-zinc-200 flex-1">{cat.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => beginEditCategory(cat.id, cat.name)}
+                              className="h-7 w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm('Delete this category? This fails if linked data exists.')) {
+                                  deleteCategoryMutation.mutate(cat.id)
+                                }
+                              }}
+                              className="h-7 w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Categories are now fully user-defined. Create what you need here, then use them in
+            <Link to="/transactions" className="text-violet-600 dark:text-violet-400 hover:underline"> transactions</Link>
+            {' '}and
+            <Link to="/budgets" className="text-violet-600 dark:text-violet-400 hover:underline"> budgets</Link>.
+          </p>
+        </div>
+      </div>
+
+      {/* API Documentation */}
+      <div className={sectionClass}>
+        <div className={sectionHeaderClass}>
+          <div className="h-7 w-7 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
+            <Key className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">API Documentation</h2>
+        </div>
+        <div className="p-5">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
             Access the API documentation to integrate with external tools or build your own applications.
           </p>
           <a
             href="/swagger/"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            className="inline-flex items-center gap-2 h-9 px-4 text-sm font-medium rounded-xl
+              bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200
+              border border-zinc-200 dark:border-zinc-700
+              hover:bg-zinc-50 dark:hover:bg-zinc-800
+              transition-colors duration-150"
           >
             Open Swagger UI
+            <ExternalLink className="h-3.5 w-3.5 text-zinc-400" />
           </a>
         </div>
       </div>
 
       {/* Account Info */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Account Information</h2>
-        </div>
-        <div className="p-4 space-y-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-500">User ID</span>
-            <span className="text-gray-900 font-mono text-xs">{user?.id}</span>
+      <div className={sectionClass}>
+        <div className={sectionHeaderClass}>
+          <div className="h-7 w-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+            <Info className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Member since</span>
-            <span className="text-gray-900">
-              {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Account Information</h2>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-zinc-500 dark:text-zinc-400">User ID</span>
+            <span className="font-mono text-xs text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-md">
+              {user?.id}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-zinc-500 dark:text-zinc-400">Member since</span>
+            <span className="text-zinc-700 dark:text-zinc-300">
+              {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}
             </span>
           </div>
         </div>

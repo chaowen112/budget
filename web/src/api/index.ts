@@ -11,11 +11,14 @@ import type {
   BudgetStatus,
   SavingGoal,
   GoalProgress,
+  GoalHistory,
   NetWorthGoal,
   NetWorthGoalProgress,
   Asset,
+  AssetSnapshot,
   MonthlyReport,
   NetWorthReport,
+  NetWorthTrendReport,
   Currency,
   ExchangeRate,
   CategoryType,
@@ -204,8 +207,12 @@ export const goalApi = {
     await api.delete(`/goals/${id}`)
   },
   
-  updateProgress: async (id: string, currentAmount: Money): Promise<SavingGoal> => {
-    const response = await api.put(`/goals/${id}/progress`, { currentAmount })
+  updateProgress: async (id: string, currentAmount: Money, source = 'manual'): Promise<SavingGoal> => {
+    const response = await api.put(
+      `/goals/${id}/progress`,
+      { currentAmount },
+      { headers: { 'x-goal-change-source': source } },
+    )
     return response.data.goal
   },
   
@@ -217,6 +224,11 @@ export const goalApi = {
   getAllProgress: async (): Promise<GoalProgress[]> => {
     const response = await api.get('/goals/progress')
     return response.data.progress || []
+  },
+
+  getHistory: async (id: string): Promise<GoalHistory> => {
+    const response = await api.get(`/goals/${id}/history`, { params: { max_points: 365 } })
+    return response.data
   },
   
   // Net Worth Goal API
@@ -300,6 +312,20 @@ export const assetApi = {
   delete: async (id: string): Promise<void> => {
     await api.delete(`/assets/${id}`)
   },
+
+  getHistory: async (assetId: string): Promise<AssetSnapshot[]> => {
+    const response = await api.get(`/assets/${assetId}/history`)
+    return response.data.snapshots || []
+  },
+
+  recordSnapshot: async (assetId: string, value: string, recordedAt?: string): Promise<AssetSnapshot> => {
+    const payload: Record<string, unknown> = { value }
+    if (recordedAt) {
+      payload.recorded_at = recordedAt
+    }
+    const response = await api.post(`/assets/${assetId}/snapshots`, payload)
+    return response.data.snapshot
+  },
 }
 
 // Report API
@@ -318,6 +344,11 @@ export const reportApi = {
   getNetWorthReport: async (): Promise<NetWorthReport> => {
     const response = await api.get('/reports/net-worth')
     return response.data.report
+  },
+
+  getNetWorthTrend: async (months = 12): Promise<NetWorthTrendReport> => {
+    const response = await api.get('/reports/net-worth-trend', { params: { months } })
+    return response.data
   },
   
   getBudgetTrackingReport: async (): Promise<BudgetTrackingReport> => {

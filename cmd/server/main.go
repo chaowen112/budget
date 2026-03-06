@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -10,13 +12,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/google/uuid"
 
 	pb "github.com/chaowen/budget/gen/budget/v1"
 	"github.com/chaowen/budget/internal/config"
@@ -191,6 +197,9 @@ func run() error {
 	httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// API routes go to gRPC gateway
 		if strings.HasPrefix(r.URL.Path, "/api/") {
+			if serveGoalHistory(w, r, jwtManager, goalHandler) {
+				return
+			}
 			withCORS(gwMux).ServeHTTP(w, r)
 			return
 		}
@@ -251,6 +260,101 @@ func run() error {
 
 	log.Println("Servers stopped")
 	return nil
+}
+
+func serveGoalHistory(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Manager, goalHandler *handler.GoalHandler) bool {
+	if r.Method != http.MethodGet || !strings.HasSuffix(r.URL.Path, "/history") {
+		return false
+	}
+
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if len(parts) != 5 || parts[0] != "api" || parts[1] != "v1" || parts[2] != "goals" || parts[4] != "history" {
+		return false
+	}
+
+	goalID, err := uuid.Parse(parts[3])
+	if err != nil {
+		http.Error(w, "invalid goal id", http.StatusBadRequest)
+		return true
+	}
+
+	authz := r.Header.Get("Authorization")
+	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return true
+	}
+
+	claims, err := jwtManager.ValidateAccessToken(strings.TrimPrefix(authz, "Bearer "))
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return true
+	}
+
+	goal, snapshots, contributions, err := goalHandler.GetProgressHistory(r.Context(), claims.UserID, goalID)
+	if err != nil {
+		if errors.Is(err, repository.ErrGoalNotFound) {
+			http.Error(w, "goal not found", http.StatusNotFound)
+			return true
+		}
+		http.Error(w, "failed to fetch goal history", http.StatusInternalServerError)
+		return true
+	}
+
+	maxPoints := 0
+	if raw := r.URL.Query().Get("max_points"); raw != "" {
+		if v, convErr := strconv.Atoi(raw); convErr == nil && v > 0 {
+			maxPoints = v
+		}
+	}
+
+	history := make([]map[string]string, 0, len(snapshots))
+	for _, s := range snapshots {
+		history = append(history, map[string]string{
+			"id":         s.ID.String(),
+			"goalId":     s.GoalID.String(),
+			"amount":     s.Amount.String(),
+			"recordedAt": s.RecordedAt.Format(time.RFC3339),
+		})
+	}
+
+	if maxPoints > 0 && len(history) > maxPoints {
+		history = history[len(history)-maxPoints:]
+	}
+
+	contributionItems := make([]map[string]string, 0, len(contributions))
+	for _, c := range contributions {
+		contributionItems = append(contributionItems, map[string]string{
+			"id":           c.ID.String(),
+			"goalId":       c.GoalID.String(),
+			"amountDelta":  c.AmountDelta.String(),
+			"balanceAfter": c.BalanceAfter.String(),
+			"source":       c.Source,
+			"recordedAt":   c.RecordedAt.Format(time.RFC3339),
+		})
+	}
+	if maxPoints > 0 && len(contributionItems) > maxPoints {
+		contributionItems = contributionItems[len(contributionItems)-maxPoints:]
+	}
+
+	resp := map[string]any{
+		"goal": map[string]string{
+			"id":            goal.ID.String(),
+			"name":          goal.Name,
+			"targetAmount":  goal.TargetAmount.String(),
+			"currentAmount": goal.CurrentAmount.String(),
+			"currency":      goal.Currency,
+			"createdAt":     goal.CreatedAt.Format(time.RFC3339),
+		},
+		"history": history,
+		"contributions": contributionItems,
+	}
+	if goal.Deadline != nil {
+		resp["goal"].(map[string]string)["deadline"] = goal.Deadline.Format(time.RFC3339)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+	return true
 }
 
 // withCORS adds CORS headers for development

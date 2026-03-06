@@ -105,6 +105,11 @@ func (h *AssetHandler) CreateAsset(ctx context.Context, req *pb.CreateAssetReque
 		return nil, status.Error(codes.Internal, "failed to create asset")
 	}
 
+	_ = h.assetRepo.RecordSnapshot(ctx, &model.AssetSnapshot{
+		AssetID: asset.ID,
+		Value:   asset.CurrentValue,
+	})
+
 	// Refetch to get asset type info
 	asset, _ = h.assetRepo.GetByID(ctx, asset.ID, userID)
 
@@ -211,6 +216,11 @@ func (h *AssetHandler) UpdateAsset(ctx context.Context, req *pb.UpdateAssetReque
 	if err := h.assetRepo.Update(ctx, asset); err != nil {
 		return nil, status.Error(codes.Internal, "failed to update asset")
 	}
+
+	_ = h.assetRepo.RecordSnapshot(ctx, &model.AssetSnapshot{
+		AssetID: asset.ID,
+		Value:   asset.CurrentValue,
+	})
 
 	return &pb.UpdateAssetResponse{
 		Asset: assetToProto(asset),

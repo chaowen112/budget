@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { reportApi } from '../api'
 import type { BudgetTrackingReport, SavingGoalReport } from '../api'
-import { formatMoney, moneyToNumber, getMonthName } from '../lib/utils'
+import { moneyToNumber, getMonthName } from '../lib/utils'
 import { useAuth } from '../store/AuthContext'
+import { useCurrency } from '../store/CurrencyContext'
 import {
   PieChart,
   Pie,
@@ -16,18 +17,69 @@ import {
   Tooltip,
   Legend,
 } from 'recharts'
+import { FormField, Input, Select } from '../components/ui'
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
+// Violet-first palette that fits the design system
+const COLORS = [
+  '#8b5cf6', // violet
+  '#10b981', // emerald
+  '#f59e0b', // amber
+  '#3b82f6', // blue
+  '#ef4444', // red
+  '#ec4899', // pink
+  '#06b6d4', // cyan
+  '#84cc16', // lime
+]
+
+interface ChartTooltipProps {
+  active?: boolean
+  payload?: Array<{ name: string; value: number; color?: string; fill?: string }>
+  label?: string
+  formatter?: (value: number) => string
+}
+
+function ChartTooltip({ active, payload, label, formatter }: ChartTooltipProps) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-zinc-900 dark:bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 shadow-xl text-xs">
+      {label && <p className="text-zinc-400 mb-1.5 font-medium">{label}</p>}
+      {payload.map((p, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <span
+            className="h-2 w-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: p.color || p.fill }}
+          />
+          <span className="text-zinc-300">{p.name}:</span>
+          <span className="text-white font-semibold">
+            {formatter ? formatter(p.value) : p.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function Reports() {
   const { user } = useAuth()
+  const { formatConverted } = useCurrency()
   const currentDate = new Date()
+  const [reportPeriod, setReportPeriod] = useState<'monthly' | 'yearly'>('monthly')
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
 
   const { data: monthlyReport, isLoading: isLoadingMonthly } = useQuery({
     queryKey: ['monthlyReport', selectedYear, selectedMonth],
     queryFn: () => reportApi.getMonthlyReport(selectedYear, selectedMonth),
+  })
+
+  const yearlyMonthlyQueries = useQueries({
+    queries: Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1
+      return {
+        queryKey: ['monthlyReport', selectedYear, month],
+        queryFn: () => reportApi.getMonthlyReport(selectedYear, month),
+      }
+    }),
   })
 
   const { data: netWorthReport, isLoading: isLoadingNetWorth } = useQuery({
@@ -45,7 +97,12 @@ export default function Reports() {
     queryFn: () => reportApi.getGoalsReport(),
   })
 
-  const isLoading = isLoadingMonthly || isLoadingNetWorth || isLoadingBudget || isLoadingGoals
+  const isLoadingYearly = yearlyMonthlyQueries.some((q) => q.isLoading)
+  const isLoadingPeriod = reportPeriod === 'yearly' ? isLoadingYearly : isLoadingMonthly
+  const isLoading = isLoadingPeriod || isLoadingNetWorth || isLoadingBudget || isLoadingGoals
+
+  const currency = user?.baseCurrency || 'SGD'
+  const moneyFmt = (v: number) => formatConverted({ amount: v.toString(), currency })
 
   const spendingData = monthlyReport?.spendingByCategory?.map((cat, index) => ({
     name: cat.categoryName,
@@ -53,6 +110,66 @@ export default function Reports() {
     color: COLORS[index % COLORS.length],
     count: cat.transactionCount,
   })) || []
+
+  const yearlySummary = useMemo(() => {
+    const categoryMap = new Map<string, { name: string; value: number; count: number }>()
+    const monthlyTrend: { month: string; income: number; expenses: number }[] = []
+
+    let totalIncome = 0
+    let totalExpenses = 0
+
+    yearlyMonthlyQueries.forEach((query, index) => {
+      const report = query.data
+      const income = moneyToNumber(report?.totalIncome || { amount: '0', currency })
+      const expenses = moneyToNumber(report?.totalExpenses || { amount: '0', currency })
+
+      totalIncome += income
+      totalExpenses += expenses
+
+      monthlyTrend.push({
+        month: getMonthName(index + 1).slice(0, 3),
+        income,
+        expenses,
+      })
+
+      report?.spendingByCategory?.forEach((cat) => {
+        const existing = categoryMap.get(cat.categoryId)
+        const value = moneyToNumber(cat.amount)
+        if (existing) {
+          existing.value += value
+          existing.count += cat.transactionCount
+          return
+        }
+
+        categoryMap.set(cat.categoryId, {
+          name: cat.categoryName,
+          value,
+          count: cat.transactionCount,
+        })
+      })
+    })
+
+    const spendingByCategory = Array.from(categoryMap.values())
+      .sort((a, b) => b.value - a.value)
+      .map((item, index) => ({
+        ...item,
+        color: COLORS[index % COLORS.length],
+      }))
+
+    const netSavings = totalIncome - totalExpenses
+    const savingsRate = totalIncome > 0 ? (netSavings / totalIncome) * 100 : 0
+
+    return {
+      totalIncome,
+      totalExpenses,
+      netSavings,
+      savingsRate,
+      spendingByCategory,
+      monthlyTrend,
+    }
+  }, [currency, yearlyMonthlyQueries])
+
+  const activeSpendingData = reportPeriod === 'yearly' ? yearlySummary.spendingByCategory : spendingData
 
   const budgetData = budgetReport?.categoryDetails?.slice(0, 8).map((item) => ({
     name: item.categoryName?.substring(0, 12) || 'Unknown',
@@ -75,182 +192,256 @@ export default function Reports() {
   const years = Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - i)
   const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: getMonthName(i + 1) }))
 
+  const cardClass = 'bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-sm'
+  const headingClass = 'text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-4'
+
+  const axisStyle = { fill: '#71717a', fontSize: 11 }
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-        <p className="text-gray-500">Financial insights and analytics</p>
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Reports</h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">Financial insights and analytics</p>
       </div>
 
       {/* Period Selector */}
-      <div className="flex gap-4 bg-white p-4 rounded-xl border border-gray-100">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+      <div className={`${cardClass} flex flex-wrap gap-4`}>
+        <FormField label="Report Type" className="min-w-[150px]">
+          <Select
+            value={reportPeriod}
+            onChange={(e) => setReportPeriod(e.target.value as 'monthly' | 'yearly')}
           >
-            {months.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-          <select
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </Select>
+        </FormField>
+        <FormField label="Month" className="min-w-[140px]">
+          {reportPeriod === 'monthly' ? (
+            <Select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+            >
+              {months.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </Select>
+          ) : (
+            <Input value="All Months" disabled />
+          )}
+        </FormField>
+        <FormField label="Year" className="min-w-[110px]">
+          <Select
             value={selectedYear}
             onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
             {years.map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </FormField>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="flex items-center justify-center py-20">
+          <svg className="animate-spin h-8 w-8 text-violet-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
         </div>
       ) : (
         <>
           {/* Monthly Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <p className="text-sm text-gray-500">Income</p>
-              <p className="text-2xl font-bold text-green-600">{formatMoney(monthlyReport?.totalIncome)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <p className="text-sm text-gray-500">Expenses</p>
-              <p className="text-2xl font-bold text-red-600">{formatMoney(monthlyReport?.totalExpenses)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <p className="text-sm text-gray-500">Net Savings</p>
-              <p className={`text-2xl font-bold ${moneyToNumber(monthlyReport?.netSavings || { amount: '0', currency: 'SGD' }) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                {formatMoney(monthlyReport?.netSavings)}
-              </p>
-            </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <p className="text-sm text-gray-500">Savings Rate</p>
-              <p className={`text-2xl font-bold ${(monthlyReport?.savingsRate || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {(monthlyReport?.savingsRate || 0).toFixed(1)}%
-              </p>
-            </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              {
+                label: reportPeriod === 'yearly' ? 'Yearly Income' : 'Income',
+                value:
+                  reportPeriod === 'yearly'
+                    ? moneyFmt(yearlySummary.totalIncome)
+                    : formatConverted(monthlyReport?.totalIncome),
+                color: 'text-emerald-600 dark:text-emerald-400',
+              },
+              {
+                label: reportPeriod === 'yearly' ? 'Yearly Expenses' : 'Expenses',
+                value:
+                  reportPeriod === 'yearly'
+                    ? moneyFmt(yearlySummary.totalExpenses)
+                    : formatConverted(monthlyReport?.totalExpenses),
+                color: 'text-red-500 dark:text-red-400',
+              },
+              {
+                label: reportPeriod === 'yearly' ? 'Yearly Net Savings' : 'Net Savings',
+                value:
+                  reportPeriod === 'yearly'
+                    ? moneyFmt(yearlySummary.netSavings)
+                    : formatConverted(monthlyReport?.netSavings),
+                color:
+                  (reportPeriod === 'yearly'
+                    ? yearlySummary.netSavings
+                    : moneyToNumber(monthlyReport?.netSavings || { amount: '0', currency })) >= 0
+                    ? 'text-violet-600 dark:text-violet-400'
+                    : 'text-red-500 dark:text-red-400',
+              },
+              {
+                label: 'Savings Rate',
+                value: `${(
+                  reportPeriod === 'yearly' ? yearlySummary.savingsRate : monthlyReport?.savingsRate || 0
+                ).toFixed(1)}%`,
+                color:
+                  (reportPeriod === 'yearly' ? yearlySummary.savingsRate : monthlyReport?.savingsRate || 0) >= 0
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-red-500 dark:text-red-400',
+              },
+            ].map((item) => (
+              <div key={item.label} className={cardClass}>
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-1">
+                  {item.label}
+                </p>
+                <p className={`text-xl font-bold tracking-tight tabular-nums ${item.color}`}>
+                  {item.value}
+                </p>
+              </div>
+            ))}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Spending by Category */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Spending by Category</h2>
-              {spendingData.length > 0 ? (
+            <div className={cardClass}>
+              <h2 className={headingClass}>
+                {reportPeriod === 'yearly' ? 'Yearly Spending by Category' : 'Spending by Category'}
+              </h2>
+              {activeSpendingData.length > 0 ? (
                 <>
-                  <div className="h-64">
+                  <div className="h-56">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={spendingData}
+                          data={activeSpendingData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={50}
+                          innerRadius={52}
                           outerRadius={80}
                           paddingAngle={2}
                           dataKey="value"
                         >
-                          {spendingData.map((entry, index) => (
+                          {activeSpendingData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
                         <Tooltip
-                          formatter={(value: number | undefined) => value !== undefined ? formatMoney({ amount: value.toString(), currency: user?.baseCurrency || 'SGD' }) : ''}
+                          content={<ChartTooltip formatter={moneyFmt} />}
                         />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="mt-4 space-y-2">
-                    {spendingData.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center">
-                          <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: item.color }} />
-                          <span className="text-gray-600">{item.name}</span>
+                  <div className="mt-3 space-y-1.5">
+                    {activeSpendingData.map((item, index) => (
+                      <div key={index} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                          <span className="text-zinc-600 dark:text-zinc-400 truncate max-w-[140px]">{item.name}</span>
                         </div>
-                        <span className="font-medium text-gray-900">
-                          {formatMoney({ amount: item.value.toString(), currency: user?.baseCurrency || 'SGD' })}
+                        <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+                          {moneyFmt(item.value)}
                         </span>
                       </div>
                     ))}
                   </div>
                 </>
               ) : (
-                <div className="h-64 flex items-center justify-center text-gray-500">
-                  No spending data for this period
+                <div className="h-56 flex items-center justify-center text-sm text-zinc-400 dark:text-zinc-500">
+                  No spending data for this report period
                 </div>
               )}
             </div>
 
-            {/* Budget vs Actual */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Budget vs Actual</h2>
-              {budgetData.length > 0 ? (
-                <div className="h-80">
+            {reportPeriod === 'yearly' && (
+              <div className={cardClass}>
+                <h2 className={headingClass}>Income vs Expenses by Month</h2>
+                <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={budgetData} layout="vertical">
-                      <XAxis type="number" tick={{ fontSize: 12 }} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
-                      <Tooltip
-                        formatter={(value: number | undefined) => value !== undefined ? formatMoney({ amount: value.toString(), currency: user?.baseCurrency || 'SGD' }) : ''}
+                    <BarChart data={yearlySummary.monthlyTrend} barCategoryGap="24%">
+                      <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
+                      <YAxis tick={axisStyle} axisLine={false} tickLine={false} />
+                      <Tooltip content={<ChartTooltip formatter={moneyFmt} />} />
+                      <Legend wrapperStyle={{ fontSize: 11, color: '#71717a' }} />
+                      <Bar dataKey="income" fill="#10b981" name="Income" radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="expenses" fill="#8b5cf6" name="Expenses" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* Budget vs Actual */}
+            <div className={cardClass}>
+              <h2 className={headingClass}>Budget vs Actual</h2>
+              {budgetData.length > 0 ? (
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={budgetData} layout="vertical" barCategoryGap="30%">
+                      <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="name" tick={axisStyle} width={80} axisLine={false} tickLine={false} />
+                      <Tooltip content={<ChartTooltip formatter={moneyFmt} />} />
+                      <Legend
+                        wrapperStyle={{ fontSize: 11, color: '#71717a' }}
                       />
-                      <Legend />
-                      <Bar dataKey="budget" fill="#e5e7eb" name="Budget" />
-                      <Bar dataKey="spent" fill="#3b82f6" name="Spent" />
+                      <Bar dataKey="budget" fill="#3f3f46" name="Budget" radius={[0, 3, 3, 0]} />
+                      <Bar dataKey="spent" fill="#8b5cf6" name="Spent" radius={[0, 3, 3, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-80 flex items-center justify-center text-gray-500">
+                <div className="h-72 flex items-center justify-center text-sm text-zinc-400 dark:text-zinc-500">
                   No budget data available
                 </div>
               )}
             </div>
 
             {/* Goals Progress */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Goals Progress</h2>
+            <div className={cardClass}>
+              <h2 className={headingClass}>Goals Progress</h2>
               {goalsData.length > 0 ? (
-                <div className="h-64">
+                <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={goalsData}>
-                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                      <Tooltip formatter={(value: number | undefined) => value !== undefined ? `${value.toFixed(1)}%` : ''} />
-                      <Bar dataKey="progress" stackId="a" fill="#10b981" name="Progress" />
-                      <Bar dataKey="remaining" stackId="a" fill="#e5e7eb" name="Remaining" />
+                    <BarChart data={goalsData} barCategoryGap="30%">
+                      <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} />
+                      <YAxis domain={[0, 100]} tick={axisStyle} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        content={<ChartTooltip formatter={(v) => `${v.toFixed(1)}%`} />}
+                      />
+                      <Bar dataKey="progress" stackId="a" fill="#10b981" name="Progress" radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="remaining" stackId="a" fill="#3f3f46" name="Remaining" radius={[3, 3, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-64 flex items-center justify-center text-gray-500">
+                <div className="h-56 flex items-center justify-center text-sm text-zinc-400 dark:text-zinc-500">
                   No goals set up yet
                 </div>
               )}
             </div>
 
             {/* Asset Allocation */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Asset Allocation</h2>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Total Assets</p>
-                  <p className="text-xl font-bold text-green-600">{formatMoney(netWorthReport?.totalAssets)}</p>
+            <div className={cardClass}>
+              <h2 className={headingClass}>Asset Allocation</h2>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-100 dark:border-zinc-700">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">Total Assets</p>
+                  <p className="text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                    {formatConverted(netWorthReport?.totalAssets)}
+                  </p>
                 </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Net Worth</p>
-                  <p className="text-xl font-bold text-blue-600">{formatMoney(netWorthReport?.netWorth)}</p>
+                <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-100 dark:border-zinc-700">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">Net Worth</p>
+                  <p className="text-base font-bold tabular-nums text-violet-600 dark:text-violet-400">
+                    {formatConverted(netWorthReport?.netWorth)}
+                  </p>
                 </div>
               </div>
               {assetBreakdown.length > 0 ? (
-                <div className="h-48">
+                <div className="h-40">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -260,19 +451,18 @@ export default function Reports() {
                         outerRadius={60}
                         dataKey="value"
                         label={({ name }) => name}
+                        labelLine={false}
                       >
                         {assetBreakdown.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip
-                        formatter={(value: number | undefined) => value !== undefined ? formatMoney({ amount: value.toString(), currency: user?.baseCurrency || 'SGD' }) : ''}
-                      />
+                      <Tooltip content={<ChartTooltip formatter={moneyFmt} />} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="h-48 flex items-center justify-center text-gray-500">
+                <div className="h-40 flex items-center justify-center text-sm text-zinc-400 dark:text-zinc-500">
                   No asset data available
                 </div>
               )}

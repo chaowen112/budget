@@ -22,12 +22,12 @@ func NewCategoryRepository(db *DB) *CategoryRepository {
 	return &CategoryRepository{db: db}
 }
 
-// ListAll retrieves all categories (system + user's custom)
+// ListAll retrieves all categories created by the user
 func (r *CategoryRepository) ListAll(ctx context.Context, userID uuid.UUID, categoryType *model.CategoryType) ([]model.Category, error) {
 	query := `
 		SELECT id, user_id, name, type, icon, is_system, created_at
 		FROM categories
-		WHERE (user_id IS NULL OR user_id = $1)
+		WHERE user_id = $1
 	`
 	args := []any{userID}
 
@@ -36,7 +36,7 @@ func (r *CategoryRepository) ListAll(ctx context.Context, userID uuid.UUID, cate
 		args = append(args, *categoryType)
 	}
 
-	query += ` ORDER BY is_system DESC, name ASC`
+	query += ` ORDER BY name ASC`
 
 	rows, err := r.db.Pool.Query(ctx, query, args...)
 	if err != nil {
@@ -62,7 +62,7 @@ func (r *CategoryRepository) GetByID(ctx context.Context, id uuid.UUID, userID u
 	query := `
 		SELECT id, user_id, name, type, icon, is_system, created_at
 		FROM categories
-		WHERE id = $1 AND (user_id IS NULL OR user_id = $2)
+		WHERE id = $1 AND user_id = $2
 	`
 
 	var c model.Category

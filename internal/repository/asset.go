@@ -22,6 +22,33 @@ type AssetRepository struct {
 	db *DB
 }
 
+// GetTotalsAsOf calculates total assets and liabilities as of a specific point in time.
+// It uses the latest snapshot recorded on/before asOf per asset, falling back to current_value.
+func (r *AssetRepository) GetTotalsAsOf(ctx context.Context, userID uuid.UUID, asOf time.Time) (decimal.Decimal, decimal.Decimal, error) {
+	query := `
+		SELECT
+			COALESCE(SUM(CASE WHEN a.is_liability = false THEN COALESCE(s.value, a.current_value) ELSE 0 END), 0) AS total_assets,
+			COALESCE(SUM(CASE WHEN a.is_liability = true THEN COALESCE(s.value, a.current_value) ELSE 0 END), 0) AS total_liabilities
+		FROM assets a
+		LEFT JOIN LATERAL (
+			SELECT value
+			FROM asset_snapshots snap
+			WHERE snap.asset_id = a.id AND snap.recorded_at <= $2
+			ORDER BY snap.recorded_at DESC
+			LIMIT 1
+		) s ON true
+		WHERE a.user_id = $1
+	`
+
+	var totalAssets, totalLiabilities decimal.Decimal
+	err := r.db.Pool.QueryRow(ctx, query, userID, asOf).Scan(&totalAssets, &totalLiabilities)
+	if err != nil {
+		return decimal.Zero, decimal.Zero, err
+	}
+
+	return totalAssets, totalLiabilities, nil
+}
+
 func NewAssetRepository(db *DB) *AssetRepository {
 	return &AssetRepository{db: db}
 }

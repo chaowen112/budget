@@ -46,7 +46,7 @@ func Load() *Config {
 		JWT: JWTConfig{
 			Secret:        getEnv("JWT_SECRET", "your-secret-key-min-32-characters!!"),
 			AccessExpiry:  parseDuration(getEnv("JWT_ACCESS_EXPIRY", "15m"), 15*time.Minute),
-			RefreshExpiry: parseDuration(getEnv("JWT_REFRESH_EXPIRY", "168h"), 7*24*time.Hour), // 7 days
+			RefreshExpiry: parseDuration(getEnv("JWT_REFRESH_EXPIRY", "30d"), 30*24*time.Hour), // 30 days
 		},
 		Exchange: ExchangeConfig{
 			APIKey: getEnv("EXCHANGE_RATE_API_KEY", ""),

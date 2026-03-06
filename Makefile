@@ -1,4 +1,4 @@
-.PHONY: proto build run test clean docker-up docker-down migrate-up migrate-down ui
+.PHONY: proto build run test clean docker-up docker-down migrate-up migrate-down ui reset-db
 
 # Protobuf generation
 proto:
@@ -49,6 +49,9 @@ docker-build:
 
 docker-logs:
 	docker-compose logs -f api
+
+reset-db:
+	bash ./scripts/reset-db.sh
 
 # Database migrations
 migrate-up:

@@ -528,37 +528,40 @@ func (h *ReportHandler) GetNetWorthTrend(ctx context.Context, req *pb.GetNetWort
 		months = 12
 	}
 
-	// Note: For a real implementation, we would need historical asset snapshots
-	// For now, we'll return current values for all months (simplified)
-	totalAssets, err := h.assetRepo.GetTotalAssets(ctx, userID)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to get total assets")
-	}
-
-	totalLiabilities, err := h.assetRepo.GetTotalLiabilities(ctx, userID)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to get total liabilities")
-	}
-
-	netWorth := totalAssets.Sub(totalLiabilities)
-
 	var trend []*pb.NetWorthTrendPoint
 	now := time.Now()
 	for i := months - 1; i >= 0; i-- {
-		monthStart, _ := getMonthBounds(now.Year(), int(now.Month())-i)
+		_, monthEnd := getMonthBounds(now.Year(), int(now.Month())-i)
+
+		totalAssets, totalLiabilities, err := h.assetRepo.GetTotalsAsOf(ctx, userID, monthEnd)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "failed to get historical asset totals")
+		}
+
+		netWorth := totalAssets.Sub(totalLiabilities)
 		trend = append(trend, &pb.NetWorthTrendPoint{
-			Month:       monthStart.Format("2006-01"),
+			Month:       monthEnd.Format("2006-01"),
 			NetWorth:    reportDecimalToMoney(netWorth, "SGD"),
 			Assets:      reportDecimalToMoney(totalAssets, "SGD"),
 			Liabilities: reportDecimalToMoney(totalLiabilities, "SGD"),
 		})
 	}
 
-	// For simplified implementation, change is 0
+	totalChange := decimal.Zero
+	totalChangePercentage := 0.0
+	if len(trend) >= 2 {
+		first := reportMoneyToDecimal(trend[0].NetWorth)
+		last := reportMoneyToDecimal(trend[len(trend)-1].NetWorth)
+		totalChange = last.Sub(first)
+		if !first.IsZero() {
+			totalChangePercentage = totalChange.Div(first).InexactFloat64() * 100
+		}
+	}
+
 	return &pb.GetNetWorthTrendResponse{
 		Trend:                 trend,
-		TotalChange:           reportDecimalToMoney(decimal.Zero, "SGD"),
-		TotalChangePercentage: 0,
+		TotalChange:           reportDecimalToMoney(totalChange, "SGD"),
+		TotalChangePercentage: totalChangePercentage,
 	}, nil
 }
 

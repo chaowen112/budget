@@ -1,6 +1,29 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import axios from 'axios'
 import { authApi } from '../api'
 import type { User, LoginRequest, RegisterRequest } from '../types'
+
+const ACCESS_TOKEN_KEY = 'accessToken'
+const REFRESH_TOKEN_KEY = 'refreshToken'
+const AUTH_USER_KEY = 'authUser'
+
+function getStoredUser(): User | null {
+  const raw = localStorage.getItem(AUTH_USER_KEY)
+  if (!raw) return null
+
+  try {
+    return JSON.parse(raw) as User
+  } catch {
+    localStorage.removeItem(AUTH_USER_KEY)
+    return null
+  }
+}
+
+function clearAuthStorage() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
+  localStorage.removeItem(AUTH_USER_KEY)
+}
 
 interface AuthContextType {
   user: User | null
@@ -15,22 +38,24 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<User | null>(getStoredUser)
   const [isLoading, setIsLoading] = useState(true)
 
   const refreshUser = useCallback(async () => {
     try {
       const userData = await authApi.getProfile()
       setUser(userData)
-    } catch {
-      setUser(null)
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData))
+    } catch (error) {
+      if (axios.isAxiosError(error) && (error.response?.status === 401 || error.response?.status === 403)) {
+        setUser(null)
+        clearAuthStorage()
+      }
     }
   }, [])
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken')
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY)
     if (token) {
       refreshUser().finally(() => setIsLoading(false))
     } else {
@@ -40,20 +65,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (data: LoginRequest) => {
     const response = await authApi.login(data)
-    localStorage.setItem('accessToken', response.accessToken)
-    localStorage.setItem('refreshToken', response.refreshToken)
+    localStorage.setItem(ACCESS_TOKEN_KEY, response.accessToken)
+    localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken)
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(response.user))
     setUser(response.user)
   }
 
   const register = async (data: RegisterRequest) => {
     const response = await authApi.register(data)
-    localStorage.setItem('accessToken', response.accessToken)
-    localStorage.setItem('refreshToken', response.refreshToken)
+    localStorage.setItem(ACCESS_TOKEN_KEY, response.accessToken)
+    localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken)
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(response.user))
     setUser(response.user)
   }
 
   const logout = async () => {
-    const refreshToken = localStorage.getItem('refreshToken')
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY)
     if (refreshToken) {
       try {
         await authApi.logout(refreshToken)
@@ -61,8 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Ignore logout errors
       }
     }
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
+    clearAuthStorage()
     setUser(null)
   }
 
