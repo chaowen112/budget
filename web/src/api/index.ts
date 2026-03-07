@@ -30,6 +30,7 @@ import type {
   PeriodType,
   AssetCategory,
   Money,
+  TransactionSourceLink,
 } from '../types'
 
 // Auth API
@@ -121,6 +122,11 @@ export const transactionApi = {
   
   delete: async (id: string): Promise<void> => {
     await api.delete(`/transactions/${id}`)
+  },
+
+  listSourceLinks: async (): Promise<TransactionSourceLink[]> => {
+    const response = await api.get('/transactions/source-links')
+    return response.data.links || []
   },
 }
 

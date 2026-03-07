@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"math"
 	"time"
 
@@ -24,6 +25,8 @@ type ReportHandler struct {
 	budgetRepo      *repository.BudgetRepository
 	assetRepo       *repository.AssetRepository
 	goalRepo        *repository.GoalRepository
+	userRepo        *repository.UserRepository
+	currencyRepo    *repository.CurrencyRepository
 }
 
 // NewReportHandler creates a new ReportHandler
@@ -32,12 +35,16 @@ func NewReportHandler(
 	budgetRepo *repository.BudgetRepository,
 	assetRepo *repository.AssetRepository,
 	goalRepo *repository.GoalRepository,
+	userRepo *repository.UserRepository,
+	currencyRepo *repository.CurrencyRepository,
 ) *ReportHandler {
 	return &ReportHandler{
 		transactionRepo: transactionRepo,
 		budgetRepo:      budgetRepo,
 		assetRepo:       assetRepo,
 		goalRepo:        goalRepo,
+		userRepo:        userRepo,
+		currencyRepo:    currencyRepo,
 	}
 }
 
@@ -233,20 +240,11 @@ func (h *ReportHandler) GetNetWorthReport(ctx context.Context, req *pb.GetNetWor
 		asOf = req.GetAsOf().AsTime()
 	}
 
-	// Get total assets and liabilities
-	totalAssets, err := h.assetRepo.GetTotalAssets(ctx, userID)
+	user, err := h.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to get total assets")
+		return nil, status.Error(codes.Internal, "failed to load user profile")
 	}
 
-	totalLiabilities, err := h.assetRepo.GetTotalLiabilities(ctx, userID)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to get total liabilities")
-	}
-
-	netWorth := totalAssets.Sub(totalLiabilities)
-
-	// Get asset breakdown by category
 	assets, err := h.assetRepo.List(ctx, userID, nil, true)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to list assets")
@@ -254,13 +252,29 @@ func (h *ReportHandler) GetNetWorthReport(ctx context.Context, req *pb.GetNetWor
 
 	categoryTotals := make(map[model.AssetCategory]decimal.Decimal)
 	categoryCounts := make(map[model.AssetCategory]int)
+	totalAssets := decimal.Zero
+	totalLiabilities := decimal.Zero
 
 	for _, asset := range assets {
-		if !asset.IsLiability {
-			categoryTotals[asset.Category] = categoryTotals[asset.Category].Add(asset.CurrentValue)
-			categoryCounts[asset.Category]++
+		converted, convErr := h.currencyRepo.ConvertAmount(ctx, asset.CurrentValue, asset.Currency, user.BaseCurrency)
+		if convErr != nil {
+			if errors.Is(convErr, repository.ErrExchangeRateNotFound) {
+				return nil, status.Error(codes.FailedPrecondition, "missing exchange rate for net worth conversion")
+			}
+			return nil, status.Error(codes.Internal, "failed to convert asset value")
 		}
+
+		if asset.IsLiability {
+			totalLiabilities = totalLiabilities.Add(converted)
+			continue
+		}
+
+		totalAssets = totalAssets.Add(converted)
+		categoryTotals[asset.Category] = categoryTotals[asset.Category].Add(converted)
+		categoryCounts[asset.Category]++
 	}
+
+	netWorth := totalAssets.Sub(totalLiabilities)
 
 	var assetBreakdown []*pb.AssetCategorySummary
 	for category, total := range categoryTotals {
@@ -270,7 +284,7 @@ func (h *ReportHandler) GetNetWorthReport(ctx context.Context, req *pb.GetNetWor
 		}
 		assetBreakdown = append(assetBreakdown, &pb.AssetCategorySummary{
 			Category:          string(category),
-			TotalValue:        reportDecimalToMoney(total, "SGD"),
+			TotalValue:        reportDecimalToMoney(total, user.BaseCurrency),
 			PercentageOfTotal: percentage,
 			AssetCount:        int32(categoryCounts[category]),
 		})
@@ -279,10 +293,10 @@ func (h *ReportHandler) GetNetWorthReport(ctx context.Context, req *pb.GetNetWor
 	return &pb.GetNetWorthReportResponse{
 		Report: &pb.NetWorthReport{
 			AsOf:             timestamppb.New(asOf),
-			TotalAssets:      reportDecimalToMoney(totalAssets, "SGD"),
-			TotalLiabilities: reportDecimalToMoney(totalLiabilities, "SGD"),
-			NetWorth:         reportDecimalToMoney(netWorth, "SGD"),
-			BaseCurrency:     "SGD",
+			TotalAssets:      reportDecimalToMoney(totalAssets, user.BaseCurrency),
+			TotalLiabilities: reportDecimalToMoney(totalLiabilities, user.BaseCurrency),
+			NetWorth:         reportDecimalToMoney(netWorth, user.BaseCurrency),
+			BaseCurrency:     user.BaseCurrency,
 			AssetBreakdown:   assetBreakdown,
 		},
 	}, nil

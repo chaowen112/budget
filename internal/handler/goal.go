@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -53,7 +54,7 @@ func (h *GoalHandler) CreateSavingGoal(ctx context.Context, req *pb.CreateSaving
 		return nil, status.Error(codes.InvalidArgument, "invalid target_amount")
 	}
 
-	currency := req.TargetAmount.Currency
+	currency := strings.ToUpper(strings.TrimSpace(req.TargetAmount.Currency))
 	if currency == "" {
 		currency = "SGD"
 	}
@@ -167,6 +168,10 @@ func (h *GoalHandler) UpdateSavingGoal(ctx context.Context, req *pb.UpdateSaving
 			return nil, status.Error(codes.InvalidArgument, "invalid target_amount")
 		}
 		goal.TargetAmount = targetAmount
+
+		if currency := strings.TrimSpace(req.TargetAmount.Currency); currency != "" {
+			goal.Currency = strings.ToUpper(currency)
+		}
 	}
 
 	if req.Deadline != nil {

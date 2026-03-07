@@ -11,6 +11,70 @@ import { Button, Modal, FormField, Input, Select, ProgressBar, Badge } from '../
 
 const CREATE_CATEGORY_OPTION = '__create_new_category__'
 
+function getOrdinalSuffix(day: number) {
+  if (day >= 11 && day <= 13) return 'th'
+  const last = day % 10
+  if (last === 1) return 'st'
+  if (last === 2) return 'nd'
+  if (last === 3) return 'rd'
+  return 'th'
+}
+
+function addMonths(date: Date, months: number) {
+  const d = new Date(date)
+  const day = d.getDate()
+  d.setDate(1)
+  d.setMonth(d.getMonth() + months)
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  d.setDate(Math.min(day, lastDay))
+  return d
+}
+
+function addYears(date: Date, years: number) {
+  const d = new Date(date)
+  const month = d.getMonth()
+  const day = d.getDate()
+  d.setFullYear(d.getFullYear() + years, month, 1)
+  const lastDay = new Date(d.getFullYear(), month + 1, 0).getDate()
+  d.setDate(Math.min(day, lastDay))
+  return d
+}
+
+function endOfDay(date: Date) {
+  const d = new Date(date)
+  d.setHours(23, 59, 59, 999)
+  return d
+}
+
+function getCycleEndDate(startDate: Date, periodType: PeriodType, now: Date) {
+  const start = new Date(startDate)
+
+  if (periodType === 'PERIOD_TYPE_WEEKLY') {
+    const msPerDay = 1000 * 60 * 60 * 24
+    const days = Math.max(0, Math.floor((now.getTime() - start.getTime()) / msPerDay))
+    const cycles = Math.floor(days / 7)
+    const cycleStart = new Date(start)
+    cycleStart.setDate(start.getDate() + cycles * 7)
+    const cycleEnd = new Date(cycleStart)
+    cycleEnd.setDate(cycleStart.getDate() + 6)
+    return endOfDay(cycleEnd)
+  }
+
+  if (periodType === 'PERIOD_TYPE_MONTHLY') {
+    let cycleStart = new Date(start)
+    while (addMonths(cycleStart, 1) <= now) {
+      cycleStart = addMonths(cycleStart, 1)
+    }
+    return endOfDay(new Date(addMonths(cycleStart, 1).getTime() - 1))
+  }
+
+  let cycleStart = new Date(start)
+  while (addYears(cycleStart, 1) <= now) {
+    cycleStart = addYears(cycleStart, 1)
+  }
+  return endOfDay(new Date(addYears(cycleStart, 1).getTime() - 1))
+}
+
 export default function Budgets() {
   const { user } = useAuth()
   const { formatConverted } = useCurrency()
@@ -102,6 +166,30 @@ export default function Budgets() {
     }
   }
 
+  const formatStartDay = (startDate: string, periodType: PeriodType) => {
+    const d = new Date(startDate)
+    if (Number.isNaN(d.getTime())) return '—'
+
+    if (periodType === 'PERIOD_TYPE_WEEKLY') {
+      return d.toLocaleDateString(undefined, { weekday: 'long' })
+    }
+    if (periodType === 'PERIOD_TYPE_MONTHLY') {
+      return `${d.getDate()}${getOrdinalSuffix(d.getDate())}`
+    }
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  }
+
+  const getDaysLeftInCurrentCycle = (startDate: string, periodType: PeriodType) => {
+    const start = new Date(startDate)
+    const now = new Date()
+    if (Number.isNaN(start.getTime())) return 0
+
+    const cycleEnd = getCycleEndDate(start, periodType, now)
+    const msPerDay = 1000 * 60 * 60 * 24
+    const diff = cycleEnd.getTime() - now.getTime()
+    return Math.max(0, Math.ceil(diff / msPerDay))
+  }
+
   const closeModal = () => {
     setIsModalOpen(false)
     setEditingBudget(null)
@@ -186,6 +274,8 @@ export default function Budgets() {
             const isWarning = status.percentageUsed > 80 && !isOverBudget
             const progressVariant = isOverBudget ? 'danger' : isWarning ? 'warning' : 'success'
             const badgeVariant = isOverBudget ? 'danger' : isWarning ? 'warning' : 'success'
+            const startDay = formatStartDay(status.budget.startDate, status.budget.periodType)
+            const daysLeft = getDaysLeftInCurrentCycle(status.budget.startDate, status.budget.periodType)
 
             return (
               <div
@@ -240,6 +330,18 @@ export default function Budgets() {
 
                 {/* Stats */}
                 <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500 dark:text-zinc-400">Start Day</span>
+                    <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+                      {startDay}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500 dark:text-zinc-400">Days Left</span>
+                    <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+                      {daysLeft}
+                    </span>
+                  </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-zinc-500 dark:text-zinc-400">Spent</span>
                     <span className={`font-medium tabular-nums ${isOverBudget ? 'text-red-500 dark:text-red-400' : 'text-zinc-900 dark:text-zinc-100'}`}>

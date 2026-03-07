@@ -114,7 +114,7 @@ func run() error {
 	goalHandler := handler.NewGoalHandler(goalRepo, assetRepo, transactionRepo)
 	currencyHandler := handler.NewCurrencyHandler(currencyRepo, currencyClient)
 	cpfHandler := handler.NewCPFHandler(cpfRepo)
-	reportHandler := handler.NewReportHandler(transactionRepo, budgetRepo, assetRepo, goalRepo)
+	reportHandler := handler.NewReportHandler(transactionRepo, budgetRepo, assetRepo, goalRepo, userRepo, currencyRepo)
 
 	// Create gRPC server with interceptors
 	grpcServer := grpc.NewServer(
@@ -228,6 +228,9 @@ func run() error {
 				return
 			}
 			if serveTransactionAssistant(w, r, jwtManager, transactionAssistantService) {
+				return
+			}
+			if serveTransactionSourceLinks(w, r, jwtManager, transactionRepo) {
 				return
 			}
 			withCORS(gwMux).ServeHTTP(w, r)
@@ -741,6 +744,52 @@ func serveTransactionAssistant(
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(parsed)
+	return true
+}
+
+func serveTransactionSourceLinks(
+	w http.ResponseWriter,
+	r *http.Request,
+	jwtManager *jwt.Manager,
+	transactionRepo *repository.TransactionRepository,
+) bool {
+	if r.URL.Path != "/api/v1/transactions/source-links" {
+		return false
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return true
+	}
+
+	authz := r.Header.Get("Authorization")
+	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return true
+	}
+
+	claims, err := jwtManager.ValidateAccessToken(strings.TrimPrefix(authz, "Bearer "))
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return true
+	}
+
+	links, err := transactionRepo.ListSourceAssetLinks(r.Context(), claims.UserID)
+	if err != nil {
+		http.Error(w, "failed to fetch transaction source links", http.StatusInternalServerError)
+		return true
+	}
+
+	items := make([]map[string]string, 0, len(links))
+	for _, item := range links {
+		items = append(items, map[string]string{
+			"transactionId": item.TransactionID.String(),
+			"assetId":       item.AssetID.String(),
+			"assetName":     item.AssetName,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"links": items})
 	return true
 }
 

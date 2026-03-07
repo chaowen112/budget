@@ -63,6 +63,11 @@ export default function Transactions() {
     queryFn: transferApi.list,
   })
 
+  const { data: transactionSourceLinks } = useQuery({
+    queryKey: ['transaction-source-links'],
+    queryFn: transactionApi.listSourceLinks,
+  })
+
   const createMutation = useMutation({
     mutationFn: transactionApi.create,
     onSuccess: () => {
@@ -142,13 +147,23 @@ export default function Transactions() {
   })
 
   const transactions = transactionsData?.transactions || []
+  const sourceLinkMap = new Map((transactionSourceLinks || []).map((item) => [item.transactionId, item]))
+  const transactionsWithSource = transactions.map((t) => {
+    const link = sourceLinkMap.get(t.id)
+    return {
+      ...t,
+      sourceAssetId: link?.assetId,
+      sourceAssetName: link?.assetName,
+    }
+  })
   const hasCategories = (categories?.length || 0) > 0
   const hasAssets = (assets?.length || 0) > 0
-  const filteredTransactions = transactions.filter((t) => {
+  const filteredTransactions = transactionsWithSource.filter((t) => {
     const matchesSearch =
       !searchTerm ||
       t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.categoryName?.toLowerCase().includes(searchTerm.toLowerCase())
+      t.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.sourceAssetName?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCategory = !filterCategory || t.categoryId === filterCategory
     return matchesSearch && matchesCategory
   })
@@ -723,7 +738,10 @@ export default function Transactions() {
                       {transaction.description || transaction.categoryName}
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                      {transaction.categoryName} · {formatDate(transaction.transactionDate)}
+                      {transaction.categoryName}
+                      {transaction.sourceAssetName ? ` · ${transaction.sourceAssetName}` : ''}
+                      {' · '}
+                      {formatDate(transaction.transactionDate)}
                       {transaction.amount.currency !== 'SGD' && (
                         <span className="ml-1.5 text-zinc-400 dark:text-zinc-500">
                           ({transaction.amount.currency})
@@ -754,7 +772,7 @@ export default function Transactions() {
                           setQuickCategoryName('')
                           setQuickCategoryType('TRANSACTION_TYPE_EXPENSE')
                           setTransactionCategoryId(transaction.categoryId)
-                          setTransactionSourceAssetId('')
+                          setTransactionSourceAssetId(transaction.sourceAssetId || '')
                           setTransactionAmountInput(String(moneyToNumber(transaction.amount)))
                           setTransactionCurrencyInput(transaction.amount.currency)
                           setTransactionDescriptionInput(transaction.description || '')

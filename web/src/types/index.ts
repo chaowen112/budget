@@ -52,6 +52,8 @@ export interface Transaction {
   userId: string
   categoryId: string
   categoryName?: string
+  sourceAssetId?: string
+  sourceAssetName?: string
   amount: Money
   type?: string
   transactionDate: string  // ISO timestamp from API
@@ -67,6 +69,12 @@ export interface CreateTransactionRequest {
   transactionDate: string  // ISO timestamp
   description?: string
   tags?: string[]
+}
+
+export interface TransactionSourceLink {
+  transactionId: string
+  assetId: string
+  assetName: string
 }
 
 // Budget types

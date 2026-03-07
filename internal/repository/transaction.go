@@ -21,6 +21,12 @@ type TransactionRepository struct {
 	db *DB
 }
 
+type TransactionSourceLink struct {
+	TransactionID uuid.UUID
+	AssetID       uuid.UUID
+	AssetName     string
+}
+
 func NewTransactionRepository(db *DB) *TransactionRepository {
 	return &TransactionRepository{db: db}
 }
@@ -273,6 +279,34 @@ func (r *TransactionRepository) GetSourceAssetLink(ctx context.Context, transact
 	}
 
 	return assetID, nil
+}
+
+// ListSourceAssetLinks returns source asset links for all transactions of a user.
+func (r *TransactionRepository) ListSourceAssetLinks(ctx context.Context, userID uuid.UUID) ([]TransactionSourceLink, error) {
+	query := `
+		SELECT tal.transaction_id, tal.asset_id, a.name
+		FROM transaction_asset_links tal
+		JOIN transactions t ON t.id = tal.transaction_id
+		JOIN assets a ON a.id = tal.asset_id
+		WHERE t.user_id = $1
+	`
+
+	rows, err := r.db.Pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	links := make([]TransactionSourceLink, 0)
+	for rows.Next() {
+		var item TransactionSourceLink
+		if err := rows.Scan(&item.TransactionID, &item.AssetID, &item.AssetName); err != nil {
+			return nil, err
+		}
+		links = append(links, item)
+	}
+
+	return links, rows.Err()
 }
 
 // GetSpendingByCategory gets spending grouped by category for a date range

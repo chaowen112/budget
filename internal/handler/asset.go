@@ -284,6 +284,19 @@ func (h *AssetHandler) DeleteAsset(ctx context.Context, req *pb.DeleteAssetReque
 		if errors.Is(err, repository.ErrAssetNotFound) {
 			return nil, status.Error(codes.NotFound, "asset not found")
 		}
+		if errors.Is(err, repository.ErrAssetInUse) {
+			blockers, blockerErr := h.assetRepo.ListDeleteBlockers(ctx, id, userID, 3)
+			if blockerErr != nil || len(blockers) == 0 {
+				return nil, status.Error(codes.FailedPrecondition, "cannot delete asset with linked transactions or transfers")
+			}
+
+			parts := make([]string, 0, len(blockers))
+			for _, b := range blockers {
+				parts = append(parts, b.Kind+" "+b.ReferenceID.String()+" ("+b.Description+")")
+			}
+
+			return nil, status.Error(codes.FailedPrecondition, "cannot delete asset; linked records: "+strings.Join(parts, "; "))
+		}
 		return nil, status.Error(codes.Internal, "failed to delete asset")
 	}
 

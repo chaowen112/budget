@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { goalApi } from '../api'
 import { numberToMoney, moneyToNumber, formatDate } from '../lib/utils'
 import { useAuth } from '../store/AuthContext'
-import { useCurrency } from '../store/CurrencyContext'
+import { useCurrency, DISPLAY_CURRENCIES } from '../store/CurrencyContext'
 import type { GoalProgress, SavingGoal } from '../types'
 import { Plus, Pencil, Trash2, Target, TrendingUp, CheckCircle2, Clock } from 'lucide-react'
 import { Button, Modal, FormField, Input, Textarea, ProgressBar, Badge, Select } from '../components/ui'
@@ -23,6 +23,7 @@ type AllocationCadence = 'weekly' | 'monthly'
 interface GoalAutoAllocation {
   goalId: string
   goalName: string
+  currency: string
   daysRemaining: number
   capAmount: number
   allocation: number
@@ -42,6 +43,7 @@ export default function Goals() {
   const [goalFormTargetAmount, setGoalFormTargetAmount] = useState('')
   const [goalFormInitialAmount, setGoalFormInitialAmount] = useState('')
   const [goalFormDeadline, setGoalFormDeadline] = useState('')
+  const [goalFormCurrency, setGoalFormCurrency] = useState(user?.baseCurrency || 'SGD')
   const [autoAllocateAmount, setAutoAllocateAmount] = useState('')
   const [autoAllocateCadence, setAutoAllocateCadence] = useState<AllocationCadence>('monthly')
   const [historyGoalId, setHistoryGoalId] = useState('')
@@ -107,13 +109,12 @@ export default function Goals() {
 
   const autoAllocateMutation = useMutation({
     mutationFn: async (allocations: GoalAutoAllocation[]) => {
-      const currency = user?.baseCurrency || 'SGD'
       for (const item of allocations) {
         if (item.allocation <= 0) {
           continue
         }
 
-        await goalApi.updateProgress(item.goalId, numberToMoney(item.projectedAmount, currency), 'auto_allocate')
+        await goalApi.updateProgress(item.goalId, numberToMoney(item.projectedAmount, item.currency), 'auto_allocate')
       }
     },
     onSuccess: () => {
@@ -166,6 +167,7 @@ export default function Goals() {
       allocations.push({
         goalId: progress.goal.id,
         goalName: progress.goal.name,
+        currency: progress.goal.targetAmount.currency,
         daysRemaining: progress.daysRemaining,
         capAmount,
         allocation,
@@ -275,7 +277,7 @@ export default function Goals() {
     return points
   })()
 
-  const calculateNeedFromInputs = (target: number, current: number, deadline: string) => {
+  const calculateNeedFromInputs = (target: number, current: number, deadline: string, currency: string) => {
     if (!deadline || Number.isNaN(target) || target <= 0) return null
 
     const targetDate = new Date(deadline)
@@ -287,8 +289,6 @@ export default function Goals() {
     const amountRemaining = Math.max(0, target - current)
     const weeksRemaining = Math.max(1, Math.ceil(daysRemaining / 7))
     const monthsRemaining = Math.max(1, daysRemaining / 30.44)
-    const currency = user?.baseCurrency || 'SGD'
-
     return {
       weekly: numberToMoney(amountRemaining / weeksRemaining, currency),
       monthly: numberToMoney(amountRemaining / monthsRemaining, currency),
@@ -300,6 +300,7 @@ export default function Goals() {
     setGoalFormTargetAmount('')
     setGoalFormInitialAmount('')
     setGoalFormDeadline('')
+    setGoalFormCurrency(user?.baseCurrency || 'SGD')
     setIsModalOpen(true)
   }
 
@@ -308,6 +309,7 @@ export default function Goals() {
     setGoalFormTargetAmount(String(moneyToNumber(goal.targetAmount)))
     setGoalFormInitialAmount(String(moneyToNumber(goal.currentAmount)))
     setGoalFormDeadline(goal.deadline?.split('T')[0] || '')
+    setGoalFormCurrency(goal.targetAmount.currency)
     setIsModalOpen(true)
   }
 
@@ -317,7 +319,7 @@ export default function Goals() {
     const targetAmount = parseFloat(goalFormTargetAmount)
     const initialAmount = parseFloat(goalFormInitialAmount || '0')
     const deadline = goalFormDeadline
-    const currency = user?.baseCurrency || 'SGD'
+    const currency = goalFormCurrency || user?.baseCurrency || 'SGD'
 
     if (editingGoal) {
       updateMutation.mutate({
@@ -366,7 +368,7 @@ export default function Goals() {
 
     updateProgressMutation.mutate({
       id: selectedGoal.id,
-      amount: numberToMoney(nextTotal, user?.baseCurrency || 'SGD'),
+      amount: numberToMoney(nextTotal, selectedGoal.currentAmount.currency),
       source: delta >= 0 ? 'manual_add' : 'manual_withdraw',
     })
   }
@@ -377,6 +379,7 @@ export default function Goals() {
     setGoalFormTargetAmount('')
     setGoalFormInitialAmount('')
     setGoalFormDeadline('')
+    setGoalFormCurrency(user?.baseCurrency || 'SGD')
   }
 
   const closeProgressModal = () => {
@@ -476,6 +479,9 @@ export default function Goals() {
                         <span>{formatDate(goal.deadline)}</span>
                       </div>
                     )}
+                    <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
+                      Goal currency: {goal.targetAmount.currency}
+                    </div>
                   </div>
                   <div className="flex gap-1 ml-2">
                     {!isCompleted && (
@@ -773,6 +779,17 @@ export default function Goals() {
             />
           </FormField>
 
+          <FormField label="Currency">
+            <Select
+              value={goalFormCurrency}
+              onChange={(e) => setGoalFormCurrency(e.target.value)}
+            >
+              {[...new Set([...DISPLAY_CURRENCIES, goalFormCurrency].filter(Boolean))].map((currency) => (
+                <option key={currency} value={currency}>{currency}</option>
+              ))}
+            </Select>
+          </FormField>
+
           <FormField label={editingGoal ? 'Current Saved Amount' : 'Initial Amount'} hint={editingGoal ? 'Current progress amount' : 'Optional starting saved amount'}>
             <Input
               type="number"
@@ -798,7 +815,7 @@ export default function Goals() {
           {(() => {
             const target = parseFloat(goalFormTargetAmount || '0')
             const current = parseFloat(goalFormInitialAmount || '0')
-            const needs = calculateNeedFromInputs(target, current, goalFormDeadline)
+            const needs = calculateNeedFromInputs(target, current, goalFormDeadline, goalFormCurrency)
             if (!needs) return null
 
             return (
