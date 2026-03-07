@@ -9,6 +9,7 @@ import Budgets from './pages/Budgets'
 import Goals from './pages/Goals'
 import Assets from './pages/Assets'
 import Reports from './pages/Reports'
+import Accounting from './pages/Accounting'
 import Settings from './pages/Settings'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -51,6 +52,7 @@ function App() {
         <Route path="goals" element={<Goals />} />
         <Route path="assets" element={<Assets />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="accounting" element={<Accounting />} />
         <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

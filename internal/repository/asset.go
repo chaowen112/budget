@@ -27,16 +27,24 @@ type AssetRepository struct {
 func (r *AssetRepository) GetTotalsAsOf(ctx context.Context, userID uuid.UUID, asOf time.Time) (decimal.Decimal, decimal.Decimal, error) {
 	query := `
 		SELECT
-			COALESCE(SUM(CASE WHEN a.is_liability = false THEN COALESCE(s.value, a.current_value) ELSE 0 END), 0) AS total_assets,
-			COALESCE(SUM(CASE WHEN a.is_liability = true THEN COALESCE(s.value, a.current_value) ELSE 0 END), 0) AS total_liabilities
+			COALESCE(SUM(CASE WHEN a.is_liability = false THEN b.balance ELSE 0 END), 0) AS total_assets,
+			COALESCE(SUM(CASE WHEN a.is_liability = true THEN b.balance ELSE 0 END), 0) AS total_liabilities
 		FROM assets a
+		LEFT JOIN accounts acc ON acc.asset_id = a.id
 		LEFT JOIN LATERAL (
-			SELECT value
-			FROM asset_snapshots snap
-			WHERE snap.asset_id = a.id AND snap.recorded_at <= $2
-			ORDER BY snap.recorded_at DESC
-			LIMIT 1
-		) s ON true
+			SELECT
+				CASE
+					WHEN acc.id IS NULL THEN a.current_value
+					WHEN acc.account_type IN ('asset', 'expense')
+						THEN acc.opening_balance + COALESCE(SUM(jl.debit), 0) - COALESCE(SUM(jl.credit), 0)
+					ELSE acc.opening_balance + COALESCE(SUM(jl.credit), 0) - COALESCE(SUM(jl.debit), 0)
+				END AS balance
+			FROM journal_lines jl
+			JOIN journal_entries je ON je.id = jl.entry_id
+			WHERE jl.account_id = acc.id
+			  AND je.user_id = a.user_id
+			  AND je.entry_date <= $2
+		) b ON true
 		WHERE a.user_id = $1
 	`
 
@@ -87,9 +95,28 @@ func (r *AssetRepository) ListAssetTypes(ctx context.Context, category *model.As
 func (r *AssetRepository) List(ctx context.Context, userID uuid.UUID, category *model.AssetCategory, includeLiabilities bool) ([]model.Asset, error) {
 	query := `
 		SELECT a.id, a.user_id, a.asset_type_id, t.name, t.category, a.name, a.currency,
-		       a.current_value, a.is_liability, a.custom_fields, a.created_at, a.updated_at
+		       COALESCE(
+				CASE
+					WHEN acc.id IS NULL THEN a.current_value
+					WHEN acc.account_type IN ('asset', 'expense')
+						THEN acc.opening_balance + COALESCE(agg.total_debit, 0) - COALESCE(agg.total_credit, 0)
+					ELSE acc.opening_balance + COALESCE(agg.total_credit, 0) - COALESCE(agg.total_debit, 0)
+				END,
+				a.current_value
+			) AS current_value,
+		       a.is_liability, a.custom_fields, a.created_at, a.updated_at
 		FROM assets a
 		JOIN asset_types t ON a.asset_type_id = t.id
+		LEFT JOIN accounts acc ON acc.asset_id = a.id
+		LEFT JOIN LATERAL (
+			SELECT
+				COALESCE(SUM(jl.debit), 0) AS total_debit,
+				COALESCE(SUM(jl.credit), 0) AS total_credit
+			FROM journal_lines jl
+			JOIN journal_entries je ON je.id = jl.entry_id
+			WHERE jl.account_id = acc.id
+			  AND je.user_id = a.user_id
+		) agg ON true
 		WHERE a.user_id = $1
 	`
 	args := []any{userID}
@@ -133,9 +160,28 @@ func (r *AssetRepository) List(ctx context.Context, userID uuid.UUID, category *
 func (r *AssetRepository) GetByID(ctx context.Context, id, userID uuid.UUID) (*model.Asset, error) {
 	query := `
 		SELECT a.id, a.user_id, a.asset_type_id, t.name, t.category, a.name, a.currency,
-		       a.current_value, a.is_liability, a.custom_fields, a.created_at, a.updated_at
+		       COALESCE(
+				CASE
+					WHEN acc.id IS NULL THEN a.current_value
+					WHEN acc.account_type IN ('asset', 'expense')
+						THEN acc.opening_balance + COALESCE(agg.total_debit, 0) - COALESCE(agg.total_credit, 0)
+					ELSE acc.opening_balance + COALESCE(agg.total_credit, 0) - COALESCE(agg.total_debit, 0)
+				END,
+				a.current_value
+			) AS current_value,
+		       a.is_liability, a.custom_fields, a.created_at, a.updated_at
 		FROM assets a
 		JOIN asset_types t ON a.asset_type_id = t.id
+		LEFT JOIN accounts acc ON acc.asset_id = a.id
+		LEFT JOIN LATERAL (
+			SELECT
+				COALESCE(SUM(jl.debit), 0) AS total_debit,
+				COALESCE(SUM(jl.credit), 0) AS total_credit
+			FROM journal_lines jl
+			JOIN journal_entries je ON je.id = jl.entry_id
+			WHERE jl.account_id = acc.id
+			  AND je.user_id = a.user_id
+		) agg ON true
 		WHERE a.id = $1 AND a.user_id = $2
 	`
 
@@ -271,9 +317,28 @@ func (r *AssetRepository) GetSnapshots(ctx context.Context, assetID uuid.UUID, s
 // GetTotalAssets calculates total assets value for a user
 func (r *AssetRepository) GetTotalAssets(ctx context.Context, userID uuid.UUID) (decimal.Decimal, error) {
 	query := `
-		SELECT COALESCE(SUM(current_value), 0)
-		FROM assets
-		WHERE user_id = $1 AND is_liability = false
+		SELECT COALESCE(SUM(balance), 0)
+		FROM (
+			SELECT
+				CASE
+					WHEN acc.id IS NULL THEN a.current_value
+					WHEN acc.account_type IN ('asset', 'expense')
+						THEN acc.opening_balance + COALESCE(agg.total_debit, 0) - COALESCE(agg.total_credit, 0)
+					ELSE acc.opening_balance + COALESCE(agg.total_credit, 0) - COALESCE(agg.total_debit, 0)
+				END AS balance
+			FROM assets a
+			LEFT JOIN accounts acc ON acc.asset_id = a.id
+			LEFT JOIN LATERAL (
+				SELECT
+					COALESCE(SUM(jl.debit), 0) AS total_debit,
+					COALESCE(SUM(jl.credit), 0) AS total_credit
+				FROM journal_lines jl
+				JOIN journal_entries je ON je.id = jl.entry_id
+				WHERE jl.account_id = acc.id
+				  AND je.user_id = a.user_id
+			) agg ON true
+			WHERE a.user_id = $1 AND a.is_liability = false
+		) x
 	`
 
 	var total decimal.Decimal
@@ -284,9 +349,28 @@ func (r *AssetRepository) GetTotalAssets(ctx context.Context, userID uuid.UUID) 
 // GetTotalLiabilities calculates total liabilities value for a user
 func (r *AssetRepository) GetTotalLiabilities(ctx context.Context, userID uuid.UUID) (decimal.Decimal, error) {
 	query := `
-		SELECT COALESCE(SUM(current_value), 0)
-		FROM assets
-		WHERE user_id = $1 AND is_liability = true
+		SELECT COALESCE(SUM(balance), 0)
+		FROM (
+			SELECT
+				CASE
+					WHEN acc.id IS NULL THEN a.current_value
+					WHEN acc.account_type IN ('asset', 'expense')
+						THEN acc.opening_balance + COALESCE(agg.total_debit, 0) - COALESCE(agg.total_credit, 0)
+					ELSE acc.opening_balance + COALESCE(agg.total_credit, 0) - COALESCE(agg.total_debit, 0)
+				END AS balance
+			FROM assets a
+			LEFT JOIN accounts acc ON acc.asset_id = a.id
+			LEFT JOIN LATERAL (
+				SELECT
+					COALESCE(SUM(jl.debit), 0) AS total_debit,
+					COALESCE(SUM(jl.credit), 0) AS total_credit
+				FROM journal_lines jl
+				JOIN journal_entries je ON je.id = jl.entry_id
+				WHERE jl.account_id = acc.id
+				  AND je.user_id = a.user_id
+			) agg ON true
+			WHERE a.user_id = $1 AND a.is_liability = true
+		) x
 	`
 
 	var total decimal.Decimal

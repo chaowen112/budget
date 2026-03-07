@@ -1,29 +1,47 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { transactionApi, categoryApi, assetApi } from '../api'
+import { transactionApi, categoryApi, assetApi, transferApi, assistantApi } from '../api'
 import { formatDate, numberToMoney, moneyToNumber } from '../lib/utils'
 import { useAuth } from '../store/AuthContext'
 import { useCurrency, DISPLAY_CURRENCIES } from '../store/CurrencyContext'
-import type { Transaction, Category, CategoryType } from '../types'
-import { Plus, Pencil, Trash2, Search, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import type { Transaction, Category, CategoryType, Transfer, AssistantSuggestion } from '../types'
+import { Plus, Pencil, Trash2, Search, ArrowDownLeft, ArrowUpRight, ArrowRightLeft } from 'lucide-react'
 import { Button, Modal, FormField, Input, Select } from '../components/ui'
 
 const CREATE_CATEGORY_OPTION = '__create_new_category__'
+type ModalMode = 'transaction' | 'transfer'
 
 export default function Transactions() {
   const { user } = useAuth()
   const { formatConverted } = useCurrency()
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalMode, setModalMode] = useState<ModalMode>('transaction')
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [editingTransfer, setEditingTransfer] = useState<Transfer | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCategory, setFilterCategory] = useState<string>('')
   const [transactionCategoryId, setTransactionCategoryId] = useState('')
   const [transactionSourceAssetId, setTransactionSourceAssetId] = useState('')
+  const [transactionAmountInput, setTransactionAmountInput] = useState('')
+  const [transactionCurrencyInput, setTransactionCurrencyInput] = useState(user?.baseCurrency || 'SGD')
+  const [transactionDescriptionInput, setTransactionDescriptionInput] = useState('')
+  const [transactionDateInput, setTransactionDateInput] = useState(new Date().toISOString().split('T')[0])
   const [showQuickCategoryForm, setShowQuickCategoryForm] = useState(false)
   const [quickCategoryName, setQuickCategoryName] = useState('')
   const [quickCategoryType, setQuickCategoryType] = useState<CategoryType>('TRANSACTION_TYPE_EXPENSE')
+  const [transferFromAssetId, setTransferFromAssetId] = useState('')
+  const [transferToAssetId, setTransferToAssetId] = useState('')
+  const [transferFromAmount, setTransferFromAmount] = useState('')
+  const [transferToAmount, setTransferToAmount] = useState('')
+  const [transferDescriptionInput, setTransferDescriptionInput] = useState('')
+  const [transferDateInput, setTransferDateInput] = useState(new Date().toISOString().split('T')[0])
+  const [assistantMessage, setAssistantMessage] = useState('')
+  const [assistantImageDataUrl, setAssistantImageDataUrl] = useState('')
+  const [assistantImageName, setAssistantImageName] = useState('')
+  const [assistantSuggestion, setAssistantSuggestion] = useState<AssistantSuggestion | null>(null)
+  const [assistantCompletionNote, setAssistantCompletionNote] = useState('')
 
   const { data: transactionsData, isLoading } = useQuery({
     queryKey: ['transactions'],
@@ -38,6 +56,11 @@ export default function Transactions() {
   const { data: assets } = useQuery({
     queryKey: ['assets', 'transaction-source'],
     queryFn: () => assetApi.list({ includeLiabilities: true }),
+  })
+
+  const { data: transfers } = useQuery({
+    queryKey: ['transfers'],
+    queryFn: transferApi.list,
   })
 
   const createMutation = useMutation({
@@ -68,6 +91,33 @@ export default function Transactions() {
     },
   })
 
+  const createTransferMutation = useMutation({
+    mutationFn: transferApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries()
+      queryClient.refetchQueries({ type: 'active' })
+      setIsModalOpen(false)
+    },
+  })
+
+  const updateTransferMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof transferApi.update>[1] }) => transferApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries()
+      queryClient.refetchQueries({ type: 'active' })
+      setIsModalOpen(false)
+      setEditingTransfer(null)
+    },
+  })
+
+  const deleteTransferMutation = useMutation({
+    mutationFn: transferApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries()
+      queryClient.refetchQueries({ type: 'active' })
+    },
+  })
+
   const createCategoryMutation = useMutation({
     mutationFn: categoryApi.create,
     onSuccess: (createdCategory) => {
@@ -84,6 +134,13 @@ export default function Transactions() {
     },
   })
 
+  const parseAssistantMutation = useMutation({
+    mutationFn: assistantApi.parseTransactionInput,
+    onSuccess: (res) => {
+      setAssistantSuggestion(res.suggestion)
+    },
+  })
+
   const transactions = transactionsData?.transactions || []
   const hasCategories = (categories?.length || 0) > 0
   const hasAssets = (assets?.length || 0) > 0
@@ -96,17 +153,88 @@ export default function Transactions() {
     return matchesSearch && matchesCategory
   })
 
+  const filteredTransfers = (transfers || []).filter((t) => {
+    const q = searchTerm.toLowerCase()
+    const matchesSearch =
+      !searchTerm ||
+      (t.description || '').toLowerCase().includes(q) ||
+      (t.fromAssetName || '').toLowerCase().includes(q) ||
+      (t.toAssetName || '').toLowerCase().includes(q)
+    const matchesCategory = !filterCategory
+    return matchesSearch && matchesCategory
+  })
+
+  const timelineItems = [
+    ...filteredTransactions.map((transaction) => ({ kind: 'transaction' as const, date: transaction.transactionDate, transaction })),
+    ...filteredTransfers.map((transfer) => ({ kind: 'transfer' as const, date: transfer.transferDate, transfer })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  const selectedFromAsset = assets?.find((a) => a.id === transferFromAssetId)
+  const selectedToAsset = assets?.find((a) => a.id === transferToAssetId)
+  const transferFromCurrency = selectedFromAsset?.currency || editingTransfer?.fromCurrency || user?.baseCurrency || 'SGD'
+  const transferToCurrency = selectedToAsset?.currency || editingTransfer?.toCurrency || user?.baseCurrency || 'SGD'
+  const transferRequiresFx = !!selectedFromAsset && !!selectedToAsset && transferFromCurrency !== transferToCurrency
+
+  const computedFxRate = (() => {
+    const from = parseFloat(transferFromAmount || '0')
+    const to = parseFloat(transferToAmount || '0')
+    if (from > 0 && to > 0) {
+      return to / from
+    }
+    return null
+  })()
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    const amount = parseFloat(formData.get('amount') as string)
-    const currency = (formData.get('currency') as string) || user?.baseCurrency || 'SGD'
-    const dateStr = formData.get('date') as string
+    if (modalMode === 'transfer') {
+      const fromAmount = parseFloat(transferFromAmount || '0')
+      const toAmountRaw = transferToAmount.trim()
+      const dateStr = transferDateInput
+      const transferDate = new Date(dateStr).toISOString()
+      const fromCurrency = transferFromCurrency
+      const toCurrency = transferToCurrency
+
+      if (!(fromAmount > 0)) return
+      if (transferRequiresFx && !toAmountRaw) return
+
+      const normalizedToAmount = toAmountRaw
+        ? parseFloat(toAmountRaw)
+        : fromAmount
+
+      if (!(normalizedToAmount > 0)) return
+
+      const exchangeRate = normalizedToAmount / fromAmount
+
+      const transferData = {
+        fromAssetId: (formData.get('fromAssetId') as string) || transferFromAssetId,
+        toAssetId: (formData.get('toAssetId') as string) || transferToAssetId,
+        fromAmount: fromAmount.toFixed(2),
+        toAmount: normalizedToAmount.toFixed(2),
+        fromCurrency,
+        toCurrency,
+        exchangeRate: exchangeRate.toFixed(10),
+        transferDate,
+        description: transferDescriptionInput || '',
+      }
+
+      if (editingTransfer) {
+        updateTransferMutation.mutate({ id: editingTransfer.id, data: transferData })
+      } else {
+        createTransferMutation.mutate(transferData)
+      }
+      return
+    }
+
+    const amount = parseFloat(transactionAmountInput || '0')
+    if (!(amount > 0)) return
+    const currency = transactionCurrencyInput || user?.baseCurrency || 'SGD'
+    const dateStr = transactionDateInput
     const transactionDate = new Date(dateStr).toISOString()
     const data = {
       categoryId: (formData.get('categoryId') as string) || transactionCategoryId,
       amount: numberToMoney(amount, currency),
-      description: formData.get('description') as string,
+      description: transactionDescriptionInput,
       transactionDate,
     } as Parameters<typeof transactionApi.create>[0]
 
@@ -130,9 +258,22 @@ export default function Transactions() {
 
   const closeModal = () => {
     setIsModalOpen(false)
+    setModalMode('transaction')
     setEditingTransaction(null)
+    setEditingTransfer(null)
     setTransactionCategoryId('')
     setTransactionSourceAssetId('')
+    setTransactionAmountInput('')
+    setTransactionCurrencyInput(user?.baseCurrency || 'SGD')
+    setTransactionDescriptionInput('')
+    setTransactionDateInput(new Date().toISOString().split('T')[0])
+    setTransferFromAssetId('')
+    setTransferToAssetId('')
+    setTransferFromAmount('')
+    setTransferToAmount('')
+    setTransferDescriptionInput('')
+    setTransferDateInput(new Date().toISOString().split('T')[0])
+    setAssistantCompletionNote('')
     setShowQuickCategoryForm(false)
     setQuickCategoryName('')
     setQuickCategoryType('TRANSACTION_TYPE_EXPENSE')
@@ -159,6 +300,177 @@ export default function Transactions() {
     })
   }
 
+  const normalizeHint = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  const findAssetByHint = (hint?: string) => {
+    if (!hint) return undefined
+    const h = hint.toLowerCase().trim()
+    const hNorm = normalizeHint(h)
+    return (
+      assets?.find((a) => a.name.toLowerCase() === h) ||
+      assets?.find((a) => a.name.toLowerCase().includes(h)) ||
+      assets?.find((a) => normalizeHint(a.name) === hNorm) ||
+      assets?.find((a) => normalizeHint(a.name).includes(hNorm))
+    )
+  }
+
+  const findCategoryByHint = (hint?: string, type?: CategoryType) => {
+    if (!hint) return undefined
+    const h = hint.toLowerCase()
+    const candidates = categories?.filter((c) => (type ? c.type === type : true)) || []
+    return candidates.find((c) => c.name.toLowerCase() === h) || candidates.find((c) => c.name.toLowerCase().includes(h))
+  }
+
+  const openAssistantTransactionModal = (params: {
+    categoryId?: string
+    sourceAssetId?: string
+    amount?: string
+    currency?: string
+    description?: string
+    transactionDate?: string
+  }) => {
+    setAssistantCompletionNote('AI suggestion needs a few details. Please complete the form and submit.')
+    setEditingTransaction(null)
+    setEditingTransfer(null)
+    setModalMode('transaction')
+    setShowQuickCategoryForm(false)
+    setQuickCategoryName('')
+    setQuickCategoryType('TRANSACTION_TYPE_EXPENSE')
+    setTransactionCategoryId(params.categoryId || '')
+    setTransactionSourceAssetId(params.sourceAssetId || '')
+    setTransactionAmountInput(params.amount || '')
+    setTransactionCurrencyInput(params.currency || user?.baseCurrency || 'SGD')
+    setTransactionDescriptionInput(params.description || '')
+    setTransactionDateInput((params.transactionDate || new Date().toISOString()).split('T')[0])
+    setIsModalOpen(true)
+  }
+
+  const openAssistantTransferModal = (params: {
+    fromAssetId?: string
+    toAssetId?: string
+    fromAmount?: string
+    toAmount?: string
+    description?: string
+    transferDate?: string
+  }) => {
+    setAssistantCompletionNote('AI suggestion needs a few details. Please complete the transfer form and submit.')
+    setEditingTransaction(null)
+    setEditingTransfer(null)
+    setModalMode('transfer')
+    setShowQuickCategoryForm(false)
+    setQuickCategoryName('')
+    setQuickCategoryType('TRANSACTION_TYPE_EXPENSE')
+    setTransferFromAssetId(params.fromAssetId || '')
+    setTransferToAssetId(params.toAssetId || '')
+    setTransferFromAmount(params.fromAmount || '')
+    setTransferToAmount(params.toAmount || '')
+    setTransferDescriptionInput(params.description || '')
+    setTransferDateInput((params.transferDate || new Date().toISOString()).split('T')[0])
+    setIsModalOpen(true)
+  }
+
+  const applyAssistantSuggestion = async () => {
+    if (!assistantSuggestion) return
+
+    const desc = assistantSuggestion.description || ''
+    const looksLikeDebtPayment = /paid off|repay|settle|credit card bill|loan repayment|pay.+from/i.test(desc)
+    const looksLikeCardChargePurchase = /paid by credit card|charged to|using credit card|via credit card|on credit card/i.test(desc)
+
+    if (assistantSuggestion.entryType === 'transfer' || looksLikeDebtPayment) {
+      const fromAsset = findAssetByHint(assistantSuggestion.fromAsset || assistantSuggestion.sourceAsset)
+      let toAsset = findAssetByHint(assistantSuggestion.toAsset)
+      if (!toAsset && looksLikeDebtPayment) {
+        toAsset = assets?.find((a) => a.isLiability) || undefined
+      }
+      const fromAmount = parseFloat(assistantSuggestion.fromAmount || assistantSuggestion.amount || '0')
+      if (!fromAsset || !toAsset || !(fromAmount > 0)) {
+        openAssistantTransferModal({
+          fromAssetId: fromAsset?.id,
+          toAssetId: toAsset?.id,
+          fromAmount: assistantSuggestion.fromAmount || assistantSuggestion.amount || '',
+          toAmount: assistantSuggestion.toAmount || '',
+          description: assistantSuggestion.description || '',
+          transferDate: assistantSuggestion.transactionDate || new Date().toISOString(),
+        })
+        return
+      }
+      const toAmount = assistantSuggestion.toAmount || undefined
+      const date = assistantSuggestion.transactionDate || new Date().toISOString()
+      createTransferMutation.mutate({
+        fromAssetId: fromAsset.id,
+        toAssetId: toAsset.id,
+        fromAmount: fromAmount.toFixed(2),
+        toAmount: toAmount ? parseFloat(toAmount).toFixed(2) : undefined,
+        fromCurrency: fromAsset.currency,
+        toCurrency: toAsset.currency,
+        exchangeRate: undefined,
+        transferDate: date,
+        description: assistantSuggestion.description || `Transfer ${fromAsset.name} to ${toAsset.name}`,
+      })
+      return
+    }
+
+    const amount = parseFloat(assistantSuggestion.amount || assistantSuggestion.fromAmount || '0')
+    const categoryType = assistantSuggestion.categoryType || 'TRANSACTION_TYPE_EXPENSE'
+    let category = findCategoryByHint(assistantSuggestion.categoryName, categoryType)
+    let sourceAsset = findAssetByHint(assistantSuggestion.sourceAsset || assistantSuggestion.fromAsset)
+    if (!sourceAsset && looksLikeCardChargePurchase) {
+      sourceAsset = assets?.find((a) => a.isLiability && /credit card|card/i.test(a.name)) || assets?.find((a) => a.isLiability)
+    }
+    if (!category) {
+      const fallbackName = assistantSuggestion.categoryName || (categoryType === 'TRANSACTION_TYPE_INCOME' ? 'Other Income' : 'Other Expense')
+      try {
+        category = await createCategoryMutation.mutateAsync({ name: fallbackName, type: categoryType })
+      } catch {
+        // fall through to validation alert
+      }
+    }
+
+    if (!(amount > 0) || !category || !sourceAsset) {
+      openAssistantTransactionModal({
+        categoryId: category?.id,
+        sourceAssetId: sourceAsset?.id,
+        amount: assistantSuggestion.amount || assistantSuggestion.fromAmount || '',
+        currency: assistantSuggestion.currency || sourceAsset?.currency || user?.baseCurrency || 'SGD',
+        description: assistantSuggestion.description || '',
+        transactionDate: assistantSuggestion.transactionDate || new Date().toISOString(),
+      })
+      return
+    }
+
+    createMutation.mutate({
+      categoryId: category.id,
+      sourceAssetId: sourceAsset.id,
+      amount: numberToMoney(amount, assistantSuggestion.currency || sourceAsset.currency),
+      transactionDate: assistantSuggestion.transactionDate || new Date().toISOString(),
+      description: assistantSuggestion.description || category.name,
+    })
+  }
+
+  const handleAssistantImageChange = async (file: File | null) => {
+    if (!file) {
+      setAssistantImageDataUrl('')
+      setAssistantImageName('')
+      return
+    }
+
+    const reader = new FileReader()
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(String(reader.result || ''))
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+    setAssistantImageDataUrl(dataUrl)
+    setAssistantImageName(file.name)
+  }
+
+  const handleAssistantParse = () => {
+    parseAssistantMutation.mutate({
+      message: assistantMessage,
+      imageDataUrl: assistantImageDataUrl || undefined,
+    })
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -176,8 +488,24 @@ export default function Transactions() {
           disabled={!hasAssets}
           onClick={() => {
             setEditingTransaction(null)
+            setEditingTransfer(null)
+            setModalMode('transaction')
+            setShowQuickCategoryForm(false)
+            setQuickCategoryName('')
+            setQuickCategoryType('TRANSACTION_TYPE_EXPENSE')
             setTransactionCategoryId('')
             setTransactionSourceAssetId('')
+            setTransactionAmountInput('')
+            setTransactionCurrencyInput(user?.baseCurrency || 'SGD')
+            setTransactionDescriptionInput('')
+            setTransactionDateInput(new Date().toISOString().split('T')[0])
+            setTransferFromAssetId('')
+            setTransferToAssetId('')
+            setTransferFromAmount('')
+            setTransferToAmount('')
+            setTransferDescriptionInput('')
+            setTransferDateInput(new Date().toISOString().split('T')[0])
+            setAssistantCompletionNote('')
             setIsModalOpen(true)
           }}
         >
@@ -229,6 +557,65 @@ export default function Transactions() {
         </Select>
       </div>
 
+      {/* AI Assistant */}
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 sm:p-5 shadow-sm space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Transactions Assistant</h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Describe a transaction or upload a receipt photo, then create entry from suggestion.</p>
+        </div>
+
+        <textarea
+          value={assistantMessage}
+          onChange={(e) => setAssistantMessage(e.target.value)}
+          placeholder="e.g. paid 12.80 SGD for lunch at Toast Box from OCBC yesterday"
+          className="w-full min-h-[84px] rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+        />
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <Input type="file" accept="image/*" onChange={(e) => handleAssistantImageChange(e.target.files?.[0] || null)} />
+          <Button type="button" onClick={handleAssistantParse} loading={parseAssistantMutation.isPending}>
+            Parse with AI
+          </Button>
+        </div>
+        {assistantImageName && (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">Attached: {assistantImageName}</p>
+        )}
+
+        {assistantSuggestion && (
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs px-2 py-1 rounded bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300">
+                {assistantSuggestion.entryType === 'transfer' ? 'Transfer Suggestion' : 'Transaction Suggestion'}
+              </span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">Confidence {(assistantSuggestion.confidence * 100).toFixed(0)}%</span>
+            </div>
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">{assistantSuggestion.description || 'No description'}</p>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-1">
+              {assistantSuggestion.entryType === 'transfer' ? (
+                <>
+                  <p>From: {assistantSuggestion.fromAsset || assistantSuggestion.sourceAsset || '-'} · Amount: {assistantSuggestion.fromAmount || assistantSuggestion.amount || '-'}</p>
+                  <p>To: {assistantSuggestion.toAsset || '-'} · To Amount: {assistantSuggestion.toAmount || '-'}</p>
+                </>
+              ) : (
+                <>
+                  <p>Category: {assistantSuggestion.categoryName || '-'} ({assistantSuggestion.categoryType || '-'})</p>
+                  <p>Source Asset: {assistantSuggestion.sourceAsset || '-'}</p>
+                  <p>Amount: {assistantSuggestion.amount || '-'} {assistantSuggestion.currency || ''}</p>
+                </>
+              )}
+              {assistantSuggestion.missingFields.length > 0 && (
+                <p>Missing: {assistantSuggestion.missingFields.join(', ')}</p>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <Button type="button" size="sm" onClick={applyAssistantSuggestion}>
+                Create Entry from Suggestion
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Transactions List */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
         {isLoading ? (
@@ -238,18 +625,81 @@ export default function Transactions() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
           </div>
-        ) : filteredTransactions.length === 0 ? (
+        ) : timelineItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-zinc-400 dark:text-zinc-500">
             <Search className="h-8 w-8 mb-3 opacity-40" />
             <p className="text-sm">No transactions found</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {filteredTransactions.map((transaction) => {
+            {timelineItems.map((item) => {
+              if (item.kind === 'transfer') {
+                const transfer = item.transfer
+                return (
+                  <div
+                    key={`transfer-${transfer.id}`}
+                    className="flex items-start sm:items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors duration-150"
+                  >
+                    <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-sky-50 dark:bg-sky-500/10">
+                      <ArrowRightLeft className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                        {transfer.description || `Transfer ${transfer.fromAssetName} -> ${transfer.toAssetName}`}
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300 mr-1.5">Transfer</span>
+                        {transfer.fromAssetName} {'->'} {transfer.toAssetName} {'·'} {formatDate(transfer.transferDate)}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 sm:gap-2 flex-shrink-0">
+                      <span className="text-sm font-semibold tabular-nums text-sky-600 dark:text-sky-400">
+                        {formatConverted({ amount: transfer.fromAmount, currency: transfer.fromCurrency })}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingTransfer(transfer)
+                            setEditingTransaction(null)
+                            setModalMode('transfer')
+                            setShowQuickCategoryForm(false)
+                            setQuickCategoryName('')
+                            setQuickCategoryType('TRANSACTION_TYPE_EXPENSE')
+                            setTransferFromAssetId(transfer.fromAssetId)
+                            setTransferToAssetId(transfer.toAssetId)
+                            setTransferFromAmount(transfer.fromAmount)
+                            setTransferToAmount(transfer.toAmount)
+                            setTransferDescriptionInput(transfer.description || '')
+                            setTransferDateInput(transfer.transferDate?.split('T')[0] || new Date().toISOString().split('T')[0])
+                            setAssistantCompletionNote('')
+                            setIsModalOpen(true)
+                          }}
+                          className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-150"
+                          title="Edit transfer"
+                        >
+                          <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('Delete this transfer?')) {
+                              deleteTransferMutation.mutate(transfer.id)
+                            }
+                          }}
+                          className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors duration-150"
+                          title="Delete transfer"
+                        >
+                          <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+              const transaction = item.transaction
               const isExpense = getCategoryType(transaction.categoryId) === 'TRANSACTION_TYPE_EXPENSE'
               return (
                 <div
-                  key={transaction.id}
+                  key={`tx-${transaction.id}`}
                   className="flex items-start sm:items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors duration-150"
                 >
                   {/* Icon */}
@@ -298,7 +748,18 @@ export default function Transactions() {
                       <button
                         onClick={() => {
                           setEditingTransaction(transaction)
+                          setEditingTransfer(null)
+                          setModalMode('transaction')
+                          setShowQuickCategoryForm(false)
+                          setQuickCategoryName('')
+                          setQuickCategoryType('TRANSACTION_TYPE_EXPENSE')
                           setTransactionCategoryId(transaction.categoryId)
+                          setTransactionSourceAssetId('')
+                          setTransactionAmountInput(String(moneyToNumber(transaction.amount)))
+                          setTransactionCurrencyInput(transaction.amount.currency)
+                          setTransactionDescriptionInput(transaction.description || '')
+                          setTransactionDateInput(transaction.transactionDate?.split('T')[0] || new Date().toISOString().split('T')[0])
+                          setAssistantCompletionNote('')
                           setIsModalOpen(true)
                         }}
                         className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-150"
@@ -330,7 +791,7 @@ export default function Transactions() {
       <Modal
         open={isModalOpen}
         onClose={closeModal}
-        title={editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
+        title={modalMode === 'transfer' ? (editingTransfer ? 'Edit Transfer' : 'Add Transfer') : (editingTransaction ? 'Edit Transaction' : 'Add Transaction')}
         footer={
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" onClick={closeModal}>
@@ -339,14 +800,137 @@ export default function Transactions() {
             <Button
               type="submit"
               form="transaction-form"
-              loading={createMutation.isPending || updateMutation.isPending}
+              loading={createMutation.isPending || updateMutation.isPending || createTransferMutation.isPending || updateTransferMutation.isPending}
             >
-              {editingTransaction ? 'Update' : 'Add'}
+              {modalMode === 'transfer' ? (editingTransfer ? 'Update' : 'Add') : (editingTransaction ? 'Update' : 'Add')}
             </Button>
           </div>
         }
       >
         <form id="transaction-form" onSubmit={handleSubmit} className="space-y-4">
+          {assistantCompletionNote && (
+            <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300">
+              {assistantCompletionNote}
+            </div>
+          )}
+
+          <FormField label="Entry Type">
+            <Select
+              value={modalMode}
+              onChange={(e) => setModalMode(e.target.value as ModalMode)}
+              disabled={!!editingTransaction || !!editingTransfer}
+            >
+              <option value="transaction">Income / Expense</option>
+              <option value="transfer">Transfer</option>
+            </Select>
+          </FormField>
+
+          {modalMode === 'transfer' ? (
+            <>
+              <FormField label="From Asset">
+                <Select
+                  name="fromAssetId"
+                  required
+                  value={transferFromAssetId}
+                  onChange={(e) => setTransferFromAssetId(e.target.value)}
+                >
+                  <option value="">Select source asset</option>
+                  {assets?.map((asset) => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="To Asset">
+                <Select
+                  name="toAssetId"
+                  required
+                  value={transferToAssetId}
+                  onChange={(e) => setTransferToAssetId(e.target.value)}
+                >
+                  <option value="">Select destination asset</option>
+                  {assets?.map((asset) => (
+                    <option key={asset.id} value={asset.id}>{asset.name}</option>
+                  ))}
+                </Select>
+              </FormField>
+
+              <div className="grid grid-cols-2 gap-3">
+              <FormField label="From Amount">
+                  <Input
+                    type="number"
+                    name="fromAmount"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={transferFromAmount}
+                    onChange={(e) => setTransferFromAmount(e.target.value)}
+                  />
+                </FormField>
+                <FormField label="From Currency">
+                  <Input value={transferFromCurrency} disabled />
+                </FormField>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label={transferRequiresFx ? 'To Amount (Required)' : 'To Amount (Optional)'}>
+                  <Input
+                    type="number"
+                    name="toAmount"
+                    step="0.01"
+                    min="0"
+                    required={transferRequiresFx}
+                    value={transferToAmount}
+                    onChange={(e) => setTransferToAmount(e.target.value)}
+                    placeholder={transferRequiresFx ? 'Required for FX transfer' : 'Leave blank for same amount'}
+                  />
+                </FormField>
+                <FormField label="To Currency">
+                  <Input name="toCurrency" value={transferToCurrency} disabled />
+                </FormField>
+              </div>
+
+              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 text-xs text-zinc-500 dark:text-zinc-400">
+                {transferRequiresFx ? (
+                  <>
+                    FX transfer detected ({transferFromCurrency} {'->'} {transferToCurrency}).
+                    {computedFxRate ? (
+                      <span className="block mt-1 text-zinc-700 dark:text-zinc-300">
+                        Auto exchange rate: {computedFxRate.toFixed(6)}
+                      </span>
+                    ) : (
+                      <span className="block mt-1">Enter To Amount to auto-calculate exchange rate.</span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    Same currency transfer. If To Amount is blank, system uses From Amount automatically (no FX).
+                  </>
+                )}
+              </div>
+
+              <FormField label="Description">
+                <Input
+                  type="text"
+                  name="description"
+                  value={transferDescriptionInput}
+                  onChange={(e) => setTransferDescriptionInput(e.target.value)}
+                  placeholder="e.g. Pay credit card bill"
+                />
+              </FormField>
+
+              <FormField label="Date">
+                <Input
+                  type="date"
+                  name="date"
+                  required
+                  value={transferDateInput}
+                  onChange={(e) => setTransferDateInput(e.target.value)}
+                />
+              </FormField>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Transfers are excluded from income/expense reports.</p>
+            </>
+          ) : (
+            <>
           <FormField label="Category">
             <Select
               name="categoryId"
@@ -441,7 +1025,8 @@ export default function Transactions() {
                   step="0.01"
                   min="0"
                   required
-                  defaultValue={editingTransaction ? moneyToNumber(editingTransaction.amount) : ''}
+                  value={transactionAmountInput}
+                  onChange={(e) => setTransactionAmountInput(e.target.value)}
                   placeholder="0.00"
                 />
               </FormField>
@@ -450,7 +1035,8 @@ export default function Transactions() {
               <FormField label="Currency">
                 <Select
                   name="currency"
-                  defaultValue={editingTransaction?.amount.currency || 'SGD'}
+                  value={transactionCurrencyInput}
+                  onChange={(e) => setTransactionCurrencyInput(e.target.value)}
                 >
                   {DISPLAY_CURRENCIES.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -464,7 +1050,8 @@ export default function Transactions() {
             <Input
               type="text"
               name="description"
-              defaultValue={editingTransaction?.description || ''}
+              value={transactionDescriptionInput}
+              onChange={(e) => setTransactionDescriptionInput(e.target.value)}
               placeholder="What was this for?"
             />
           </FormField>
@@ -474,12 +1061,12 @@ export default function Transactions() {
               type="date"
               name="date"
               required
-              defaultValue={
-                editingTransaction?.transactionDate?.split('T')[0] ||
-                new Date().toISOString().split('T')[0]
-              }
+              value={transactionDateInput}
+              onChange={(e) => setTransactionDateInput(e.target.value)}
             />
           </FormField>
+            </>
+          )}
         </form>
       </Modal>
     </div>

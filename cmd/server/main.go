@@ -23,16 +23,29 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	pb "github.com/chaowen/budget/gen/budget/v1"
 	"github.com/chaowen/budget/internal/config"
 	"github.com/chaowen/budget/internal/handler"
 	"github.com/chaowen/budget/internal/middleware"
+	"github.com/chaowen/budget/internal/model"
 	"github.com/chaowen/budget/internal/pkg/currency"
 	"github.com/chaowen/budget/internal/pkg/jwt"
 	"github.com/chaowen/budget/internal/repository"
 	"github.com/chaowen/budget/internal/service"
 )
+
+type transferPayload struct {
+	FromAssetID  string `json:"fromAssetId"`
+	ToAssetID    string `json:"toAssetId"`
+	FromAmount   string `json:"fromAmount"`
+	ToAmount     string `json:"toAmount"`
+	FromCurrency string `json:"fromCurrency"`
+	ToCurrency   string `json:"toCurrency"`
+	TransferDate string `json:"transferDate"`
+	Description  string `json:"description"`
+}
 
 //go:embed static/*
 var staticFiles embed.FS
@@ -72,6 +85,8 @@ func run() error {
 	budgetRepo := repository.NewBudgetRepository(db)
 	assetRepo := repository.NewAssetRepository(db)
 	goalRepo := repository.NewGoalRepository(db)
+	accountingRepo := repository.NewAccountingRepository(db)
+	transferRepo := repository.NewTransferRepository(db)
 	currencyRepo := repository.NewCurrencyRepository(db)
 	cpfRepo := repository.NewCPFRepository(db)
 
@@ -80,6 +95,12 @@ func run() error {
 
 	// Initialize services
 	userService := service.NewUserService(userRepo, jwtManager)
+	transactionAssistantService := service.NewTransactionAssistantService(
+		cfg.AI.Provider,
+		cfg.AI.APIKey,
+		cfg.AI.Model,
+		cfg.AI.BaseURL,
+	)
 
 	// Initialize external clients
 	currencyClient := currency.NewClient(cfg.Exchange.APIKey)
@@ -87,9 +108,9 @@ func run() error {
 	// Initialize handlers
 	userHandler := handler.NewUserHandler(userService)
 	categoryHandler := handler.NewCategoryHandler(categoryRepo)
-	transactionHandler := handler.NewTransactionHandler(transactionRepo, categoryRepo, assetRepo)
+	transactionHandler := handler.NewTransactionHandler(transactionRepo, categoryRepo, assetRepo, accountingRepo)
 	budgetHandler := handler.NewBudgetHandler(budgetRepo)
-	assetHandler := handler.NewAssetHandler(assetRepo)
+	assetHandler := handler.NewAssetHandler(assetRepo, accountingRepo)
 	goalHandler := handler.NewGoalHandler(goalRepo, assetRepo, transactionRepo)
 	currencyHandler := handler.NewCurrencyHandler(currencyRepo, currencyClient)
 	cpfHandler := handler.NewCPFHandler(cpfRepo)
@@ -194,10 +215,19 @@ func run() error {
 	}
 
 	// Handle SPA routing - serve index.html for non-API routes
-	httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// API routes go to gRPC gateway
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			if serveGoalHistory(w, r, jwtManager, goalHandler) {
+		httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			// API routes go to gRPC gateway
+			if strings.HasPrefix(r.URL.Path, "/api/") {
+				if serveGoalHistory(w, r, jwtManager, goalHandler) {
+					return
+				}
+			if serveAccounting(w, r, jwtManager, accountingRepo) {
+				return
+			}
+			if serveTransfers(w, r, jwtManager, transferRepo, assetRepo, accountingRepo) {
+				return
+			}
+			if serveTransactionAssistant(w, r, jwtManager, transactionAssistantService) {
 				return
 			}
 			withCORS(gwMux).ServeHTTP(w, r)
@@ -357,12 +387,462 @@ func serveGoalHistory(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Ma
 	return true
 }
 
+func serveAccounting(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Manager, accountingRepo *repository.AccountingRepository) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+
+	if r.URL.Path != "/api/v1/accounting/accounts" && r.URL.Path != "/api/v1/accounting/journal" {
+		return false
+	}
+
+	authz := r.Header.Get("Authorization")
+	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return true
+	}
+
+	claims, err := jwtManager.ValidateAccessToken(strings.TrimPrefix(authz, "Bearer "))
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return true
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.URL.Path == "/api/v1/accounting/accounts" {
+		accounts, err := accountingRepo.ListAccountsWithBalances(r.Context(), claims.UserID)
+		if err != nil {
+			http.Error(w, "failed to fetch accounts", http.StatusInternalServerError)
+			return true
+		}
+
+		items := make([]map[string]any, 0, len(accounts))
+		for _, a := range accounts {
+			item := map[string]any{
+				"id":             a.ID.String(),
+				"name":           a.Name,
+				"accountType":    string(a.AccountType),
+				"currency":       a.Currency,
+				"openingBalance": a.OpeningBalance.String(),
+				"balance":        a.Balance.String(),
+				"isSystem":       a.IsSystem,
+				"createdAt":      a.CreatedAt.Format(time.RFC3339),
+				"updatedAt":      a.UpdatedAt.Format(time.RFC3339),
+			}
+			if a.AssetID != nil {
+				item["assetId"] = a.AssetID.String()
+			}
+			if a.CategoryID != nil {
+				item["categoryId"] = a.CategoryID.String()
+			}
+			items = append(items, item)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{"accounts": items})
+		return true
+	}
+
+	limit := 50
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if v, convErr := strconv.Atoi(raw); convErr == nil && v > 0 && v <= 500 {
+			limit = v
+		}
+	}
+
+	entries, err := accountingRepo.ListJournalEntries(r.Context(), claims.UserID, limit)
+	if err != nil {
+		http.Error(w, "failed to fetch journal", http.StatusInternalServerError)
+		return true
+	}
+
+	entryItems := make([]map[string]any, 0, len(entries))
+	for _, e := range entries {
+		entryItem := map[string]any{
+			"id":            e.ID.String(),
+			"entryDate":     e.EntryDate.Format(time.RFC3339),
+			"description":   e.Description,
+			"source":        e.Source,
+			"referenceType": e.ReferenceType,
+			"baseCurrency":  e.BaseCurrency,
+			"createdAt":     e.CreatedAt.Format(time.RFC3339),
+		}
+		if e.ReferenceID != nil {
+			entryItem["referenceId"] = e.ReferenceID.String()
+		}
+
+		lineItems := make([]map[string]any, 0, len(e.Lines))
+		for _, l := range e.Lines {
+			lineItems = append(lineItems, map[string]any{
+				"id":          l.ID.String(),
+				"accountId":   l.AccountID.String(),
+				"accountName": l.AccountName,
+				"accountType": string(l.AccountType),
+				"debit":       l.Debit.String(),
+				"credit":      l.Credit.String(),
+				"baseDebit":   l.BaseDebit.String(),
+				"baseCredit":  l.BaseCredit.String(),
+				"description": l.Description,
+			})
+		}
+		entryItem["lines"] = lineItems
+		entryItems = append(entryItems, entryItem)
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]any{"entries": entryItems})
+	return true
+}
+
+func serveTransfers(
+	w http.ResponseWriter,
+	r *http.Request,
+	jwtManager *jwt.Manager,
+	transferRepo *repository.TransferRepository,
+	assetRepo *repository.AssetRepository,
+	accountingRepo *repository.AccountingRepository,
+) bool {
+	if !strings.HasPrefix(r.URL.Path, "/api/v1/transfers") {
+		return false
+	}
+
+	authz := r.Header.Get("Authorization")
+	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return true
+	}
+
+	claims, err := jwtManager.ValidateAccessToken(strings.TrimPrefix(authz, "Bearer "))
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return true
+	}
+
+	writeTransfer := func(statusCode int, t *model.Transfer) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"transfer": map[string]any{
+				"id":           t.ID.String(),
+				"fromAssetId":  t.FromAssetID.String(),
+				"toAssetId":    t.ToAssetID.String(),
+				"fromAmount":   t.FromAmount.String(),
+				"toAmount":     t.ToAmount.String(),
+				"fromCurrency": t.FromCurrency,
+				"toCurrency":   t.ToCurrency,
+				"exchangeRate": t.ExchangeRate.String(),
+				"transferDate": t.TransferDate.Format(time.RFC3339),
+				"description":  t.Description,
+				"createdAt":    t.CreatedAt.Format(time.RFC3339),
+				"updatedAt":    t.UpdatedAt.Format(time.RFC3339),
+				"fromAssetName": t.FromAssetName,
+				"toAssetName": t.ToAssetName,
+			},
+		})
+	}
+
+	if r.Method == http.MethodGet && r.URL.Path == "/api/v1/transfers" {
+		items, err := transferRepo.List(r.Context(), claims.UserID, 200)
+		if err != nil {
+			http.Error(w, "failed to fetch transfers", http.StatusInternalServerError)
+			return true
+		}
+		resp := make([]map[string]any, 0, len(items))
+		for _, t := range items {
+			resp = append(resp, map[string]any{
+				"id":           t.ID.String(),
+				"fromAssetId":  t.FromAssetID.String(),
+				"toAssetId":    t.ToAssetID.String(),
+				"fromAmount":   t.FromAmount.String(),
+				"toAmount":     t.ToAmount.String(),
+				"fromCurrency": t.FromCurrency,
+				"toCurrency":   t.ToCurrency,
+				"exchangeRate": t.ExchangeRate.String(),
+				"transferDate": t.TransferDate.Format(time.RFC3339),
+				"description":  t.Description,
+				"createdAt":    t.CreatedAt.Format(time.RFC3339),
+				"updatedAt":    t.UpdatedAt.Format(time.RFC3339),
+				"fromAssetName": t.FromAssetName,
+				"toAssetName": t.ToAssetName,
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"transfers": resp})
+		return true
+	}
+
+	if r.Method == http.MethodPost && r.URL.Path == "/api/v1/transfers" {
+		var payload transferPayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return true
+		}
+		t, err := parseTransferPayload(payload, claims.UserID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return true
+		}
+		fromAsset, err := assetRepo.GetByID(r.Context(), t.FromAssetID, claims.UserID)
+		if err != nil {
+			http.Error(w, "from asset not found", http.StatusBadRequest)
+			return true
+		}
+		toAsset, err := assetRepo.GetByID(r.Context(), t.ToAssetID, claims.UserID)
+		if err != nil {
+			http.Error(w, "to asset not found", http.StatusBadRequest)
+			return true
+		}
+		if err := finalizeTransferPayload(t, payload, fromAsset.Currency, toAsset.Currency); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return true
+		}
+		if err := transferRepo.Create(r.Context(), t); err != nil {
+			http.Error(w, "failed to create transfer", http.StatusInternalServerError)
+			return true
+		}
+		fromAcc, err := accountingRepo.EnsureAssetAccount(r.Context(), fromAsset)
+		if err != nil {
+			http.Error(w, "failed to ensure source account", http.StatusInternalServerError)
+			return true
+		}
+		toAcc, err := accountingRepo.EnsureAssetAccount(r.Context(), toAsset)
+		if err != nil {
+			http.Error(w, "failed to ensure destination account", http.StatusInternalServerError)
+			return true
+		}
+		if err := accountingRepo.UpsertTransferEntry(r.Context(), claims.UserID, t, fromAcc, toAcc); err != nil {
+			http.Error(w, "failed to post transfer journal", http.StatusInternalServerError)
+			return true
+		}
+		t.FromAssetName = fromAsset.Name
+		t.ToAssetName = toAsset.Name
+		writeTransfer(http.StatusCreated, t)
+		return true
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/v1/transfers/") {
+		idStr := strings.TrimPrefix(r.URL.Path, "/api/v1/transfers/")
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			http.Error(w, "invalid transfer id", http.StatusBadRequest)
+			return true
+		}
+
+		switch r.Method {
+		case http.MethodPatch:
+			transfer, err := transferRepo.GetByID(r.Context(), id, claims.UserID)
+			if err != nil {
+				http.Error(w, "transfer not found", http.StatusNotFound)
+				return true
+			}
+
+			var payload transferPayload
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				http.Error(w, "invalid json", http.StatusBadRequest)
+				return true
+			}
+
+			next, err := parseTransferPayload(payload, claims.UserID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return true
+			}
+			next.ID = transfer.ID
+
+			fromAsset, err := assetRepo.GetByID(r.Context(), next.FromAssetID, claims.UserID)
+			if err != nil {
+				http.Error(w, "from asset not found", http.StatusBadRequest)
+				return true
+			}
+			toAsset, err := assetRepo.GetByID(r.Context(), next.ToAssetID, claims.UserID)
+			if err != nil {
+				http.Error(w, "to asset not found", http.StatusBadRequest)
+				return true
+			}
+			if err := finalizeTransferPayload(next, payload, fromAsset.Currency, toAsset.Currency); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return true
+			}
+
+			if err := transferRepo.Update(r.Context(), next); err != nil {
+				http.Error(w, "failed to update transfer", http.StatusInternalServerError)
+				return true
+			}
+			fromAcc, err := accountingRepo.EnsureAssetAccount(r.Context(), fromAsset)
+			if err != nil {
+				http.Error(w, "failed to ensure source account", http.StatusInternalServerError)
+				return true
+			}
+			toAcc, err := accountingRepo.EnsureAssetAccount(r.Context(), toAsset)
+			if err != nil {
+				http.Error(w, "failed to ensure destination account", http.StatusInternalServerError)
+				return true
+			}
+			if err := accountingRepo.UpsertTransferEntry(r.Context(), claims.UserID, next, fromAcc, toAcc); err != nil {
+				http.Error(w, "failed to post transfer journal", http.StatusInternalServerError)
+				return true
+			}
+			next.FromAssetName = fromAsset.Name
+			next.ToAssetName = toAsset.Name
+			writeTransfer(http.StatusOK, next)
+			return true
+
+		case http.MethodDelete:
+			if err := transferRepo.Delete(r.Context(), id, claims.UserID); err != nil {
+				http.Error(w, "transfer not found", http.StatusNotFound)
+				return true
+			}
+			if err := accountingRepo.DeleteTransferEntry(r.Context(), claims.UserID, id); err != nil {
+				http.Error(w, "failed to delete transfer journal", http.StatusInternalServerError)
+				return true
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return true
+		}
+	}
+
+	return false
+}
+
+func serveTransactionAssistant(
+	w http.ResponseWriter,
+	r *http.Request,
+	jwtManager *jwt.Manager,
+	assistantService *service.TransactionAssistantService,
+) bool {
+	if r.URL.Path != "/api/v1/transactions/assistant/parse" {
+		return false
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return true
+	}
+
+	authz := r.Header.Get("Authorization")
+	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return true
+	}
+	if _, err := jwtManager.ValidateAccessToken(strings.TrimPrefix(authz, "Bearer ")); err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return true
+	}
+
+	var payload service.AssistantParseRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return true
+	}
+
+	parsed, err := assistantService.Parse(r.Context(), payload)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return true
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(parsed)
+	return true
+}
+
+func parseTransferPayload(payload transferPayload, userID uuid.UUID) (*model.Transfer, error) {
+	fromAssetID, err := uuid.Parse(payload.FromAssetID)
+	if err != nil {
+		return nil, errors.New("invalid fromAssetId")
+	}
+	toAssetID, err := uuid.Parse(payload.ToAssetID)
+	if err != nil {
+		return nil, errors.New("invalid toAssetId")
+	}
+	if fromAssetID == toAssetID {
+		return nil, errors.New("from and to assets must be different")
+	}
+
+	fromAmount, err := decimal.NewFromString(payload.FromAmount)
+	if err != nil || fromAmount.LessThanOrEqual(decimal.Zero) {
+		return nil, errors.New("invalid fromAmount")
+	}
+
+	transferDate, err := time.Parse(time.RFC3339, payload.TransferDate)
+	if err != nil {
+		return nil, errors.New("invalid transferDate")
+	}
+
+	return &model.Transfer{
+		UserID:       userID,
+		FromAssetID:  fromAssetID,
+		ToAssetID:    toAssetID,
+		FromAmount:   fromAmount.Round(2),
+		ToAmount:     decimal.Zero,
+		FromCurrency: "",
+		ToCurrency:   "",
+		ExchangeRate: decimal.Zero,
+		TransferDate: transferDate,
+		Description:  payload.Description,
+	}, nil
+}
+
+func finalizeTransferPayload(t *model.Transfer, payload transferPayload, fromAssetCurrency, toAssetCurrency string) error {
+	fromCurrency := strings.ToUpper(strings.TrimSpace(fromAssetCurrency))
+	toCurrency := strings.ToUpper(strings.TrimSpace(toAssetCurrency))
+	if fromCurrency == "" || toCurrency == "" {
+		return errors.New("asset currencies are required")
+	}
+
+	t.FromCurrency = fromCurrency
+	t.ToCurrency = toCurrency
+
+	toAmountRaw := strings.TrimSpace(payload.ToAmount)
+	toCurrencyInput := strings.ToUpper(strings.TrimSpace(payload.ToCurrency))
+
+	if fromCurrency == toCurrency {
+		if toCurrencyInput != "" && toCurrencyInput != toCurrency {
+			return errors.New("toCurrency must match destination asset currency")
+		}
+		if toAmountRaw == "" {
+			t.ToAmount = t.FromAmount
+			t.ExchangeRate = decimal.NewFromInt(1)
+			return nil
+		}
+		toAmount, err := decimal.NewFromString(toAmountRaw)
+		if err != nil || toAmount.LessThanOrEqual(decimal.Zero) {
+			return errors.New("invalid toAmount")
+		}
+		t.ToAmount = toAmount.Round(2)
+		if t.FromAmount.IsZero() {
+			return errors.New("invalid fromAmount")
+		}
+		t.ExchangeRate = t.ToAmount.Div(t.FromAmount)
+		return nil
+	}
+
+	if toAmountRaw == "" {
+		return errors.New("toAmount is required for cross-currency transfer")
+	}
+	if toCurrencyInput == "" {
+		return errors.New("toCurrency is required for cross-currency transfer")
+	}
+	if toCurrencyInput != toCurrency {
+		return errors.New("toCurrency must match destination asset currency")
+	}
+
+	toAmount, err := decimal.NewFromString(toAmountRaw)
+	if err != nil || toAmount.LessThanOrEqual(decimal.Zero) {
+		return errors.New("invalid toAmount")
+	}
+	t.ToAmount = toAmount.Round(2)
+	if t.FromAmount.IsZero() {
+		return errors.New("invalid fromAmount")
+	}
+	t.ExchangeRate = t.ToAmount.Div(t.FromAmount)
+	return nil
+}
+
 // withCORS adds CORS headers for development
 func withCORS(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Grpc-Metadata-source-asset-id, x-goal-change-source")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)

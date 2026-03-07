@@ -8,6 +8,7 @@ import {
   Target,
   Wallet,
   BarChart3,
+  BookOpen,
   Settings,
   LogOut,
   Menu,
@@ -24,6 +25,7 @@ const navigation = [
   { name: 'Goals',        href: '/goals',        icon: Target },
   { name: 'Assets',       href: '/assets',       icon: Wallet },
   { name: 'Reports',      href: '/reports',      icon: BarChart3 },
+  { name: 'Accounting',   href: '/accounting',   icon: BookOpen },
   { name: 'Settings',     href: '/settings',     icon: Settings },
 ]
 

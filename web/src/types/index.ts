@@ -240,6 +240,98 @@ export interface NetWorthTrendReport {
   totalChangePercentage: number
 }
 
+export interface LedgerAccount {
+  id: string
+  name: string
+  accountType: 'asset' | 'liability' | 'equity' | 'income' | 'expense'
+  currency: string
+  openingBalance: string
+  balance: string
+  isSystem: boolean
+  assetId?: string
+  categoryId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface JournalLine {
+  id: string
+  accountId: string
+  accountName: string
+  accountType: 'asset' | 'liability' | 'equity' | 'income' | 'expense'
+  debit: string
+  credit: string
+  baseDebit: string
+  baseCredit: string
+  description: string
+}
+
+export interface JournalEntry {
+  id: string
+  entryDate: string
+  description: string
+  source: string
+  referenceType: string
+  referenceId?: string
+  baseCurrency: string
+  createdAt: string
+  lines: JournalLine[]
+}
+
+export interface Transfer {
+  id: string
+  fromAssetId: string
+  toAssetId: string
+  fromAmount: string
+  toAmount: string
+  fromCurrency: string
+  toCurrency: string
+  exchangeRate: string
+  transferDate: string
+  description?: string
+  createdAt: string
+  updatedAt: string
+  fromAssetName?: string
+  toAssetName?: string
+}
+
+export interface CreateTransferRequest {
+  fromAssetId: string
+  toAssetId: string
+  fromAmount: string
+  toAmount?: string
+  fromCurrency: string
+  toCurrency?: string
+  exchangeRate?: string
+  transferDate: string
+  description?: string
+}
+
+export interface AssistantSuggestion {
+  entryType: 'transaction' | 'transfer'
+  description: string
+  transactionDate: string
+  amount?: string
+  currency?: string
+  categoryType?: CategoryType
+  categoryName?: string
+  sourceAsset?: string
+  fromAsset?: string
+  toAsset?: string
+  fromAmount?: string
+  toAmount?: string
+  fromCurrency?: string
+  toCurrency?: string
+  confidence: number
+  missingFields: string[]
+}
+
+export interface AssistantParseResponse {
+  suggestion: AssistantSuggestion
+  rawText: string
+  provider: string
+}
+
 // Currency types
 export interface Currency {
   code: string

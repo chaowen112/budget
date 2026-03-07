@@ -20,12 +20,14 @@ import (
 
 type AssetHandler struct {
 	pb.UnimplementedAssetServiceServer
-	assetRepo *repository.AssetRepository
+	assetRepo      *repository.AssetRepository
+	accountingRepo *repository.AccountingRepository
 }
 
-func NewAssetHandler(assetRepo *repository.AssetRepository) *AssetHandler {
+func NewAssetHandler(assetRepo *repository.AssetRepository, accountingRepo *repository.AccountingRepository) *AssetHandler {
 	return &AssetHandler{
-		assetRepo: assetRepo,
+		assetRepo:      assetRepo,
+		accountingRepo: accountingRepo,
 	}
 }
 
@@ -103,6 +105,9 @@ func (h *AssetHandler) CreateAsset(ctx context.Context, req *pb.CreateAssetReque
 
 	if err := h.assetRepo.Create(ctx, asset); err != nil {
 		return nil, status.Error(codes.Internal, "failed to create asset")
+	}
+	if _, err := h.accountingRepo.EnsureAssetAccount(ctx, asset); err != nil {
+		return nil, status.Error(codes.Internal, "failed to create asset ledger account")
 	}
 
 	_ = h.assetRepo.RecordSnapshot(ctx, &model.AssetSnapshot{
@@ -204,6 +209,9 @@ func (h *AssetHandler) UpdateAsset(ctx context.Context, req *pb.UpdateAssetReque
 		currentValue, err := decimal.NewFromString(req.CurrentValue)
 		if err != nil {
 			return nil, status.Error(codes.InvalidArgument, "invalid current_value")
+		}
+		if err := h.accountingRepo.AdjustAssetToValue(ctx, userID, asset, currentValue, "manual asset update"); err != nil {
+			return nil, status.Error(codes.Internal, "failed to adjust asset ledger balance")
 		}
 		asset.CurrentValue = currentValue
 	}

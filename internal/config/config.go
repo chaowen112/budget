@@ -12,6 +12,7 @@ type Config struct {
 	Database DatabaseConfig
 	JWT      JWTConfig
 	Exchange ExchangeConfig
+	AI       AIConfig
 }
 
 type ServerConfig struct {
@@ -33,6 +34,13 @@ type ExchangeConfig struct {
 	APIKey string
 }
 
+type AIConfig struct {
+	Provider string
+	APIKey   string
+	Model    string
+	BaseURL  string
+}
+
 func Load() *Config {
 	return &Config{
 		Env: getEnv("ENV", "development"),
@@ -50,6 +58,12 @@ func Load() *Config {
 		},
 		Exchange: ExchangeConfig{
 			APIKey: getEnv("EXCHANGE_RATE_API_KEY", ""),
+		},
+		AI: AIConfig{
+			Provider: getEnv("AI_PROVIDER", "openai"),
+			APIKey:   getEnv("AI_API_KEY", ""),
+			Model:    getEnv("AI_MODEL", "gpt-4o-mini"),
+			BaseURL:  getEnv("AI_BASE_URL", "https://api.openai.com"),
 		},
 	}
 }

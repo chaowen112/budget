@@ -19,6 +19,11 @@ import type {
   MonthlyReport,
   NetWorthReport,
   NetWorthTrendReport,
+  LedgerAccount,
+  JournalEntry,
+  Transfer,
+  CreateTransferRequest,
+  AssistantParseResponse,
   Currency,
   ExchangeRate,
   CategoryType,
@@ -365,6 +370,52 @@ export const reportApi = {
   getGoalsReport: async (): Promise<SavingGoalReport[]> => {
     const response = await api.get('/reports/goals')
     return response.data.goals || []
+  },
+}
+
+export const accountingApi = {
+  listAccounts: async (): Promise<LedgerAccount[]> => {
+    const response = await api.get('/accounting/accounts')
+    return response.data.accounts || []
+  },
+
+  listJournal: async (limit = 50): Promise<JournalEntry[]> => {
+    const response = await api.get('/accounting/journal', { params: { limit } })
+    return response.data.entries || []
+  },
+}
+
+export const transferApi = {
+  list: async (): Promise<Transfer[]> => {
+    const response = await api.get('/transfers')
+    return response.data.transfers || []
+  },
+
+  create: async (data: CreateTransferRequest): Promise<Transfer> => {
+    const response = await api.post('/transfers', {
+      ...data,
+      transferDate: new Date(data.transferDate).toISOString(),
+    })
+    return response.data.transfer
+  },
+
+  update: async (id: string, data: CreateTransferRequest): Promise<Transfer> => {
+    const response = await api.patch(`/transfers/${id}`, {
+      ...data,
+      transferDate: new Date(data.transferDate).toISOString(),
+    })
+    return response.data.transfer
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/transfers/${id}`)
+  },
+}
+
+export const assistantApi = {
+  parseTransactionInput: async (data: { message: string; imageDataUrl?: string }): Promise<AssistantParseResponse> => {
+    const response = await api.post('/transactions/assistant/parse', data)
+    return response.data
   },
 }
 
