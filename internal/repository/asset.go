@@ -63,11 +63,15 @@ func NewAssetRepository(db *DB) *AssetRepository {
 
 // ListAssetTypes retrieves all asset types
 func (r *AssetRepository) ListAssetTypes(ctx context.Context, category *model.AssetCategory) ([]model.AssetType, error) {
-	query := `SELECT id, name, category, is_system FROM asset_types`
+	query := `
+		SELECT id, name, category, is_system
+		FROM asset_types
+		WHERE name NOT IN ('Mutual Fund', 'Robo-Advisor', '401k', 'IRA')
+	`
 	args := []any{}
 
 	if category != nil {
-		query += ` WHERE category = $1`
+		query += ` AND category = $1`
 		args = append(args, *category)
 	}
 

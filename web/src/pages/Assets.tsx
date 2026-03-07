@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { assetApi, reportApi } from '../api'
 import { useAuth } from '../store/AuthContext'
@@ -51,6 +51,9 @@ export default function Assets() {
   const [historyAsset, setHistoryAsset] = useState<Asset | null>(null)
   const [showLiabilities, setShowLiabilities] = useState(true)
   const [assetCurrencyInput, setAssetCurrencyInput] = useState(user?.baseCurrency || 'SGD')
+  const [selectedCategories, setSelectedCategories] = useState<AssetCategory[]>([])
+  const [sortBy, setSortBy] = useState<'name' | 'amount' | 'currency' | 'category'>('name')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   const { data: assets, isLoading } = useQuery({
     queryKey: ['assets', showLiabilities],
@@ -125,8 +128,38 @@ export default function Assets() {
   const getCategoryIcon = (category: AssetCategory) => ASSET_CATEGORY_ICONS[category] || CreditCard
   const getCategoryLabel = (category: AssetCategory) => ASSET_CATEGORY_LABELS[category] || 'Other'
 
-  const assetsList = assets?.filter((a) => !a.isLiability) || []
-  const liabilitiesList = assets?.filter((a) => a.isLiability) || []
+  const allAssets = assets || []
+  const availableCategories = useMemo(() => {
+    return Array.from(new Set(allAssets.map((a) => a.category))) as AssetCategory[]
+  }, [allAssets])
+
+  const filteredAndSortedAssets = useMemo(() => {
+    const filtered = allAssets.filter((asset) => {
+      if (selectedCategories.length === 0) return true
+      return selectedCategories.includes(asset.category)
+    })
+
+    const sorted = [...filtered].sort((a, b) => {
+      let comparison = 0
+
+      if (sortBy === 'name') {
+        comparison = a.name.localeCompare(b.name)
+      } else if (sortBy === 'currency') {
+        comparison = a.currency.localeCompare(b.currency)
+      } else if (sortBy === 'category') {
+        comparison = getCategoryLabel(a.category).localeCompare(getCategoryLabel(b.category))
+      } else if (sortBy === 'amount') {
+        comparison = parseAssetValue(a.currentValue) - parseAssetValue(b.currentValue)
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+
+    return sorted
+  }, [allAssets, selectedCategories, sortBy, sortDirection])
+
+  const assetsList = filteredAndSortedAssets.filter((a) => !a.isLiability)
+  const liabilitiesList = filteredAndSortedAssets.filter((a) => a.isLiability)
   const baseCurrency = user?.baseCurrency || 'SGD'
   const assetDisplayCurrency = editingAsset?.currency || assetCurrencyInput
   const totalAssets = assetsList.reduce(
@@ -138,6 +171,18 @@ export default function Assets() {
     0
   )
   const netWorth = totalAssets - totalLiabilities
+
+  const toggleCategoryFilter = (category: AssetCategory) => {
+    setSelectedCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
+    )
+  }
+
+  const clearFilters = () => {
+    setSelectedCategories([])
+    setSortBy('name')
+    setSortDirection('asc')
+  }
 
   const groupedAssetTypes =
     assetTypes?.reduce((acc, type) => {
@@ -349,6 +394,60 @@ export default function Assets() {
         </div>
         <span className="text-sm text-zinc-700 dark:text-zinc-300">Show liabilities</span>
       </label>
+
+      {/* Filters and Sorting */}
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="flex-1">
+            <FormField label="Sort By">
+              <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as 'name' | 'amount' | 'currency' | 'category')}>
+                <option value="name">Name</option>
+                <option value="amount">Amount</option>
+                <option value="currency">Currency</option>
+                <option value="category">Category</option>
+              </Select>
+            </FormField>
+          </div>
+          <div className="flex-1">
+            <FormField label="Direction">
+              <Select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as 'asc' | 'desc')}>
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </Select>
+            </FormField>
+          </div>
+          <Button variant="secondary" size="sm" onClick={clearFilters}>Reset</Button>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-2">
+            Filter by Category (multi-select)
+          </p>
+          {availableCategories.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {availableCategories.map((category) => {
+                const active = selectedCategories.includes(category)
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => toggleCategoryFilter(category)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? 'bg-violet-600 border-violet-600 text-white'
+                        : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+                    }`}
+                  >
+                    {getCategoryLabel(category)}
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400 dark:text-zinc-500">No categories available yet.</p>
+          )}
+        </div>
+      </div>
 
       {/* Assets List */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">

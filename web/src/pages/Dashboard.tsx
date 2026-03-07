@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { reportApi, budgetApi, goalApi } from '../api'
+import { reportApi, budgetApi, goalApi, assetApi } from '../api'
 import { moneyToNumber } from '../lib/utils'
 import { useAuth } from '../store/AuthContext'
 import { useCurrency } from '../store/CurrencyContext'
@@ -53,7 +53,7 @@ function ChartTooltip({ active, payload, label, formatter }: {
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const { formatConverted } = useCurrency()
+  const { formatConverted, displayCurrency, convertToDisplayAmount } = useCurrency()
   const queryClient = useQueryClient()
   const currentDate = new Date()
   const currentMonth = currentDate.getMonth() + 1
@@ -72,6 +72,10 @@ export default function Dashboard() {
   const { data: budgetStatuses, isLoading: isLoadingBudgets } = useQuery({
     queryKey: ['budgetStatuses'],
     queryFn: () => budgetApi.getAllStatuses(),
+  })
+  const { data: assets, isLoading: isLoadingAssets } = useQuery({
+    queryKey: ['assets', true],
+    queryFn: () => assetApi.list({ includeLiabilities: true }),
   })
   const { data: goalProgress, isLoading: isLoadingGoals } = useQuery({
     queryKey: ['goalProgress'],
@@ -95,12 +99,20 @@ export default function Dashboard() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['netWorthGoalProgress'] }),
   })
 
-  const isLoading = isLoadingReport || isLoadingNetWorth || isLoadingBudgets || isLoadingGoals || isLoadingNetWorthGoal
+  const isLoading = isLoadingReport || isLoadingNetWorth || isLoadingBudgets || isLoadingGoals || isLoadingNetWorthGoal || isLoadingAssets
+
+  const totalAssetsDisplay = (assets || [])
+    .filter((a) => !a.isLiability)
+    .reduce((sum, a) => sum + convertToDisplayAmount({ amount: a.currentValue, currency: a.currency }), 0)
+  const totalLiabilitiesDisplay = (assets || [])
+    .filter((a) => a.isLiability)
+    .reduce((sum, a) => sum + convertToDisplayAmount({ amount: a.currentValue, currency: a.currency }), 0)
+  const computedNetWorthDisplay = totalAssetsDisplay - totalLiabilitiesDisplay
 
   const netWorthGoal = netWorthGoalProgress?.goal || null
-  const currentNetWorth = moneyToNumber(
-    netWorthGoalProgress?.currentNetWorth || netWorthReport?.netWorth || { amount: '0', currency: 'SGD' }
-  )
+  const currentNetWorth = assets && assets.length > 0
+    ? computedNetWorthDisplay
+    : moneyToNumber(netWorthGoalProgress?.currentNetWorth || netWorthReport?.netWorth || { amount: '0', currency: 'SGD' })
   const monthlySavings = moneyToNumber(monthlyReport?.netSavings || { amount: '0', currency: 'SGD' })
   const goalProgress_pct = netWorthGoalProgress?.percentageComplete ?? 0
   const amountRemaining = moneyToNumber(
@@ -176,7 +188,7 @@ export default function Dashboard() {
             />
             <MetricCard
               label="Net Worth"
-              value={formatConverted(netWorthReport?.netWorth)}
+              value={formatConverted({ amount: computedNetWorthDisplay.toString(), currency: displayCurrency })}
               icon={Wallet}
               accent="blue"
             />
