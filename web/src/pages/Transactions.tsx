@@ -43,7 +43,8 @@ export default function Transactions() {
   const createMutation = useMutation({
     mutationFn: transactionApi.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries()
+      queryClient.refetchQueries({ type: 'active' })
       setIsModalOpen(false)
     },
   })
@@ -52,7 +53,8 @@ export default function Transactions() {
     mutationFn: ({ id, data }: { id: string; data: Parameters<typeof transactionApi.update>[1] }) =>
       transactionApi.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries()
+      queryClient.refetchQueries({ type: 'active' })
       setIsModalOpen(false)
       setEditingTransaction(null)
     },
@@ -61,7 +63,8 @@ export default function Transactions() {
   const deleteMutation = useMutation({
     mutationFn: transactionApi.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries()
+      queryClient.refetchQueries({ type: 'active' })
     },
   })
 

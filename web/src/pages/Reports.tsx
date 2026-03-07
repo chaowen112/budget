@@ -17,7 +17,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts'
-import { FormField, Input, Select } from '../components/ui'
+import { FormField, Input, ProgressBar, Select } from '../components/ui'
 
 // Violet-first palette that fits the design system
 const COLORS = [
@@ -171,17 +171,8 @@ export default function Reports() {
 
   const activeSpendingData = reportPeriod === 'yearly' ? yearlySummary.spendingByCategory : spendingData
 
-  const budgetData = budgetReport?.categoryDetails?.slice(0, 8).map((item) => ({
-    name: item.categoryName?.substring(0, 12) || 'Unknown',
-    budget: moneyToNumber(item.budgeted),
-    spent: moneyToNumber(item.spent),
-  })) || []
-
-  const goalsData = goalsReport?.map((goal) => ({
-    name: goal.goalName,
-    progress: goal.percentageComplete,
-    remaining: 100 - goal.percentageComplete,
-  })) || []
+  const budgetRows = budgetReport?.categoryDetails?.slice(0, 8) || []
+  const goalRows = goalsReport?.slice(0, 8) || []
 
   const assetBreakdown = netWorthReport?.assetBreakdown?.map((item, index) => ({
     name: item.category.replace('ASSET_CATEGORY_', ''),
@@ -374,47 +365,60 @@ export default function Reports() {
               </div>
             )}
 
-            {/* Budget vs Actual */}
+            {/* Budget Status */}
             <div className={cardClass}>
-              <h2 className={headingClass}>Budget vs Actual</h2>
-              {budgetData.length > 0 ? (
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={budgetData} layout="vertical" barCategoryGap="30%">
-                      <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} />
-                      <YAxis type="category" dataKey="name" tick={axisStyle} width={80} axisLine={false} tickLine={false} />
-                      <Tooltip content={<ChartTooltip formatter={moneyFmt} />} />
-                      <Legend
-                        wrapperStyle={{ fontSize: 11, color: '#71717a' }}
-                      />
-                      <Bar dataKey="budget" fill="#3f3f46" name="Budget" radius={[0, 3, 3, 0]} />
-                      <Bar dataKey="spent" fill="#8b5cf6" name="Spent" radius={[0, 3, 3, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+              <h2 className={headingClass}>Budget Status</h2>
+              {budgetRows.length > 0 ? (
+                <div className="space-y-4">
+                  {budgetRows.map((item) => {
+                    const pct = item.percentageUsed
+                    const variant = pct > 100 ? 'danger' : pct > 80 ? 'warning' : 'success'
+                    return (
+                      <div key={item.categoryId}>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                            {item.categoryName}
+                          </span>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {formatConverted(item.spent)}{' '}
+                            <span className="text-zinc-400 dark:text-zinc-600">/</span>{' '}
+                            {formatConverted(item.budgeted)}
+                          </span>
+                        </div>
+                        <ProgressBar value={pct} variant={variant} />
+                      </div>
+                    )
+                  })}
                 </div>
               ) : (
-                <div className="h-72 flex items-center justify-center text-sm text-zinc-400 dark:text-zinc-500">
+                <div className="h-56 flex items-center justify-center text-sm text-zinc-400 dark:text-zinc-500">
                   No budget data available
                 </div>
               )}
             </div>
 
-            {/* Goals Progress */}
+            {/* Saving Goals */}
             <div className={cardClass}>
-              <h2 className={headingClass}>Goals Progress</h2>
-              {goalsData.length > 0 ? (
-                <div className="h-56">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={goalsData} barCategoryGap="30%">
-                      <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} />
-                      <YAxis domain={[0, 100]} tick={axisStyle} axisLine={false} tickLine={false} />
-                      <Tooltip
-                        content={<ChartTooltip formatter={(v) => `${v.toFixed(1)}%`} />}
-                      />
-                      <Bar dataKey="progress" stackId="a" fill="#10b981" name="Progress" radius={[3, 3, 0, 0]} />
-                      <Bar dataKey="remaining" stackId="a" fill="#3f3f46" name="Remaining" radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+              <h2 className={headingClass}>Saving Goals</h2>
+              {goalRows.length > 0 ? (
+                <div className="space-y-4">
+                  {goalRows.map((goal) => {
+                    const pct = goal.percentageComplete
+                    const variant = pct >= 100 ? 'success' : goal.isOnTrack ? 'default' : 'warning'
+                    return (
+                      <div key={goal.goalId}>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate pr-2">
+                            {goal.goalName}
+                          </span>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+                            {pct.toFixed(1)}%
+                          </span>
+                        </div>
+                        <ProgressBar value={pct} variant={variant} />
+                      </div>
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="h-56 flex items-center justify-center text-sm text-zinc-400 dark:text-zinc-500">

@@ -4,6 +4,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   useMemo,
   type ReactNode,
 } from 'react'
@@ -35,10 +36,41 @@ const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined
 // ----- helpers ---------------------------------------------------------------
 
 /** Map: "SGD→USD" → rate number */
-type RateCache = Map<string, number>
+type RateCacheEntry = { rate: number; fetchedAt: number }
+type RateCache = Map<string, RateCacheEntry>
+
+const RATE_CACHE_KEY = 'exchangeRateCache'
+const RATE_CACHE_TTL_MS = 1000 * 60 * 60 * 12 // 12 hours
 
 function rateKey(from: string, to: string) {
   return `${from}→${to}`
+}
+
+function loadRateCache(): RateCache {
+  try {
+    const raw = localStorage.getItem(RATE_CACHE_KEY)
+    if (!raw) return new Map()
+
+    const parsed = JSON.parse(raw) as Record<string, RateCacheEntry>
+    const now = Date.now()
+    const entries = Object.entries(parsed).filter(([, value]) => {
+      if (!value || typeof value.rate !== 'number' || typeof value.fetchedAt !== 'number') {
+        return false
+      }
+      return now - value.fetchedAt <= RATE_CACHE_TTL_MS
+    })
+    return new Map(entries)
+  } catch {
+    return new Map()
+  }
+}
+
+function persistRateCache(cache: RateCache) {
+  const payload: Record<string, RateCacheEntry> = {}
+  cache.forEach((value, key) => {
+    payload[key] = value
+  })
+  localStorage.setItem(RATE_CACHE_KEY, JSON.stringify(payload))
 }
 
 function formatWithCurrency(amount: number, currency: string): string {
@@ -61,8 +93,14 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   })
 
   // Cached rates keyed by "FROM→TO"
-  const [rateCache, setRateCache] = useState<RateCache>(new Map())
+  const [rateCache, setRateCache] = useState<RateCache>(() => loadRateCache())
   const [isLoadingRates, setIsLoadingRates] = useState(false)
+  const rateCacheRef = useRef<RateCache>(rateCache)
+
+  useEffect(() => {
+    rateCacheRef.current = rateCache
+    persistRateCache(rateCache)
+  }, [rateCache])
 
   /**
    * Fetch all rates needed to convert from any of the 4 supported currencies
@@ -76,11 +114,17 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         // Just ensure 1:1 is cached and skip fetching.
         setRateCache((prev) => {
           const next = new Map(prev)
+          const now = Date.now()
+          let changed = false
           for (const c of DISPLAY_CURRENCIES) {
-            next.set(rateKey(c, c), 1)
+            const key = rateKey(c, c)
+            const existing = next.get(key)
+            if (!existing || existing.rate !== 1) {
+              next.set(key, { rate: 1, fetchedAt: now })
+              changed = true
+            }
           }
-          next.set(rateKey('SGD', 'SGD'), 1)
-          return next
+          return changed ? next : prev
         })
         return
       }
@@ -94,8 +138,19 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
           [target, target], // identity
         ]
 
+        const now = Date.now()
+        const freshPairs = pairs.filter(([from, to]) => {
+          const cached = rateCacheRef.current.get(rateKey(from, to))
+          if (!cached) return true
+          return now - cached.fetchedAt > RATE_CACHE_TTL_MS
+        })
+
+        if (freshPairs.length === 0) {
+          return
+        }
+
         const results = await Promise.allSettled(
-          pairs.map(([from, to]) =>
+          freshPairs.map(([from, to]) =>
             from === to
               ? Promise.resolve({ fromCurrency: from, toCurrency: to, rate: 1, updatedAt: '' })
               : currencyApi.getExchangeRate(from, to)
@@ -104,10 +159,11 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
         setRateCache((prev) => {
           const next = new Map(prev)
+          const fetchedAt = Date.now()
           results.forEach((result, i) => {
-            const [from, to] = pairs[i]
+            const [from, to] = freshPairs[i]
             if (result.status === 'fulfilled') {
-              next.set(rateKey(from, to), result.value.rate)
+              next.set(rateKey(from, to), { rate: result.value.rate, fetchedAt })
             }
             // If fetch failed, leave existing cached rate (if any)
           })
@@ -144,7 +200,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       }
 
       const key = rateKey(fromCurrency, displayCurrency)
-      const rate = rateCache.get(key)
+      const rate = rateCache.get(key)?.rate
 
       if (rate !== undefined) {
         return formatWithCurrency(amount * rate, displayCurrency)
