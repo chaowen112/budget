@@ -51,6 +51,7 @@ export default function Assets() {
   const [historyAsset, setHistoryAsset] = useState<Asset | null>(null)
   const [showLiabilities, setShowLiabilities] = useState(true)
   const [assetCurrencyInput, setAssetCurrencyInput] = useState(user?.baseCurrency || 'SGD')
+  const [assetTypeInput, setAssetTypeInput] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<AssetCategory[]>([])
   const [sortBy, setSortBy] = useState<'name' | 'amount' | 'currency' | 'category'>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -110,7 +111,9 @@ export default function Assets() {
       updateMutation.mutate({
         id: editingAsset.id,
         data: {
+          assetTypeId: assetTypeInput || editingAsset.assetTypeId,
           name: formData.get('name') as string,
+          currency: (formData.get('currency') as string) || assetCurrencyInput,
           currentValue,
         },
       })
@@ -207,6 +210,7 @@ export default function Assets() {
     setIsModalOpen(false)
     setEditingAsset(null)
     setAssetCurrencyInput(user?.baseCurrency || 'SGD')
+    setAssetTypeInput('')
   }
 
   const closeHistoryModal = () => {
@@ -252,7 +256,12 @@ export default function Assets() {
             <LineChartIcon className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
           </button>
           <button
-            onClick={() => { setEditingAsset(asset); setAssetCurrencyInput(asset.currency); setIsModalOpen(true) }}
+            onClick={() => {
+              setEditingAsset(asset)
+              setAssetCurrencyInput(asset.currency)
+              setAssetTypeInput(asset.assetTypeId)
+              setIsModalOpen(true)
+            }}
             className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-150"
           >
             <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
@@ -283,6 +292,7 @@ export default function Assets() {
           onClick={() => {
             setEditingAsset(null)
             setAssetCurrencyInput(user?.baseCurrency || 'SGD')
+            setAssetTypeInput('')
             setIsModalOpen(true)
           }}
         >
@@ -519,28 +529,34 @@ export default function Assets() {
             />
           </FormField>
 
-          {!editingAsset && (
-            <>
-              <FormField label="Asset Type">
-                <Select name="assetTypeId" required>
-                  <option value="">Select an asset type...</option>
-                  {Object.entries(groupedAssetTypes).map(([category, types]) => (
-                    <optgroup key={category} label={getCategoryLabel(category as AssetCategory)}>
-                      {(types as AssetType[]).map((type) => (
-                        <option key={type.id} value={type.id}>{type.name}</option>
-                      ))}
-                    </optgroup>
+          <FormField label="Category / Type">
+            <Select
+              name="assetTypeId"
+              required
+              value={assetTypeInput}
+              onChange={(e) => setAssetTypeInput(e.target.value)}
+            >
+              <option value="">Select an asset type...</option>
+              {editingAsset && assetTypeInput && !assetTypes?.some((t) => t.id === assetTypeInput) && (
+                <option value={assetTypeInput}>{editingAsset.assetTypeName || 'Current type'}</option>
+              )}
+              {Object.entries(groupedAssetTypes).map(([category, types]) => (
+                <optgroup key={category} label={getCategoryLabel(category as AssetCategory)}>
+                  {(types as AssetType[]).map((type) => (
+                    <option key={type.id} value={type.id}>{type.name}</option>
                   ))}
-                </Select>
-              </FormField>
+                </optgroup>
+              ))}
+            </Select>
+          </FormField>
 
-              <FormField label="Type">
-                <Select name="isLiability">
-                  <option value="false">Asset</option>
-                  <option value="true">Liability</option>
-                </Select>
-              </FormField>
-            </>
+          {!editingAsset && (
+            <FormField label="Type">
+              <Select name="isLiability">
+                <option value="false">Asset</option>
+                <option value="true">Liability</option>
+              </Select>
+            </FormField>
           )}
 
           <FormField label="Current Value">
@@ -555,23 +571,17 @@ export default function Assets() {
             />
           </FormField>
 
-          {!editingAsset ? (
-            <FormField label="Asset Currency">
-              <Select
-                name="currency"
-                value={assetCurrencyInput}
-                onChange={(e) => setAssetCurrencyInput(e.target.value)}
-              >
-                {DISPLAY_CURRENCIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </Select>
-            </FormField>
-          ) : (
-            <FormField label="Asset Currency">
-              <Input value={assetDisplayCurrency} disabled />
-            </FormField>
-          )}
+          <FormField label="Asset Currency">
+            <Select
+              name="currency"
+              value={assetCurrencyInput}
+              onChange={(e) => setAssetCurrencyInput(e.target.value)}
+            >
+              {[...new Set([...DISPLAY_CURRENCIES, assetDisplayCurrency].filter(Boolean))].map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </Select>
+          </FormField>
         </form>
       </Modal>
 

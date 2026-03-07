@@ -89,6 +89,7 @@ export const transactionApi = {
     startDate?: string
     endDate?: string
     categoryId?: string
+    type?: CategoryType
     pageSize?: number
     pageToken?: string
   }): Promise<{ transactions: Transaction[]; nextPageToken?: string }> => {
@@ -314,7 +315,9 @@ export const assetApi = {
   },
   
   update: async (id: string, data: {
+    assetTypeId?: string
     name?: string
+    currency?: string
     currentValue?: string
     notes?: string
   }): Promise<Asset> => {
@@ -322,7 +325,13 @@ export const assetApi = {
     if (data.name) payload.name = data.name
     if (data.currentValue) payload.current_value = data.currentValue
     if (data.notes) payload.notes = data.notes
-    const response = await api.patch(`/assets/${id}`, payload)
+    const headers: Record<string, string> = {}
+    if (data.assetTypeId) headers['Grpc-Metadata-asset-type-id'] = data.assetTypeId
+    if (data.currency) headers['Grpc-Metadata-asset-currency'] = data.currency
+
+    const response = await api.patch(`/assets/${id}`, payload, {
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
+    })
     return response.data.asset
   },
   

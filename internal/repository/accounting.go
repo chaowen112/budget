@@ -46,6 +46,22 @@ func (r *AccountingRepository) EnsureAssetAccount(ctx context.Context, asset *mo
 	return accountID, err
 }
 
+func (r *AccountingRepository) UpdateAssetAccountMetadata(ctx context.Context, asset *model.Asset) error {
+	accountType := "asset"
+	if asset.IsLiability {
+		accountType = "liability"
+	}
+
+	query := `
+		UPDATE accounts
+		SET name = $3, account_type = $4::account_type, currency = $5, updated_at = NOW()
+		WHERE user_id = $1 AND asset_id = $2
+	`
+
+	_, err := r.db.Pool.Exec(ctx, query, asset.UserID, asset.ID, asset.Name, accountType, asset.Currency)
+	return err
+}
+
 func (r *AccountingRepository) EnsureCategoryAccount(ctx context.Context, userID, categoryID uuid.UUID, currency string, categoryType model.CategoryType, categoryName string) (uuid.UUID, error) {
 	query := `SELECT id FROM accounts WHERE category_id = $1`
 	var accountID uuid.UUID

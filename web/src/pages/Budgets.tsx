@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { budgetApi, categoryApi } from '../api'
-import { numberToMoney, moneyToNumber } from '../lib/utils'
+import { budgetApi, categoryApi, transactionApi } from '../api'
+import { formatDate, numberToMoney, moneyToNumber } from '../lib/utils'
 import { useAuth } from '../store/AuthContext'
 import { useCurrency } from '../store/CurrencyContext'
-import type { Budget, Category, PeriodType } from '../types'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import type { Budget, Category, PeriodType, Transaction } from '../types'
+import { Plus, Pencil, Trash2, List } from 'lucide-react'
 import { Button, Modal, FormField, Input, Select, ProgressBar, Badge } from '../components/ui'
 
 const CREATE_CATEGORY_OPTION = '__create_new_category__'
@@ -75,12 +75,43 @@ function getCycleEndDate(startDate: Date, periodType: PeriodType, now: Date) {
   return endOfDay(new Date(addYears(cycleStart, 1).getTime() - 1))
 }
 
+function getCycleStartDate(startDate: Date, periodType: PeriodType, now: Date) {
+  const start = new Date(startDate)
+
+  if (periodType === 'PERIOD_TYPE_WEEKLY') {
+    const msPerDay = 1000 * 60 * 60 * 24
+    const days = Math.max(0, Math.floor((now.getTime() - start.getTime()) / msPerDay))
+    const cycles = Math.floor(days / 7)
+    const cycleStart = new Date(start)
+    cycleStart.setDate(start.getDate() + cycles * 7)
+    cycleStart.setHours(0, 0, 0, 0)
+    return cycleStart
+  }
+
+  if (periodType === 'PERIOD_TYPE_MONTHLY') {
+    let cycleStart = new Date(start)
+    while (addMonths(cycleStart, 1) <= now) {
+      cycleStart = addMonths(cycleStart, 1)
+    }
+    cycleStart.setHours(0, 0, 0, 0)
+    return cycleStart
+  }
+
+  let cycleStart = new Date(start)
+  while (addYears(cycleStart, 1) <= now) {
+    cycleStart = addYears(cycleStart, 1)
+  }
+  cycleStart.setHours(0, 0, 0, 0)
+  return cycleStart
+}
+
 export default function Budgets() {
   const { user } = useAuth()
   const { formatConverted } = useCurrency()
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null)
+  const [activeBudgetForTransactions, setActiveBudgetForTransactions] = useState<Budget | null>(null)
   const [budgetCategoryId, setBudgetCategoryId] = useState('')
   const [showQuickCategoryForm, setShowQuickCategoryForm] = useState(false)
   const [quickCategoryName, setQuickCategoryName] = useState('')
@@ -93,6 +124,33 @@ export default function Budgets() {
   const { data: categories } = useQuery({
     queryKey: ['categories', 'expense'],
     queryFn: () => categoryApi.list('TRANSACTION_TYPE_EXPENSE'),
+  })
+
+  const activeBudgetDateRange = useMemo(() => {
+    if (!activeBudgetForTransactions) return null
+    const now = new Date()
+    const startDate = new Date(activeBudgetForTransactions.startDate)
+    const start = getCycleStartDate(startDate, activeBudgetForTransactions.periodType, now)
+    const end = getCycleEndDate(startDate, activeBudgetForTransactions.periodType, now)
+    return { start, end }
+  }, [activeBudgetForTransactions])
+
+  const { data: relatedTransactionsData, isLoading: isLoadingRelatedTransactions } = useQuery({
+    queryKey: [
+      'budgetRelatedTransactions',
+      activeBudgetForTransactions?.id,
+      activeBudgetDateRange?.start?.toISOString(),
+      activeBudgetDateRange?.end?.toISOString(),
+    ],
+    enabled: !!activeBudgetForTransactions && !!activeBudgetDateRange,
+    queryFn: () =>
+      transactionApi.list({
+        categoryId: activeBudgetForTransactions!.categoryId,
+        type: 'TRANSACTION_TYPE_EXPENSE',
+        startDate: activeBudgetDateRange!.start.toISOString(),
+        endDate: activeBudgetDateRange!.end.toISOString(),
+        pageSize: 200,
+      }),
   })
 
   const createMutation = useMutation({
@@ -219,6 +277,7 @@ export default function Budgets() {
   }
 
   const hasExpenseCategories = (categories?.length || 0) > 0
+  const relatedTransactions: Transaction[] = relatedTransactionsData?.transactions || []
 
   return (
     <div className="space-y-6">
@@ -298,6 +357,15 @@ export default function Budgets() {
                     </div>
                   </div>
                   <div className="flex gap-1 ml-2">
+                    <button
+                      onClick={() => {
+                        setActiveBudgetForTransactions(status.budget)
+                      }}
+                      className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors duration-150"
+                      title="View related transactions"
+                    >
+                      <List className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                    </button>
                     <button
                       onClick={() => {
                         setEditingBudget(status.budget)
@@ -472,6 +540,49 @@ export default function Budgets() {
             />
           </FormField>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!activeBudgetForTransactions}
+        onClose={() => setActiveBudgetForTransactions(null)}
+        title={activeBudgetForTransactions ? `${activeBudgetForTransactions.categoryName} Transactions` : 'Related Transactions'}
+        footer={
+          <div className="flex justify-end">
+            <Button variant="secondary" onClick={() => setActiveBudgetForTransactions(null)}>Close</Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          {activeBudgetDateRange && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Current cycle: {formatDate(activeBudgetDateRange.start.toISOString())} - {formatDate(activeBudgetDateRange.end.toISOString())}
+            </p>
+          )}
+
+          {isLoadingRelatedTransactions ? (
+            <div className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">Loading transactions...</div>
+          ) : relatedTransactions.length === 0 ? (
+            <div className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">No transactions in this budget cycle.</div>
+          ) : (
+            <div className="max-h-80 overflow-auto rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+              {relatedTransactions.map((tx) => (
+                <div key={tx.id} className="px-3 py-2.5 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm text-zinc-900 dark:text-zinc-100 truncate">
+                      {tx.description || tx.categoryName}
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      {formatDate(tx.transactionDate)}
+                    </p>
+                  </div>
+                  <span className="text-sm font-medium tabular-nums text-red-500 dark:text-red-400 whitespace-nowrap">
+                    {formatConverted(tx.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   )

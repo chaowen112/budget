@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -239,6 +240,19 @@ func (h *AssetHandler) UpdateAsset(ctx context.Context, req *pb.UpdateAssetReque
 		asset.Name = req.Name
 	}
 
+	assetTypeID, err := assetTypeIDFromMetadataOptional(ctx)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if assetTypeID != nil {
+		asset.AssetTypeID = *assetTypeID
+	}
+
+	assetCurrency := assetCurrencyFromMetadataOptional(ctx)
+	if assetCurrency != "" {
+		asset.Currency = assetCurrency
+	}
+
 	if req.CurrentValue != "" {
 		currentValue, err := decimal.NewFromString(req.CurrentValue)
 		if err != nil {
@@ -259,10 +273,19 @@ func (h *AssetHandler) UpdateAsset(ctx context.Context, req *pb.UpdateAssetReque
 		return nil, status.Error(codes.Internal, "failed to update asset")
 	}
 
+	if _, err := h.accountingRepo.EnsureAssetAccount(ctx, asset); err != nil {
+		return nil, status.Error(codes.Internal, "failed to ensure asset ledger account")
+	}
+	if err := h.accountingRepo.UpdateAssetAccountMetadata(ctx, asset); err != nil {
+		return nil, status.Error(codes.Internal, "failed to update asset ledger account")
+	}
+
 	_ = h.assetRepo.RecordSnapshot(ctx, &model.AssetSnapshot{
 		AssetID: asset.ID,
 		Value:   asset.CurrentValue,
 	})
+
+	asset, _ = h.assetRepo.GetByID(ctx, asset.ID, userID)
 
 	return &pb.UpdateAssetResponse{
 		Asset: assetToProto(asset),
@@ -453,4 +476,44 @@ func protoToAssetCategory(c pb.AssetCategory) model.AssetCategory {
 	default:
 		return model.AssetCategoryCustom
 	}
+}
+
+func assetTypeIDFromMetadataOptional(ctx context.Context) (*uuid.UUID, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, nil
+	}
+
+	keys := []string{"asset-type-id", "x-asset-type-id", "grpcgateway-asset-type-id"}
+	for _, key := range keys {
+		values := md.Get(key)
+		if len(values) == 0 || strings.TrimSpace(values[0]) == "" {
+			continue
+		}
+		id, err := uuid.Parse(strings.TrimSpace(values[0]))
+		if err != nil {
+			return nil, errors.New("invalid asset_type_id")
+		}
+		return &id, nil
+	}
+
+	return nil, nil
+}
+
+func assetCurrencyFromMetadataOptional(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+
+	keys := []string{"asset-currency", "x-asset-currency", "grpcgateway-asset-currency"}
+	for _, key := range keys {
+		values := md.Get(key)
+		if len(values) == 0 || strings.TrimSpace(values[0]) == "" {
+			continue
+		}
+		return strings.ToUpper(strings.TrimSpace(values[0]))
+	}
+
+	return ""
 }

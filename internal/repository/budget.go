@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -159,6 +160,8 @@ func (r *BudgetRepository) GetSpentAmount(ctx context.Context, userID, categoryI
 
 // GetPeriodBounds calculates the start and end of a budget period
 func GetPeriodBounds(periodType model.PeriodType, now time.Time, startDate time.Time) (time.Time, time.Time) {
+	startDate = startDate.In(now.Location())
+
 	switch periodType {
 	case model.PeriodTypeDaily:
 		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
@@ -166,28 +169,67 @@ func GetPeriodBounds(periodType model.PeriodType, now time.Time, startDate time.
 		return start, end
 
 	case model.PeriodTypeWeekly:
-		// Week starts on Monday
-		weekday := int(now.Weekday())
-		if weekday == 0 {
-			weekday = 7
+		if now.Before(startDate) {
+			cycleStart := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, now.Location())
+			cycleEnd := cycleStart.AddDate(0, 0, 7).Add(-time.Second)
+			return cycleStart, cycleEnd
 		}
-		start := time.Date(now.Year(), now.Month(), now.Day()-weekday+1, 0, 0, 0, 0, now.Location())
-		end := start.Add(7*24*time.Hour - time.Second)
-		return start, end
+
+		startAnchor := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, now.Location())
+		daysSinceStart := int(math.Floor(now.Sub(startAnchor).Hours() / 24))
+		cycles := daysSinceStart / 7
+		cycleStart := startAnchor.AddDate(0, 0, cycles*7)
+		cycleEnd := cycleStart.AddDate(0, 0, 7).Add(-time.Second)
+		return cycleStart, cycleEnd
 
 	case model.PeriodTypeMonthly:
-		start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-		end := start.AddDate(0, 1, 0).Add(-time.Second)
-		return start, end
+		cycleStart := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, now.Location())
+		if now.Before(cycleStart) {
+			return cycleStart, addMonths(cycleStart, 1).Add(-time.Second)
+		}
+
+		for !addMonths(cycleStart, 1).After(now) {
+			cycleStart = addMonths(cycleStart, 1)
+		}
+		cycleEnd := addMonths(cycleStart, 1).Add(-time.Second)
+		return cycleStart, cycleEnd
 
 	case model.PeriodTypeYearly:
-		start := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
-		end := start.AddDate(1, 0, 0).Add(-time.Second)
-		return start, end
+		cycleStart := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, now.Location())
+		if now.Before(cycleStart) {
+			return cycleStart, addYears(cycleStart, 1).Add(-time.Second)
+		}
+
+		for !addYears(cycleStart, 1).After(now) {
+			cycleStart = addYears(cycleStart, 1)
+		}
+		cycleEnd := addYears(cycleStart, 1).Add(-time.Second)
+		return cycleStart, cycleEnd
 
 	default:
 		return now, now
 	}
+}
+
+func addMonths(d time.Time, months int) time.Time {
+	base := time.Date(d.Year(), d.Month(), 1, d.Hour(), d.Minute(), d.Second(), d.Nanosecond(), d.Location())
+	targetMonthStart := base.AddDate(0, months, 0)
+	lastDay := time.Date(targetMonthStart.Year(), targetMonthStart.Month()+1, 0, 0, 0, 0, 0, d.Location()).Day()
+	day := d.Day()
+	if day > lastDay {
+		day = lastDay
+	}
+	return time.Date(targetMonthStart.Year(), targetMonthStart.Month(), day, d.Hour(), d.Minute(), d.Second(), d.Nanosecond(), d.Location())
+}
+
+func addYears(d time.Time, years int) time.Time {
+	base := time.Date(d.Year()+years, d.Month(), 1, d.Hour(), d.Minute(), d.Second(), d.Nanosecond(), d.Location())
+	lastDay := time.Date(base.Year(), base.Month()+1, 0, 0, 0, 0, 0, d.Location()).Day()
+	day := d.Day()
+	if day > lastDay {
+		day = lastDay
+	}
+	return time.Date(base.Year(), base.Month(), day, d.Hour(), d.Minute(), d.Second(), d.Nanosecond(), d.Location())
 }
 
 // GetBudgetStatus calculates the status of a budget

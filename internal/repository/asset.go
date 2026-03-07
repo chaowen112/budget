@@ -236,13 +236,13 @@ func (r *AssetRepository) Create(ctx context.Context, a *model.Asset) error {
 func (r *AssetRepository) Update(ctx context.Context, a *model.Asset) error {
 	query := `
 		UPDATE assets
-		SET name = $3, current_value = $4, custom_fields = $5, updated_at = NOW()
+		SET asset_type_id = $3, name = $4, currency = $5, current_value = $6, custom_fields = $7, updated_at = NOW()
 		WHERE id = $1 AND user_id = $2
 		RETURNING updated_at
 	`
 
 	err := r.db.Pool.QueryRow(ctx, query,
-		a.ID, a.UserID, a.Name, a.CurrentValue, a.CustomFields,
+		a.ID, a.UserID, a.AssetTypeID, a.Name, a.Currency, a.CurrentValue, a.CustomFields,
 	).Scan(&a.UpdatedAt)
 
 	if err != nil {
