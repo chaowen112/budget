@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,12 +23,16 @@ type AssetHandler struct {
 	pb.UnimplementedAssetServiceServer
 	assetRepo      *repository.AssetRepository
 	accountingRepo *repository.AccountingRepository
+	userRepo       *repository.UserRepository
+	currencyRepo   *repository.CurrencyRepository
 }
 
-func NewAssetHandler(assetRepo *repository.AssetRepository, accountingRepo *repository.AccountingRepository) *AssetHandler {
+func NewAssetHandler(assetRepo *repository.AssetRepository, accountingRepo *repository.AccountingRepository, userRepo *repository.UserRepository, currencyRepo *repository.CurrencyRepository) *AssetHandler {
 	return &AssetHandler{
 		assetRepo:      assetRepo,
 		accountingRepo: accountingRepo,
+		userRepo:       userRepo,
+		currencyRepo:   currencyRepo,
 	}
 }
 
@@ -83,9 +88,13 @@ func (h *AssetHandler) CreateAsset(ctx context.Context, req *pb.CreateAssetReque
 		}
 	}
 
-	currency := req.Currency
+	currency := strings.ToUpper(strings.TrimSpace(req.Currency))
 	if currency == "" {
-		currency = "SGD"
+		user, err := h.userRepo.GetByID(ctx, userID)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "failed to load user profile")
+		}
+		currency = user.BaseCurrency
 	}
 
 	var customFields []byte
@@ -164,8 +173,33 @@ func (h *AssetHandler) ListAssets(ctx context.Context, req *pb.ListAssetsRequest
 		return nil, status.Error(codes.Internal, "failed to list assets")
 	}
 
-	totalAssets, _ := h.assetRepo.GetTotalAssets(ctx, userID)
-	totalLiabilities, _ := h.assetRepo.GetTotalLiabilities(ctx, userID)
+	user, err := h.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to load user profile")
+	}
+
+	allAssets, err := h.assetRepo.List(ctx, userID, nil, true)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to list assets for totals")
+	}
+
+	totalAssets := decimal.Zero
+	totalLiabilities := decimal.Zero
+	for _, asset := range allAssets {
+		converted, convErr := h.currencyRepo.ConvertAmount(ctx, asset.CurrentValue, asset.Currency, user.BaseCurrency)
+		if convErr != nil {
+			if errors.Is(convErr, repository.ErrExchangeRateNotFound) {
+				return nil, status.Error(codes.FailedPrecondition, "missing exchange rate for asset totals")
+			}
+			return nil, status.Error(codes.Internal, "failed to convert asset totals")
+		}
+
+		if asset.IsLiability {
+			totalLiabilities = totalLiabilities.Add(converted)
+		} else {
+			totalAssets = totalAssets.Add(converted)
+		}
+	}
 	netWorth := totalAssets.Sub(totalLiabilities)
 
 	pbAssets := make([]*pb.Asset, len(assets))
@@ -178,7 +212,7 @@ func (h *AssetHandler) ListAssets(ctx context.Context, req *pb.ListAssetsRequest
 		TotalAssetsValue:      totalAssets.String(),
 		TotalLiabilitiesValue: totalLiabilities.String(),
 		NetWorth:              netWorth.String(),
-		BaseCurrency:          "SGD",
+		BaseCurrency:          user.BaseCurrency,
 	}, nil
 }
 

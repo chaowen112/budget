@@ -11,8 +11,8 @@ import {
 import { currencyApi } from '../api'
 import type { Money } from '../types'
 
-// The four currencies supported by the display toggle
-export const DISPLAY_CURRENCIES = ['SGD', 'TWD', 'CNY', 'USD'] as const
+// Currencies supported by the display toggle
+export const DISPLAY_CURRENCIES = ['SGD', 'TWD', 'CNY', 'USD', 'JPY', 'THB', 'MYR', 'IDR'] as const
 export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number]
 
 interface CurrencyContextType {
@@ -25,6 +25,8 @@ interface CurrencyContextType {
    * Falls back to the raw formatMoney if rate is unavailable.
    */
   formatConverted: (money: Money | undefined | null) => string
+  /** Convert a Money value into numeric amount in current display currency. */
+  convertToDisplayAmount: (money: Money | undefined | null) => number
   /**
    * Whether exchange rates are currently being fetched.
    */
@@ -103,15 +105,15 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   }, [rateCache])
 
   /**
-   * Fetch all rates needed to convert from any of the 4 supported currencies
+    * Fetch all rates needed to convert from any supported display currency
    * to `targetCurrency`. We fetch each pair individually from the backend
    * (which does DB-first with API fallback caching).
    */
   const fetchRatesForCurrency = useCallback(
     async (target: DisplayCurrency) => {
-      if (target === 'SGD') {
-        // SGD→SGD is always 1; SGD is our base so we also need the inverse pairs
-        // Just ensure 1:1 is cached and skip fetching.
+      setIsLoadingRates(true)
+      try {
+        // Ensure identity rates are cached
         setRateCache((prev) => {
           const next = new Map(prev)
           const now = Date.now()
@@ -126,11 +128,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
           }
           return changed ? next : prev
         })
-        return
-      }
 
-      setIsLoadingRates(true)
-      try {
         // Fetch rates from every other display currency into `target`
         const sourceCurrencies = DISPLAY_CURRENCIES.filter((c) => c !== target)
         const pairs: [string, string][] = [
@@ -212,9 +210,38 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     [displayCurrency, rateCache]
   )
 
+  const convertToDisplayAmount = useCallback(
+    (money: Money | undefined | null): number => {
+      if (!money) return 0
+
+      const amount = parseFloat(money.amount || '0')
+      const fromCurrency = money.currency || 'SGD'
+
+      if (fromCurrency === displayCurrency) {
+        return amount
+      }
+
+      const key = rateKey(fromCurrency, displayCurrency)
+      const rate = rateCache.get(key)?.rate
+      if (rate !== undefined) {
+        return amount * rate
+      }
+
+      // If rate is unavailable, fall back to raw amount.
+      return amount
+    },
+    [displayCurrency, rateCache]
+  )
+
   const value = useMemo(
-    () => ({ displayCurrency, setDisplayCurrency, formatConverted, isLoadingRates }),
-    [displayCurrency, setDisplayCurrency, formatConverted, isLoadingRates]
+    () => ({
+      displayCurrency,
+      setDisplayCurrency,
+      formatConverted,
+      convertToDisplayAmount,
+      isLoadingRates,
+    }),
+    [displayCurrency, setDisplayCurrency, formatConverted, convertToDisplayAmount, isLoadingRates]
   )
 
   return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>

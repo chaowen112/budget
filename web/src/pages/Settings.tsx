@@ -193,6 +193,7 @@ export default function Settings() {
               <option value="JPY">JPY — Japanese Yen</option>
               <option value="CNY">CNY — Chinese Yuan</option>
               <option value="MYR">MYR — Malaysian Ringgit</option>
+              <option value="IDR">IDR — Indonesian Rupiah</option>
               <option value="AUD">AUD — Australian Dollar</option>
               <option value="HKD">HKD — Hong Kong Dollar</option>
               <option value="THB">THB — Thai Baht</option>

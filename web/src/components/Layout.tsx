@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../store/AuthContext'
 import { useCurrency, DISPLAY_CURRENCIES, type DisplayCurrency } from '../store/CurrencyContext'
+import { Select } from './ui'
 import {
   LayoutDashboard,
   Receipt,
@@ -150,25 +151,19 @@ export default function Layout() {
           </button>
           <div className="flex-1 lg:flex-none" />
           <div className="flex items-center gap-3">
-            {/* Currency toggle */}
-            <div className="flex items-center gap-px p-0.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
-              {DISPLAY_CURRENCIES.map((c: DisplayCurrency) => (
-                <button
-                  key={c}
-                  onClick={() => setDisplayCurrency(c)}
-                  className={`
-                    h-7 px-2.5 rounded-lg text-xs font-semibold transition-all duration-150
-                    ${displayCurrency === c
-                      ? 'bg-violet-600 text-white shadow-sm'
-                      : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
-                    }
-                  `}
-                >
-                  {c}
-                </button>
-              ))}
+            {/* Currency selector */}
+            <div className="flex items-center gap-2">
+              <Select
+                value={displayCurrency}
+                onChange={(e) => setDisplayCurrency(e.target.value as DisplayCurrency)}
+                className="h-8 min-w-[108px] text-xs"
+              >
+                {DISPLAY_CURRENCIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </Select>
               {isLoadingRates && (
-                <span className="ml-1 mr-0.5">
+                <span>
                   <RefreshCw className="h-3 w-3 text-zinc-400 dark:text-zinc-500 animate-spin" />
                 </span>
               )}

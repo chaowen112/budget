@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/shopspring/decimal"
@@ -107,4 +108,39 @@ func (r *CurrencyRepository) BulkUpsertExchangeRates(ctx context.Context, baseCu
 	}
 
 	return tx.Commit(ctx)
+}
+
+// ConvertAmount converts an amount from one currency to another using stored rates.
+// It first tries direct rate (from->to), then inverse (to->from).
+func (r *CurrencyRepository) ConvertAmount(ctx context.Context, amount decimal.Decimal, from, to string) (decimal.Decimal, error) {
+	from = strings.ToUpper(strings.TrimSpace(from))
+	to = strings.ToUpper(strings.TrimSpace(to))
+
+	if from == "" || to == "" {
+		return decimal.Zero, ErrExchangeRateNotFound
+	}
+	if from == to {
+		return amount.Round(2), nil
+	}
+
+	direct, err := r.GetExchangeRate(ctx, from, to)
+	if err == nil {
+		return amount.Mul(direct.Rate).Round(2), nil
+	}
+	if !errors.Is(err, ErrExchangeRateNotFound) {
+		return decimal.Zero, err
+	}
+
+	inverse, invErr := r.GetExchangeRate(ctx, to, from)
+	if invErr == nil {
+		if inverse.Rate.IsZero() {
+			return decimal.Zero, errors.New("invalid zero exchange rate")
+		}
+		return amount.Div(inverse.Rate).Round(2), nil
+	}
+	if errors.Is(invErr, ErrExchangeRateNotFound) {
+		return decimal.Zero, ErrExchangeRateNotFound
+	}
+
+	return decimal.Zero, invErr
 }

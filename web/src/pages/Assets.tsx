@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { assetApi, reportApi } from '../api'
 import { useAuth } from '../store/AuthContext'
-import { useCurrency } from '../store/CurrencyContext'
+import { useCurrency, DISPLAY_CURRENCIES } from '../store/CurrencyContext'
 import { formatDate } from '../lib/utils'
 import type { Asset, AssetCategory, AssetSnapshot, AssetType } from '../types'
 import { Plus, Pencil, Trash2, Building, Car, Coins, CreditCard, Landmark, Wallet, Bitcoin, TrendingDown, TrendingUp, Scale, LineChart as LineChartIcon } from 'lucide-react'
@@ -44,12 +44,13 @@ function parseAssetValue(value: string): number {
 
 export default function Assets() {
   const { user } = useAuth()
-  const { formatConverted } = useCurrency()
+  const { formatConverted, displayCurrency, convertToDisplayAmount } = useCurrency()
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null)
   const [historyAsset, setHistoryAsset] = useState<Asset | null>(null)
   const [showLiabilities, setShowLiabilities] = useState(true)
+  const [assetCurrencyInput, setAssetCurrencyInput] = useState(user?.baseCurrency || 'SGD')
 
   const { data: assets, isLoading } = useQuery({
     queryKey: ['assets', showLiabilities],
@@ -114,7 +115,7 @@ export default function Assets() {
       createMutation.mutate({
         assetTypeId: formData.get('assetTypeId') as string,
         name: formData.get('name') as string,
-        currency: user?.baseCurrency || 'SGD',
+        currency: (formData.get('currency') as string) || user?.baseCurrency || 'SGD',
         currentValue,
         isLiability: formData.get('isLiability') === 'true',
       })
@@ -126,9 +127,16 @@ export default function Assets() {
 
   const assetsList = assets?.filter((a) => !a.isLiability) || []
   const liabilitiesList = assets?.filter((a) => a.isLiability) || []
-  const currency = user?.baseCurrency || 'SGD'
-  const totalAssets = assetsList.reduce((sum, a) => sum + parseAssetValue(a.currentValue), 0)
-  const totalLiabilities = liabilitiesList.reduce((sum, a) => sum + parseAssetValue(a.currentValue), 0)
+  const baseCurrency = user?.baseCurrency || 'SGD'
+  const assetDisplayCurrency = editingAsset?.currency || assetCurrencyInput
+  const totalAssets = assetsList.reduce(
+    (sum, a) => sum + convertToDisplayAmount({ amount: a.currentValue, currency: a.currency }),
+    0
+  )
+  const totalLiabilities = liabilitiesList.reduce(
+    (sum, a) => sum + convertToDisplayAmount({ amount: a.currentValue, currency: a.currency }),
+    0
+  )
   const netWorth = totalAssets - totalLiabilities
 
   const groupedAssetTypes =
@@ -153,6 +161,7 @@ export default function Assets() {
   const closeModal = () => {
     setIsModalOpen(false)
     setEditingAsset(null)
+    setAssetCurrencyInput(user?.baseCurrency || 'SGD')
   }
 
   const closeHistoryModal = () => {
@@ -198,7 +207,7 @@ export default function Assets() {
             <LineChartIcon className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
           </button>
           <button
-            onClick={() => { setEditingAsset(asset); setIsModalOpen(true) }}
+            onClick={() => { setEditingAsset(asset); setAssetCurrencyInput(asset.currency); setIsModalOpen(true) }}
             className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-150"
           >
             <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
@@ -228,6 +237,7 @@ export default function Assets() {
           icon={<Plus className="h-4 w-4" />}
           onClick={() => {
             setEditingAsset(null)
+            setAssetCurrencyInput(user?.baseCurrency || 'SGD')
             setIsModalOpen(true)
           }}
         >
@@ -248,7 +258,7 @@ export default function Assets() {
             </span>
           </div>
           <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
-          {formatConverted({ amount: totalAssets.toString(), currency })}
+          {formatConverted({ amount: totalAssets.toString(), currency: displayCurrency })}
         </p>
         </div>
 
@@ -263,7 +273,7 @@ export default function Assets() {
             </span>
           </div>
           <p className="text-2xl font-bold tracking-tight text-red-500 dark:text-red-400 tabular-nums">
-            {formatConverted({ amount: totalLiabilities.toString(), currency })}
+            {formatConverted({ amount: totalLiabilities.toString(), currency: displayCurrency })}
           </p>
         </div>
 
@@ -284,7 +294,7 @@ export default function Assets() {
                 : 'text-red-500 dark:text-red-400'
             }`}
           >
-            {formatConverted({ amount: netWorth.toString(), currency })}
+            {formatConverted({ amount: netWorth.toString(), currency: displayCurrency })}
           </p>
         </div>
       </div>
@@ -300,7 +310,7 @@ export default function Assets() {
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} />
                 <Tooltip
-                  formatter={(value: number | undefined, name: string | undefined) => [formatConverted({ amount: String(value ?? 0), currency }), name || 'Value']}
+                  formatter={(value: number | undefined, name: string | undefined) => [formatConverted({ amount: String(value ?? 0), currency: baseCurrency }), name || 'Value']}
                   contentStyle={{
                     background: '#18181b',
                     border: '1px solid #3f3f46',
@@ -445,6 +455,24 @@ export default function Assets() {
               placeholder="0.00"
             />
           </FormField>
+
+          {!editingAsset ? (
+            <FormField label="Asset Currency">
+              <Select
+                name="currency"
+                value={assetCurrencyInput}
+                onChange={(e) => setAssetCurrencyInput(e.target.value)}
+              >
+                {DISPLAY_CURRENCIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </Select>
+            </FormField>
+          ) : (
+            <FormField label="Asset Currency">
+              <Input value={assetDisplayCurrency} disabled />
+            </FormField>
+          )}
         </form>
       </Modal>
 
@@ -466,7 +494,7 @@ export default function Assets() {
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} />
                 <Tooltip
-                  formatter={(value: number | undefined) => [formatConverted({ amount: String(value ?? 0), currency }), 'Value']}
+                  formatter={(value: number | undefined) => [formatConverted({ amount: String(value ?? 0), currency: baseCurrency }), 'Value']}
                   contentStyle={{
                     background: '#18181b',
                     border: '1px solid #3f3f46',
