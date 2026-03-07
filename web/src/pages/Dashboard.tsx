@@ -128,6 +128,25 @@ export default function Dashboard() {
     color: CHART_COLORS[i % CHART_COLORS.length],
   })) || []
 
+  const assetBreakdownData = (assets || [])
+    .filter((a) => !a.isLiability)
+    .map((a, i) => ({
+      name: a.name,
+      value: convertToDisplayAmount({ amount: a.currentValue, currency: a.currency }),
+      color: CHART_COLORS[i % CHART_COLORS.length],
+    }))
+    .filter((item) => item.value > 0)
+  const liabilityBreakdownData = (assets || [])
+    .filter((a) => a.isLiability)
+    .map((a, i) => ({
+      name: a.name,
+      value: convertToDisplayAmount({ amount: a.currentValue, currency: a.currency }),
+      color: CHART_COLORS[(i + 3) % CHART_COLORS.length],
+    }))
+    .filter((item) => item.value > 0)
+  const assetBreakdownTotal = assetBreakdownData.reduce((sum, item) => sum + item.value, 0)
+  const liabilityBreakdownTotal = liabilityBreakdownData.reduce((sum, item) => sum + item.value, 0)
+
   const handleGoalSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -336,7 +355,118 @@ export default function Dashboard() {
             </BentoCard>
           </div>
 
-          {/* Row 3: Budget Status + Saving Goals Bar Chart */}
+          {/* Row 3: Asset / Liability Composition */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <BentoCard className="p-6">
+              <div className="flex items-center justify-between mb-5">
+                <p className="text-xs font-medium tracking-wide text-zinc-400 dark:text-zinc-500 uppercase">
+                  Asset Composition
+                </p>
+                <Wallet className="h-4 w-4 text-zinc-300 dark:text-zinc-600" />
+              </div>
+              {assetBreakdownData.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={assetBreakdownData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={56}
+                          outerRadius={78}
+                          paddingAngle={2}
+                          dataKey="value"
+                          strokeWidth={0}
+                        >
+                          {assetBreakdownData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={<ChartTooltip formatter={(v) => formatConverted({ amount: v.toString(), currency: displayCurrency })} />}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-2">
+                    {assetBreakdownData.slice(0, 6).map((item) => {
+                      const pct = assetBreakdownTotal > 0 ? (item.value / assetBreakdownTotal) * 100 : 0
+                      return (
+                        <div key={item.name} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                            <span className="text-zinc-600 dark:text-zinc-400 truncate">{item.name}</span>
+                          </div>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">{pct.toFixed(1)}%</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-10 text-center">
+                  <p className="text-sm text-zinc-400 dark:text-zinc-500">No assets yet</p>
+                </div>
+              )}
+            </BentoCard>
+
+            <BentoCard className="p-6">
+              <div className="flex items-center justify-between mb-5">
+                <p className="text-xs font-medium tracking-wide text-zinc-400 dark:text-zinc-500 uppercase">
+                  Liability Composition
+                </p>
+                <Wallet className="h-4 w-4 text-zinc-300 dark:text-zinc-600" />
+              </div>
+              {liabilityBreakdownData.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={liabilityBreakdownData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={56}
+                          outerRadius={78}
+                          paddingAngle={2}
+                          dataKey="value"
+                          strokeWidth={0}
+                        >
+                          {liabilityBreakdownData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={<ChartTooltip formatter={(v) => formatConverted({ amount: v.toString(), currency: displayCurrency })} />}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-2">
+                    {liabilityBreakdownData.slice(0, 6).map((item) => {
+                      const pct = liabilityBreakdownTotal > 0 ? (item.value / liabilityBreakdownTotal) * 100 : 0
+                      return (
+                        <div key={item.name} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                            <span className="text-zinc-600 dark:text-zinc-400 truncate">{item.name}</span>
+                          </div>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">{pct.toFixed(1)}%</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-10 text-center">
+                  <p className="text-sm text-zinc-400 dark:text-zinc-500">No liabilities yet</p>
+                </div>
+              )}
+            </BentoCard>
+          </div>
+
+          {/* Row 4: Budget Status + Saving Goals Bar Chart */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
             {/* Budget Status */}
