@@ -17,8 +17,6 @@ fi
 echo "Stopping containers and deleting volumes..."
 docker compose down -v --remove-orphans
 
-echo "Starting fresh database and services..."
-docker compose up -d --build
-
-echo "Done. Current service status:"
-docker compose ps
+echo "Done. Database volume has been reset."
+echo "Services are currently stopped. Start manually when ready:"
+echo "  docker compose up -d --build"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -111,6 +112,9 @@ func (h *TransactionHandler) CreateTransaction(ctx context.Context, req *pb.Crea
 	}
 	if err := h.transactionRepo.SetSourceAssetLink(ctx, transaction.ID, sourceAssetID); err != nil {
 		_ = h.transactionRepo.Delete(ctx, transaction.ID, userID)
+		if isUndefinedTableError(err) {
+			return nil, status.Error(codes.FailedPrecondition, "transaction asset link table missing: run latest database migrations")
+		}
 		return nil, status.Error(codes.Internal, "failed to link transaction to source asset")
 	}
 
@@ -275,6 +279,9 @@ func (h *TransactionHandler) UpdateTransaction(ctx context.Context, req *pb.Upda
 			return nil, status.Error(codes.Internal, "failed to validate source asset")
 		}
 		if err := h.transactionRepo.SetSourceAssetLink(ctx, transaction.ID, *sourceAssetID); err != nil {
+			if isUndefinedTableError(err) {
+				return nil, status.Error(codes.FailedPrecondition, "transaction asset link table missing: run latest database migrations")
+			}
 			return nil, status.Error(codes.Internal, "failed to update transaction source asset")
 		}
 	}
@@ -356,4 +363,12 @@ func sourceAssetIDFromMetadataOptional(ctx context.Context) (*uuid.UUID, error) 
 	}
 
 	return nil, nil
+}
+
+func isUndefinedTableError(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "42P01"
+	}
+	return false
 }

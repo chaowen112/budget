@@ -15,8 +15,6 @@ if ((-not (Test-Path ".env")) -and (Test-Path ".env.example")) {
 Write-Host "Stopping containers and deleting volumes..."
 docker compose down -v --remove-orphans
 
-Write-Host "Starting fresh database and services..."
-docker compose up -d --build
-
-Write-Host "Done. Current service status:"
-docker compose ps
+Write-Host "Done. Database volume has been reset."
+Write-Host "Services are currently stopped. Start manually when ready:"
+Write-Host "  docker compose up -d --build"
