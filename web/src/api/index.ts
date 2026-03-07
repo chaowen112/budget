@@ -99,12 +99,18 @@ export const transactionApi = {
   },
   
   create: async (data: CreateTransactionRequest): Promise<Transaction> => {
-    const response = await api.post('/transactions', data)
+    const { sourceAssetId, ...payload } = data
+    const response = await api.post('/transactions', payload, {
+      headers: { 'Grpc-Metadata-source-asset-id': sourceAssetId },
+    })
     return response.data.transaction
   },
   
   update: async (id: string, data: Partial<CreateTransactionRequest>): Promise<Transaction> => {
-    const response = await api.patch(`/transactions/${id}`, data)
+    const { sourceAssetId, ...payload } = data
+    const response = await api.patch(`/transactions/${id}`, payload, {
+      headers: sourceAssetId ? { 'Grpc-Metadata-source-asset-id': sourceAssetId } : undefined,
+    })
     return response.data.transaction
   },
   

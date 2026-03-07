@@ -87,7 +87,7 @@ func run() error {
 	// Initialize handlers
 	userHandler := handler.NewUserHandler(userService)
 	categoryHandler := handler.NewCategoryHandler(categoryRepo)
-	transactionHandler := handler.NewTransactionHandler(transactionRepo, categoryRepo)
+	transactionHandler := handler.NewTransactionHandler(transactionRepo, categoryRepo, assetRepo)
 	budgetHandler := handler.NewBudgetHandler(budgetRepo)
 	assetHandler := handler.NewAssetHandler(assetRepo)
 	goalHandler := handler.NewGoalHandler(goalRepo, assetRepo, transactionRepo)

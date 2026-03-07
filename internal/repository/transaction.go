@@ -241,6 +241,19 @@ func (r *TransactionRepository) Delete(ctx context.Context, id, userID uuid.UUID
 	return nil
 }
 
+// SetSourceAssetLink creates or updates the source asset linked to a transaction.
+func (r *TransactionRepository) SetSourceAssetLink(ctx context.Context, transactionID, assetID uuid.UUID) error {
+	query := `
+		INSERT INTO transaction_asset_links (transaction_id, asset_id, updated_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (transaction_id)
+		DO UPDATE SET asset_id = EXCLUDED.asset_id, updated_at = NOW()
+	`
+
+	_, err := r.db.Pool.Exec(ctx, query, transactionID, assetID)
+	return err
+}
+
 // GetSpendingByCategory gets spending grouped by category for a date range
 func (r *TransactionRepository) GetSpendingByCategory(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time, transactionType model.CategoryType) ([]CategorySpending, error) {
 	query := `

@@ -12,12 +12,14 @@ NAME = "Demo User"
 BASE_CURRENCY = "SGD"
 
 
-def http(method, path, data=None, token=None):
+def http(method, path, data=None, token=None, extra_headers=None):
     url = f"{BASE_URL}{path}"
     body = None
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    if extra_headers:
+        headers.update(extra_headers)
     if data is not None:
         body = json.dumps(data).encode("utf-8")
 
@@ -64,7 +66,17 @@ def ensure_category(token, name, cat_type):
     return created["category"]["id"]
 
 
-def seed_transactions(token, category_ids):
+def get_default_source_asset_id(token):
+    assets = http("GET", "/assets", token=token).get("assets", [])
+    for asset in assets:
+        if not asset.get("isLiability"):
+            return asset.get("id")
+    if assets:
+        return assets[0].get("id")
+    return None
+
+
+def seed_transactions(token, category_ids, source_asset_id):
     tx = http("GET", "/transactions", token=token).get("transactions", [])
     if any((t.get("description") or "").startswith("DEMO:") for t in tx):
         return
@@ -94,6 +106,7 @@ def seed_transactions(token, category_ids):
                 "tags": ["demo"],
             },
             token=token,
+            extra_headers={"Grpc-Metadata-source-asset-id": source_asset_id},
         )
 
 
@@ -207,9 +220,13 @@ def main():
         "travel": ensure_category(token, "Travel", "TRANSACTION_TYPE_EXPENSE"),
     }
 
-    seed_transactions(token, category_ids)
-    seed_budget(token, category_ids["groceries"])
     seed_assets(token)
+    source_asset_id = get_default_source_asset_id(token)
+    if not source_asset_id:
+        raise RuntimeError("No asset found for demo transaction source")
+
+    seed_transactions(token, category_ids, source_asset_id)
+    seed_budget(token, category_ids["groceries"])
     seed_goals(token)
 
     print("Demo seed complete.")

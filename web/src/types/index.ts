@@ -62,6 +62,7 @@ export interface Transaction {
 
 export interface CreateTransactionRequest {
   categoryId: string
+  sourceAssetId: string
   amount: Money
   transactionDate: string  // ISO timestamp
   description?: string

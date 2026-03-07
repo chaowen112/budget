@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -21,12 +22,18 @@ type TransactionHandler struct {
 	pb.UnimplementedTransactionServiceServer
 	transactionRepo *repository.TransactionRepository
 	categoryRepo    *repository.CategoryRepository
+	assetRepo       *repository.AssetRepository
 }
 
-func NewTransactionHandler(transactionRepo *repository.TransactionRepository, categoryRepo *repository.CategoryRepository) *TransactionHandler {
+func NewTransactionHandler(
+	transactionRepo *repository.TransactionRepository,
+	categoryRepo *repository.CategoryRepository,
+	assetRepo *repository.AssetRepository,
+) *TransactionHandler {
 	return &TransactionHandler{
 		transactionRepo: transactionRepo,
 		categoryRepo:    categoryRepo,
+		assetRepo:       assetRepo,
 	}
 }
 
@@ -77,6 +84,17 @@ func (h *TransactionHandler) CreateTransaction(ctx context.Context, req *pb.Crea
 		return nil, status.Error(codes.InvalidArgument, "transaction_date is required")
 	}
 
+	sourceAssetID, err := sourceAssetIDFromMetadata(ctx)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if _, err := h.assetRepo.GetByID(ctx, sourceAssetID, userID); err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			return nil, status.Error(codes.InvalidArgument, "source asset not found")
+		}
+		return nil, status.Error(codes.Internal, "failed to validate source asset")
+	}
+
 	transaction := &model.Transaction{
 		UserID:          userID,
 		CategoryID:      categoryID,
@@ -90,6 +108,10 @@ func (h *TransactionHandler) CreateTransaction(ctx context.Context, req *pb.Crea
 
 	if err := h.transactionRepo.Create(ctx, transaction); err != nil {
 		return nil, status.Error(codes.Internal, "failed to create transaction")
+	}
+	if err := h.transactionRepo.SetSourceAssetLink(ctx, transaction.ID, sourceAssetID); err != nil {
+		_ = h.transactionRepo.Delete(ctx, transaction.ID, userID)
+		return nil, status.Error(codes.Internal, "failed to link transaction to source asset")
 	}
 
 	// Set category name from the category we already fetched
@@ -245,6 +267,18 @@ func (h *TransactionHandler) UpdateTransaction(ctx context.Context, req *pb.Upda
 		return nil, status.Error(codes.Internal, "failed to update transaction")
 	}
 
+	if sourceAssetID, err := sourceAssetIDFromMetadataOptional(ctx); err == nil && sourceAssetID != nil {
+		if _, err := h.assetRepo.GetByID(ctx, *sourceAssetID, userID); err != nil {
+			if errors.Is(err, repository.ErrAssetNotFound) {
+				return nil, status.Error(codes.InvalidArgument, "source asset not found")
+			}
+			return nil, status.Error(codes.Internal, "failed to validate source asset")
+		}
+		if err := h.transactionRepo.SetSourceAssetLink(ctx, transaction.ID, *sourceAssetID); err != nil {
+			return nil, status.Error(codes.Internal, "failed to update transaction source asset")
+		}
+	}
+
 	// Refetch to get category name
 	transaction, _ = h.transactionRepo.GetByID(ctx, id, userID)
 
@@ -289,4 +323,37 @@ func transactionToProto(t *model.Transaction) *pb.Transaction {
 		Tags:            t.Tags,
 		CreatedAt:       timestamppb.New(t.CreatedAt),
 	}
+}
+
+func sourceAssetIDFromMetadata(ctx context.Context) (uuid.UUID, error) {
+	sourceAssetID, err := sourceAssetIDFromMetadataOptional(ctx)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if sourceAssetID == nil {
+		return uuid.Nil, errors.New("source_asset_id is required")
+	}
+	return *sourceAssetID, nil
+}
+
+func sourceAssetIDFromMetadataOptional(ctx context.Context) (*uuid.UUID, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, nil
+	}
+
+	keys := []string{"source-asset-id", "x-source-asset-id", "grpcgateway-source-asset-id"}
+	for _, key := range keys {
+		values := md.Get(key)
+		if len(values) == 0 || values[0] == "" {
+			continue
+		}
+		id, err := uuid.Parse(values[0])
+		if err != nil {
+			return nil, errors.New("invalid source_asset_id")
+		}
+		return &id, nil
+	}
+
+	return nil, nil
 }

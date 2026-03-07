@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { transactionApi, categoryApi } from '../api'
+import { transactionApi, categoryApi, assetApi } from '../api'
 import { formatDate, numberToMoney, moneyToNumber } from '../lib/utils'
 import { useAuth } from '../store/AuthContext'
 import { useCurrency, DISPLAY_CURRENCIES } from '../store/CurrencyContext'
@@ -20,6 +20,7 @@ export default function Transactions() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCategory, setFilterCategory] = useState<string>('')
   const [transactionCategoryId, setTransactionCategoryId] = useState('')
+  const [transactionSourceAssetId, setTransactionSourceAssetId] = useState('')
   const [showQuickCategoryForm, setShowQuickCategoryForm] = useState(false)
   const [quickCategoryName, setQuickCategoryName] = useState('')
   const [quickCategoryType, setQuickCategoryType] = useState<CategoryType>('TRANSACTION_TYPE_EXPENSE')
@@ -32,6 +33,11 @@ export default function Transactions() {
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: () => categoryApi.list(),
+  })
+
+  const { data: assets } = useQuery({
+    queryKey: ['assets', 'transaction-source'],
+    queryFn: () => assetApi.list({ includeLiabilities: true }),
   })
 
   const createMutation = useMutation({
@@ -77,6 +83,7 @@ export default function Transactions() {
 
   const transactions = transactionsData?.transactions || []
   const hasCategories = (categories?.length || 0) > 0
+  const hasAssets = (assets?.length || 0) > 0
   const filteredTransactions = transactions.filter((t) => {
     const matchesSearch =
       !searchTerm ||
@@ -98,6 +105,13 @@ export default function Transactions() {
       amount: numberToMoney(amount, currency),
       description: formData.get('description') as string,
       transactionDate,
+    } as Parameters<typeof transactionApi.create>[0]
+
+    const selectedSourceAssetId = (formData.get('sourceAssetId') as string) || transactionSourceAssetId
+    if (!editingTransaction) {
+      data.sourceAssetId = selectedSourceAssetId
+    } else if (selectedSourceAssetId) {
+      data.sourceAssetId = selectedSourceAssetId
     }
 
     if (editingTransaction) {
@@ -115,6 +129,7 @@ export default function Transactions() {
     setIsModalOpen(false)
     setEditingTransaction(null)
     setTransactionCategoryId('')
+    setTransactionSourceAssetId('')
     setShowQuickCategoryForm(false)
     setQuickCategoryName('')
     setQuickCategoryType('TRANSACTION_TYPE_EXPENSE')
@@ -155,9 +170,11 @@ export default function Transactions() {
         </div>
         <Button
           icon={<Plus className="h-4 w-4" />}
+          disabled={!hasAssets}
           onClick={() => {
             setEditingTransaction(null)
             setTransactionCategoryId('')
+            setTransactionSourceAssetId('')
             setIsModalOpen(true)
           }}
         >
@@ -170,6 +187,16 @@ export default function Transactions() {
           You have no categories yet. Create one in this form or in{' '}
           <Link to="/settings" className="font-medium underline underline-offset-2">
             Settings
+          </Link>{' '}
+          before adding transactions.
+        </div>
+      )}
+
+      {!hasAssets && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+          You have no assets yet. Add an asset in{' '}
+          <Link to="/assets" className="font-medium underline underline-offset-2">
+            Assets
           </Link>{' '}
           before adding transactions.
         </div>
@@ -337,6 +364,22 @@ export default function Transactions() {
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
               </optgroup>
+            </Select>
+          </FormField>
+
+          <FormField label="Source Asset">
+            <Select
+              name="sourceAssetId"
+              required={!editingTransaction}
+              value={transactionSourceAssetId}
+              onChange={(e) => setTransactionSourceAssetId(e.target.value)}
+            >
+              <option value="">{editingTransaction ? 'Keep existing asset link' : 'Select asset'}</option>
+              {assets?.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name}
+                </option>
+              ))}
             </Select>
           </FormField>
 
