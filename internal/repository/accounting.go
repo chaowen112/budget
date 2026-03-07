@@ -351,19 +351,22 @@ func (r *AccountingRepository) AdjustAssetToValue(ctx context.Context, userID uu
 func (r *AccountingRepository) ListAccountsWithBalances(ctx context.Context, userID uuid.UUID) ([]model.AccountWithBalance, error) {
 	query := `
 		SELECT
-			a.id, a.user_id, a.name, a.account_type, a.currency, a.opening_balance,
+			a.id, a.user_id, COALESCE(ast.name, a.name), a.account_type, a.currency, a.opening_balance,
 				a.asset_id, a.category_id, a.is_system, a.created_at, a.updated_at,
+				COALESCE(at.name, ''),
 				CASE
 					WHEN a.account_type IN ('asset', 'expense')
 						THEN a.opening_balance + COALESCE(SUM(jl.debit), 0) - COALESCE(SUM(jl.credit), 0)
 					ELSE a.opening_balance + COALESCE(SUM(jl.credit), 0) - COALESCE(SUM(jl.debit), 0)
 				END AS balance
 		FROM accounts a
+		LEFT JOIN assets ast ON ast.id = a.asset_id
+		LEFT JOIN asset_types at ON at.id = ast.asset_type_id
 		LEFT JOIN journal_lines jl ON jl.account_id = a.id
 		LEFT JOIN journal_entries je ON je.id = jl.entry_id AND je.user_id = a.user_id
 		WHERE a.user_id = $1
 		GROUP BY a.id, a.user_id, a.name, a.account_type, a.currency, a.opening_balance,
-			a.asset_id, a.category_id, a.is_system, a.created_at, a.updated_at
+			a.asset_id, a.category_id, a.is_system, a.created_at, a.updated_at, ast.name, at.name
 		ORDER BY a.account_type, a.name
 	`
 
@@ -378,7 +381,7 @@ func (r *AccountingRepository) ListAccountsWithBalances(ctx context.Context, use
 		var a model.AccountWithBalance
 		if err := rows.Scan(
 			&a.ID, &a.UserID, &a.Name, &a.AccountType, &a.Currency, &a.OpeningBalance,
-			&a.AssetID, &a.CategoryID, &a.IsSystem, &a.CreatedAt, &a.UpdatedAt, &a.Balance,
+			&a.AssetID, &a.CategoryID, &a.IsSystem, &a.CreatedAt, &a.UpdatedAt, &a.AssetTypeName, &a.Balance,
 		); err != nil {
 			return nil, err
 		}

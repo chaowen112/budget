@@ -33,7 +33,8 @@ type Account struct {
 
 type AccountWithBalance struct {
 	Account
-	Balance decimal.Decimal `json:"balance"`
+	Balance       decimal.Decimal `json:"balance"`
+	AssetTypeName string          `json:"asset_type_name,omitempty"`
 }
 
 type JournalEntry struct {

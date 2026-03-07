@@ -7,7 +7,7 @@ import { formatDate } from '../lib/utils'
 const accountTypeOrder: Array<LedgerAccount['accountType']> = ['asset', 'liability', 'equity', 'income', 'expense']
 
 export default function Accounting() {
-  const { formatConverted } = useCurrency()
+  const { formatConverted, displayCurrency, convertToDisplayAmount } = useCurrency()
 
   const { data: accounts, isLoading: isLoadingAccounts } = useQuery({
     queryKey: ['ledgerAccounts'],
@@ -29,6 +29,24 @@ export default function Accounting() {
     return acc
   }, {})
 
+  const assetTypeGrouped = (grouped.asset || []).reduce<Record<string, LedgerAccount[]>>((acc, item) => {
+    const key = item.assetTypeName || 'Other'
+    if (!acc[key]) {
+      acc[key] = []
+    }
+    acc[key].push(item)
+    return acc
+  }, {})
+
+  const liabilityTypeGrouped = (grouped.liability || []).reduce<Record<string, LedgerAccount[]>>((acc, item) => {
+    const key = item.assetTypeName || 'Other'
+    if (!acc[key]) {
+      acc[key] = []
+    }
+    acc[key].push(item)
+    return acc
+  }, {})
+
   const typeLabel: Record<LedgerAccount['accountType'], string> = {
     asset: 'Assets',
     liability: 'Liabilities',
@@ -40,6 +58,42 @@ export default function Accounting() {
   const moneyText = (amount: string, currency: string) => {
     return formatConverted({ amount, currency })
   }
+
+  const assetTypeTotals = Object.entries(assetTypeGrouped)
+    .map(([assetType, items]) => ({
+      assetType,
+      total: items.reduce(
+        (sum, item) => sum + convertToDisplayAmount({ amount: item.balance, currency: item.currency }),
+        0
+      ),
+    }))
+    .sort((a, b) => a.assetType.localeCompare(b.assetType))
+
+  const liabilityTypeTotals = Object.entries(liabilityTypeGrouped)
+    .map(([assetType, items]) => ({
+      assetType,
+      total: items.reduce(
+        (sum, item) => sum + convertToDisplayAmount({ amount: item.balance, currency: item.currency }),
+        0
+      ),
+    }))
+    .sort((a, b) => a.assetType.localeCompare(b.assetType))
+
+  const renderAccountRows = (items: LedgerAccount[]) => (
+    <div className="space-y-2">
+      {items.map((account) => (
+        <div
+          key={account.id}
+          className="flex items-center justify-between rounded-xl border border-zinc-100 dark:border-zinc-800 px-3 py-2 text-sm"
+        >
+          <span className="text-zinc-700 dark:text-zinc-300 truncate pr-2">{account.name}</span>
+          <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+            {moneyText(account.balance, account.currency)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
 
   return (
     <div className="space-y-6">
@@ -60,22 +114,48 @@ export default function Accounting() {
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {accountTypeOrder.map((type) => (
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">Assets by Type</h2>
+              <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
+                {assetTypeTotals.length > 0 ? (
+                  assetTypeTotals.map((item) => (
+                    <div key={item.assetType} className="flex items-center justify-between rounded-xl border border-zinc-100 dark:border-zinc-800 px-3 py-2.5 text-sm">
+                      <p className="text-zinc-700 dark:text-zinc-300">Total {item.assetType}</p>
+                      <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+                        {formatConverted({ amount: item.total.toString(), currency: displayCurrency })}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-zinc-400 dark:text-zinc-500">No assets accounts</p>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">Liabilities by Type</h2>
+              <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
+                {liabilityTypeTotals.length > 0 ? (
+                  liabilityTypeTotals.map((item) => (
+                    <div key={item.assetType} className="flex items-center justify-between rounded-xl border border-zinc-100 dark:border-zinc-800 px-3 py-2.5 text-sm">
+                      <p className="text-zinc-700 dark:text-zinc-300">Total {item.assetType}</p>
+                      <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+                        {formatConverted({ amount: item.total.toString(), currency: displayCurrency })}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-zinc-400 dark:text-zinc-500">No liabilities accounts</p>
+                )}
+              </div>
+            </div>
+
+            {accountTypeOrder.filter((type) => type !== 'asset' && type !== 'liability').map((type) => (
               <div key={type} className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-sm">
                 <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">{typeLabel[type]}</h2>
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                   {(grouped[type] || []).length > 0 ? (
-                    grouped[type].map((account) => (
-                      <div
-                        key={account.id}
-                        className="flex items-center justify-between rounded-xl border border-zinc-100 dark:border-zinc-800 px-3 py-2 text-sm"
-                      >
-                        <span className="text-zinc-700 dark:text-zinc-300 truncate pr-2">{account.name}</span>
-                        <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
-                          {moneyText(account.balance, account.currency)}
-                        </span>
-                      </div>
-                    ))
+                    renderAccountRows(grouped[type])
                   ) : (
                     <p className="text-sm text-zinc-400 dark:text-zinc-500">No {typeLabel[type].toLowerCase()} accounts</p>
                   )}

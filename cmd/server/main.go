@@ -429,6 +429,7 @@ func serveAccounting(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Man
 				"currency":       a.Currency,
 				"openingBalance": a.OpeningBalance.String(),
 				"balance":        a.Balance.String(),
+				"assetTypeName":  a.AssetTypeName,
 				"isSystem":       a.IsSystem,
 				"createdAt":      a.CreatedAt.Format(time.RFC3339),
 				"updatedAt":      a.UpdatedAt.Format(time.RFC3339),

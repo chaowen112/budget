@@ -252,6 +252,7 @@ export interface LedgerAccount {
   id: string
   name: string
   accountType: 'asset' | 'liability' | 'equity' | 'income' | 'expense'
+  assetTypeName?: string
   currency: string
   openingBalance: string
   balance: string
