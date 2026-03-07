@@ -14,6 +14,7 @@ import (
 
 var (
 	ErrTransactionNotFound = errors.New("transaction not found")
+	ErrTransactionAssetLinkNotFound = errors.New("transaction asset link not found")
 )
 
 type TransactionRepository struct {
@@ -252,6 +253,26 @@ func (r *TransactionRepository) SetSourceAssetLink(ctx context.Context, transact
 
 	_, err := r.db.Pool.Exec(ctx, query, transactionID, assetID)
 	return err
+}
+
+// GetSourceAssetLink returns the linked source asset for a transaction.
+func (r *TransactionRepository) GetSourceAssetLink(ctx context.Context, transactionID uuid.UUID) (uuid.UUID, error) {
+	query := `
+		SELECT asset_id
+		FROM transaction_asset_links
+		WHERE transaction_id = $1
+	`
+
+	var assetID uuid.UUID
+	err := r.db.Pool.QueryRow(ctx, query, transactionID).Scan(&assetID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, ErrTransactionAssetLinkNotFound
+		}
+		return uuid.Nil, err
+	}
+
+	return assetID, nil
 }
 
 // GetSpendingByCategory gets spending grouped by category for a date range

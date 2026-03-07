@@ -477,26 +477,26 @@ export default function Goals() {
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 ml-2">
+                  <div className="flex gap-1 ml-2">
                     {!isCompleted && (
                       <button
                         onClick={() => {
                           setSelectedGoal(goal)
                           setIsProgressModalOpen(true)
                         }}
-                        className="h-7 w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors duration-150"
+                        className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors duration-150"
                         title="Update Progress"
                       >
-                        <TrendingUp className="h-3.5 w-3.5" />
+                        <TrendingUp className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                       </button>
                     )}
                     <button
                       onClick={() => {
                         openEditGoalModal(goal)
                       }}
-                      className="h-7 w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors duration-150"
+                      className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors duration-150"
                     >
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                     </button>
                     <button
                       onClick={() => {
@@ -504,9 +504,9 @@ export default function Goals() {
                           deleteMutation.mutate(goal.id)
                         }
                       }}
-                      className="h-7 w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors duration-150"
+                      className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors duration-150"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                     </button>
                   </div>
                 </div>

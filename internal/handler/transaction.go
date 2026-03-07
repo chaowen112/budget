@@ -118,6 +118,11 @@ func (h *TransactionHandler) CreateTransaction(ctx context.Context, req *pb.Crea
 		return nil, status.Error(codes.Internal, "failed to link transaction to source asset")
 	}
 
+	if err := h.applyTransactionToAsset(ctx, userID, sourceAssetID, transaction); err != nil {
+		_ = h.transactionRepo.Delete(ctx, transaction.ID, userID)
+		return nil, status.Error(codes.Internal, "failed to update linked asset balance")
+	}
+
 	// Set category name from the category we already fetched
 	transaction.CategoryName = category.Name
 
@@ -238,6 +243,33 @@ func (h *TransactionHandler) UpdateTransaction(ctx context.Context, req *pb.Upda
 		return nil, status.Error(codes.Internal, "failed to get transaction")
 	}
 
+	oldTransaction := *transaction
+	oldAssetID, err := h.transactionRepo.GetSourceAssetLink(ctx, transaction.ID)
+	if err != nil {
+		if isUndefinedTableError(err) {
+			return nil, status.Error(codes.FailedPrecondition, "transaction asset link table missing: run latest database migrations")
+		}
+		if errors.Is(err, repository.ErrTransactionAssetLinkNotFound) {
+			return nil, status.Error(codes.FailedPrecondition, "transaction source asset link missing")
+		}
+		return nil, status.Error(codes.Internal, "failed to fetch transaction source asset")
+	}
+
+	newAssetID := oldAssetID
+	sourceAssetID, mdErr := sourceAssetIDFromMetadataOptional(ctx)
+	if mdErr != nil {
+		return nil, status.Error(codes.InvalidArgument, mdErr.Error())
+	}
+	if sourceAssetID != nil {
+		if _, err := h.assetRepo.GetByID(ctx, *sourceAssetID, userID); err != nil {
+			if errors.Is(err, repository.ErrAssetNotFound) {
+				return nil, status.Error(codes.InvalidArgument, "source asset not found")
+			}
+			return nil, status.Error(codes.Internal, "failed to validate source asset")
+		}
+		newAssetID = *sourceAssetID
+	}
+
 	// Update fields if provided
 	if req.CategoryId != "" {
 		categoryID, err := uuid.Parse(req.CategoryId)
@@ -271,18 +303,31 @@ func (h *TransactionHandler) UpdateTransaction(ctx context.Context, req *pb.Upda
 		return nil, status.Error(codes.Internal, "failed to update transaction")
 	}
 
-	if sourceAssetID, err := sourceAssetIDFromMetadataOptional(ctx); err == nil && sourceAssetID != nil {
-		if _, err := h.assetRepo.GetByID(ctx, *sourceAssetID, userID); err != nil {
-			if errors.Is(err, repository.ErrAssetNotFound) {
-				return nil, status.Error(codes.InvalidArgument, "source asset not found")
-			}
-			return nil, status.Error(codes.Internal, "failed to validate source asset")
-		}
-		if err := h.transactionRepo.SetSourceAssetLink(ctx, transaction.ID, *sourceAssetID); err != nil {
+	if newAssetID != oldAssetID {
+		if err := h.transactionRepo.SetSourceAssetLink(ctx, transaction.ID, newAssetID); err != nil {
 			if isUndefinedTableError(err) {
 				return nil, status.Error(codes.FailedPrecondition, "transaction asset link table missing: run latest database migrations")
 			}
 			return nil, status.Error(codes.Internal, "failed to update transaction source asset")
+		}
+	}
+
+	oldImpact := transactionSignedAmount(&oldTransaction)
+	newImpact := transactionSignedAmount(transaction)
+
+	if oldAssetID == newAssetID {
+		delta := newImpact.Sub(oldImpact)
+		if !delta.IsZero() {
+			if err := h.applyAssetDelta(ctx, userID, oldAssetID, delta); err != nil {
+				return nil, status.Error(codes.Internal, "failed to update linked asset balance")
+			}
+		}
+	} else {
+		if err := h.applyAssetDelta(ctx, userID, oldAssetID, oldImpact.Neg()); err != nil {
+			return nil, status.Error(codes.Internal, "failed to update previous linked asset balance")
+		}
+		if err := h.applyAssetDelta(ctx, userID, newAssetID, newImpact); err != nil {
+			return nil, status.Error(codes.Internal, "failed to update new linked asset balance")
 		}
 	}
 
@@ -305,11 +350,34 @@ func (h *TransactionHandler) DeleteTransaction(ctx context.Context, req *pb.Dele
 		return nil, status.Error(codes.InvalidArgument, "invalid transaction ID")
 	}
 
+	transaction, err := h.transactionRepo.GetByID(ctx, id, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrTransactionNotFound) {
+			return nil, status.Error(codes.NotFound, "transaction not found")
+		}
+		return nil, status.Error(codes.Internal, "failed to get transaction")
+	}
+
+	sourceAssetID, err := h.transactionRepo.GetSourceAssetLink(ctx, id)
+	if err != nil {
+		if isUndefinedTableError(err) {
+			return nil, status.Error(codes.FailedPrecondition, "transaction asset link table missing: run latest database migrations")
+		}
+		if errors.Is(err, repository.ErrTransactionAssetLinkNotFound) {
+			return nil, status.Error(codes.FailedPrecondition, "transaction source asset link missing")
+		}
+		return nil, status.Error(codes.Internal, "failed to fetch transaction source asset")
+	}
+
 	if err := h.transactionRepo.Delete(ctx, id, userID); err != nil {
 		if errors.Is(err, repository.ErrTransactionNotFound) {
 			return nil, status.Error(codes.NotFound, "transaction not found")
 		}
 		return nil, status.Error(codes.Internal, "failed to delete transaction")
+	}
+
+	if err := h.applyAssetDelta(ctx, userID, sourceAssetID, transactionSignedAmount(transaction).Neg()); err != nil {
+		return nil, status.Error(codes.Internal, "failed to update linked asset balance")
 	}
 
 	return &pb.DeleteTransactionResponse{}, nil
@@ -371,4 +439,36 @@ func isUndefinedTableError(err error) bool {
 		return pgErr.Code == "42P01"
 	}
 	return false
+}
+
+func transactionSignedAmount(t *model.Transaction) decimal.Decimal {
+	if t.Type == model.CategoryTypeIncome {
+		return t.Amount
+	}
+	return t.Amount.Neg()
+}
+
+func (h *TransactionHandler) applyTransactionToAsset(ctx context.Context, userID, assetID uuid.UUID, transaction *model.Transaction) error {
+	return h.applyAssetDelta(ctx, userID, assetID, transactionSignedAmount(transaction))
+}
+
+func (h *TransactionHandler) applyAssetDelta(ctx context.Context, userID, assetID uuid.UUID, delta decimal.Decimal) error {
+	if delta.IsZero() {
+		return nil
+	}
+
+	asset, err := h.assetRepo.GetByID(ctx, assetID, userID)
+	if err != nil {
+		return err
+	}
+
+	asset.CurrentValue = asset.CurrentValue.Add(delta)
+	if err := h.assetRepo.Update(ctx, asset); err != nil {
+		return err
+	}
+
+	return h.assetRepo.RecordSnapshot(ctx, &model.AssetSnapshot{
+		AssetID: asset.ID,
+		Value:   asset.CurrentValue,
+	})
 }

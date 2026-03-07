@@ -250,7 +250,7 @@ export default function Transactions() {
               return (
                 <div
                   key={transaction.id}
-                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors duration-150 group"
+                  className="flex items-start sm:items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors duration-150"
                 >
                   {/* Icon */}
                   <div
@@ -282,39 +282,42 @@ export default function Transactions() {
                     </p>
                   </div>
 
-                  {/* Amount */}
-                  <span
-                    className={`text-sm font-semibold tabular-nums flex-shrink-0 ${
-                      isExpense
-                        ? 'text-red-500 dark:text-red-400'
-                        : 'text-emerald-600 dark:text-emerald-400'
-                    }`}
-                  >
-                    {isExpense ? '-' : '+'}{formatConverted(transaction.amount)}
-                  </span>
+                  {/* Amount + Actions */}
+                  <div className="flex flex-col items-end gap-1.5 sm:gap-2 flex-shrink-0">
+                    <span
+                      className={`text-sm font-semibold tabular-nums ${
+                        isExpense
+                          ? 'text-red-500 dark:text-red-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                      }`}
+                    >
+                      {isExpense ? '-' : '+'}{formatConverted(transaction.amount)}
+                    </span>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                    <button
-                      onClick={() => {
-                        setEditingTransaction(transaction)
-                        setTransactionCategoryId(transaction.categoryId)
-                        setIsModalOpen(true)
-                      }}
-                      className="h-7 w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-150"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm('Delete this transaction?')) {
-                          deleteMutation.mutate(transaction.id)
-                        }
-                      }}
-                      className="h-7 w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors duration-150"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          setEditingTransaction(transaction)
+                          setTransactionCategoryId(transaction.categoryId)
+                          setIsModalOpen(true)
+                        }}
+                        className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-150"
+                        title="Edit transaction"
+                      >
+                        <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm('Delete this transaction?')) {
+                            deleteMutation.mutate(transaction.id)
+                          }
+                        }}
+                        className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors duration-150"
+                        title="Delete transaction"
+                      >
+                        <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
