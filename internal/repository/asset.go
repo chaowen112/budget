@@ -32,36 +32,76 @@ type AssetDeleteBlocker struct {
 	OccurredAt  time.Time
 }
 
-// GetTotalsAsOf calculates total assets and liabilities as of a specific point in time.
-// It uses the latest snapshot recorded on/before asOf per asset, falling back to current_value.
-func (r *AssetRepository) GetTotalsAsOf(ctx context.Context, userID uuid.UUID, asOf time.Time) (decimal.Decimal, decimal.Decimal, error) {
+type AssetBalanceAsOf struct {
+	Currency    string
+	IsLiability bool
+	Balance     decimal.Decimal
+}
+
+// ListBalancesAsOf retrieves per-asset balances at a specific point in time.
+func (r *AssetRepository) ListBalancesAsOf(ctx context.Context, userID uuid.UUID, asOf time.Time) ([]AssetBalanceAsOf, error) {
 	query := `
 		SELECT
-			COALESCE(SUM(CASE WHEN a.is_liability = false THEN b.balance ELSE 0 END), 0) AS total_assets,
-			COALESCE(SUM(CASE WHEN a.is_liability = true THEN b.balance ELSE 0 END), 0) AS total_liabilities
+			a.currency,
+			a.is_liability,
+			COALESCE(
+				CASE
+					WHEN acc.id IS NULL THEN a.current_value
+					WHEN acc.account_type IN ('asset', 'expense')
+						THEN acc.opening_balance + COALESCE(agg.total_debit, 0) - COALESCE(agg.total_credit, 0)
+					ELSE acc.opening_balance + COALESCE(agg.total_credit, 0) - COALESCE(agg.total_debit, 0)
+				END,
+				a.current_value
+			) AS balance
 		FROM assets a
 		LEFT JOIN accounts acc ON acc.asset_id = a.id
 		LEFT JOIN LATERAL (
 			SELECT
-				CASE
-					WHEN acc.id IS NULL THEN a.current_value
-					WHEN acc.account_type IN ('asset', 'expense')
-						THEN acc.opening_balance + COALESCE(SUM(jl.debit), 0) - COALESCE(SUM(jl.credit), 0)
-					ELSE acc.opening_balance + COALESCE(SUM(jl.credit), 0) - COALESCE(SUM(jl.debit), 0)
-				END AS balance
+				COALESCE(SUM(jl.debit), 0) AS total_debit,
+				COALESCE(SUM(jl.credit), 0) AS total_credit
 			FROM journal_lines jl
 			JOIN journal_entries je ON je.id = jl.entry_id
 			WHERE jl.account_id = acc.id
 			  AND je.user_id = a.user_id
 			  AND je.entry_date <= $2
-		) b ON true
+		) agg ON true
 		WHERE a.user_id = $1
 	`
 
-	var totalAssets, totalLiabilities decimal.Decimal
-	err := r.db.Pool.QueryRow(ctx, query, userID, asOf).Scan(&totalAssets, &totalLiabilities)
+	rows, err := r.db.Pool.Query(ctx, query, userID, asOf)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var balances []AssetBalanceAsOf
+	for rows.Next() {
+		var item AssetBalanceAsOf
+		if err := rows.Scan(&item.Currency, &item.IsLiability, &item.Balance); err != nil {
+			return nil, err
+		}
+		balances = append(balances, item)
+	}
+
+	return balances, rows.Err()
+}
+
+// GetTotalsAsOf calculates total assets and liabilities as of a specific point in time.
+// It uses the latest snapshot recorded on/before asOf per asset, falling back to current_value.
+func (r *AssetRepository) GetTotalsAsOf(ctx context.Context, userID uuid.UUID, asOf time.Time) (decimal.Decimal, decimal.Decimal, error) {
+	balances, err := r.ListBalancesAsOf(ctx, userID, asOf)
 	if err != nil {
 		return decimal.Zero, decimal.Zero, err
+	}
+
+	totalAssets := decimal.Zero
+	totalLiabilities := decimal.Zero
+	for _, item := range balances {
+		if item.IsLiability {
+			totalLiabilities = totalLiabilities.Add(item.Balance)
+			continue
+		}
+		totalAssets = totalAssets.Add(item.Balance)
 	}
 
 	return totalAssets, totalLiabilities, nil

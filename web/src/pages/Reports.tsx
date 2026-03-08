@@ -10,6 +10,9 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
   BarChart,
   Bar,
   XAxis,
@@ -72,6 +75,20 @@ export default function Reports() {
     queryFn: () => reportApi.getMonthlyReport(selectedYear, selectedMonth),
   })
 
+  const selectedMonthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
+
+  const { data: monthlyNetWorthTrend, isLoading: isLoadingMonthlyNetWorthTrend } = useQuery({
+    queryKey: ['netWorthTrend', 'daily', selectedMonthKey],
+    queryFn: () => reportApi.getNetWorthTrend({ interval: 'daily', month: selectedMonthKey }),
+    enabled: reportPeriod === 'monthly',
+  })
+
+  const { data: yearlyNetWorthTrend, isLoading: isLoadingYearlyNetWorthTrend } = useQuery({
+    queryKey: ['netWorthTrend', 'monthly', selectedYear],
+    queryFn: () => reportApi.getNetWorthTrend({ interval: 'monthly', year: selectedYear, months: 12 }),
+    enabled: reportPeriod === 'yearly',
+  })
+
   const yearlyMonthlyQueries = useQueries({
     queries: Array.from({ length: 12 }, (_, i) => {
       const month = i + 1
@@ -88,8 +105,13 @@ export default function Reports() {
   })
 
   const { data: budgetReport, isLoading: isLoadingBudget } = useQuery<BudgetTrackingReport>({
-    queryKey: ['budgetTrackingReport'],
-    queryFn: () => reportApi.getBudgetTrackingReport(),
+    queryKey: ['budgetTrackingReport', reportPeriod, selectedYear, selectedMonth],
+    queryFn: () =>
+      reportApi.getBudgetTrackingReport({
+        periodType: reportPeriod === 'yearly' ? 'PERIOD_TYPE_YEARLY' : 'PERIOD_TYPE_MONTHLY',
+        year: selectedYear,
+        month: selectedMonth,
+      }),
   })
 
   const { data: goalsReport, isLoading: isLoadingGoals } = useQuery<SavingGoalReport[]>({
@@ -99,7 +121,8 @@ export default function Reports() {
 
   const isLoadingYearly = yearlyMonthlyQueries.some((q) => q.isLoading)
   const isLoadingPeriod = reportPeriod === 'yearly' ? isLoadingYearly : isLoadingMonthly
-  const isLoading = isLoadingPeriod || isLoadingNetWorth || isLoadingBudget || isLoadingGoals
+  const isLoadingTrend = reportPeriod === 'yearly' ? isLoadingYearlyNetWorthTrend : isLoadingMonthlyNetWorthTrend
+  const isLoading = isLoadingPeriod || isLoadingNetWorth || isLoadingBudget || isLoadingGoals || isLoadingTrend
 
   const currency = user?.baseCurrency || 'SGD'
   const moneyFmt = (v: number) => formatConverted({ amount: v.toString(), currency })
@@ -170,6 +193,25 @@ export default function Reports() {
   }, [currency, yearlyMonthlyQueries])
 
   const activeSpendingData = reportPeriod === 'yearly' ? yearlySummary.spendingByCategory : spendingData
+
+  const monthlyTrendData = (monthlyNetWorthTrend?.trend || []).map((point) => ({
+    label: point.month.slice(-2),
+    netWorth: moneyToNumber(point.netWorth),
+    assets: moneyToNumber(point.assets),
+    liabilities: moneyToNumber(point.liabilities),
+  }))
+
+  const yearlyTrendData = (yearlyNetWorthTrend?.trend || []).map((point) => {
+    const monthNumber = Number(point.month.split('-')[1] || '1')
+    return {
+      label: getMonthName(monthNumber).slice(0, 3),
+      netWorth: moneyToNumber(point.netWorth),
+      assets: moneyToNumber(point.assets),
+      liabilities: moneyToNumber(point.liabilities),
+    }
+  })
+
+  const activeNetWorthTrendData = reportPeriod === 'yearly' ? yearlyTrendData : monthlyTrendData
 
   const budgetRows = budgetReport?.categoryDetails?.slice(0, 8) || []
   const goalRows = goalsReport?.slice(0, 8) || []
@@ -297,6 +339,34 @@ export default function Reports() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className={`${cardClass} lg:col-span-2`}>
+              <h2 className={headingClass}>
+                {reportPeriod === 'yearly'
+                  ? `Net Worth Trend (${selectedYear})`
+                  : `Net Worth Trend (${getMonthName(selectedMonth)} ${selectedYear})`}
+              </h2>
+              {activeNetWorthTrendData.length > 0 ? (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={activeNetWorthTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(113,113,122,0.15)" />
+                      <XAxis dataKey="label" tick={axisStyle} axisLine={false} tickLine={false} />
+                      <YAxis tick={axisStyle} axisLine={false} tickLine={false} />
+                      <Tooltip content={<ChartTooltip formatter={moneyFmt} />} />
+                      <Legend wrapperStyle={{ fontSize: 11, color: '#71717a' }} />
+                      <Line type="monotone" dataKey="netWorth" name="Net Worth" stroke="#8b5cf6" strokeWidth={2.5} dot={false} />
+                      <Line type="monotone" dataKey="assets" name="Assets" stroke="#10b981" strokeWidth={1.8} dot={false} />
+                      <Line type="monotone" dataKey="liabilities" name="Liabilities" stroke="#ef4444" strokeWidth={1.8} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-56 flex items-center justify-center text-sm text-zinc-400 dark:text-zinc-500">
+                  No net worth trend data for this report period
+                </div>
+              )}
+            </div>
+
             {/* Spending by Category */}
             <div className={cardClass}>
               <h2 className={headingClass}>

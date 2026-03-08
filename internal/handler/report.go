@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -191,22 +194,31 @@ func (h *ReportHandler) GetMonthlyReport(ctx context.Context, req *pb.GetMonthly
 		expenseChangePercentage = expenseChange.Div(prevExpenses).InexactFloat64() * 100
 	}
 
-	// Get budget summaries
+	// Get budget summaries for monthly + weekly budgets in this month range
 	budgets, err := h.budgetRepo.List(ctx, userID, nil)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get budgets")
 	}
 
-	var budgetSummaries []*pb.BudgetSummary
-	for _, budget := range budgets {
-		if budget.PeriodType == model.PeriodTypeMonthly {
-			budgetStatus, err := h.budgetRepo.GetBudgetStatus(ctx, &budget)
-			if err != nil {
-				continue
-			}
-			budgetSummaries = append(budgetSummaries, reportBudgetStatusToSummary(budgetStatus))
-		}
+	spendingForBudgets, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to get budget spending by category")
 	}
+
+	spentByCategory := make(map[uuid.UUID]decimal.Decimal, len(spendingForBudgets))
+	for _, s := range spendingForBudgets {
+		spentByCategory[s.CategoryID] = s.Total
+	}
+
+	agg := buildBudgetSummariesForRange(
+		budgets,
+		spentByCategory,
+		monthStart,
+		monthEnd,
+		func(periodType model.PeriodType) bool {
+			return periodType == model.PeriodTypeMonthly || periodType == model.PeriodTypeWeekly
+		},
+	)
 
 	pbSpending := spendingByCategoryToProto(spendingByCategory, totalExpenses)
 
@@ -218,7 +230,7 @@ func (h *ReportHandler) GetMonthlyReport(ctx context.Context, req *pb.GetMonthly
 			NetSavings:              reportDecimalToMoney(netSavings, "SGD"),
 			SavingsRate:             savingsRate,
 			SpendingByCategory:      pbSpending,
-			BudgetSummaries:         budgetSummaries,
+			BudgetSummaries:         agg.summaries,
 			DailyAverageSpending:    reportDecimalToMoney(dailyAverage, "SGD"),
 			IncomeChange:            reportDecimalToMoney(incomeChange, "SGD"),
 			ExpenseChange:           reportDecimalToMoney(expenseChange, "SGD"),
@@ -349,38 +361,98 @@ func (h *ReportHandler) GetBudgetTrackingReport(ctx context.Context, req *pb.Get
 	}
 
 	modelPeriodType := reportProtoToPeriodType(periodType)
-
-	// Get period bounds
 	now := time.Now()
-	periodStart, periodEnd := repository.GetPeriodBounds(modelPeriodType, now, now)
+
+	selectedYear, selectedMonth, err := budgetTrackingContextFromMetadata(ctx)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	// Get period bounds and as-of (yearly uses full-year budget vs YTD spent)
+	var periodStart, periodEnd, asOf time.Time
+	switch periodType {
+	case pb.PeriodType_PERIOD_TYPE_MONTHLY:
+		year := now.Year()
+		month := int(now.Month())
+		if selectedYear > 0 {
+			year = selectedYear
+		}
+		if selectedMonth > 0 {
+			month = selectedMonth
+		}
+		periodStart, periodEnd = getMonthBounds(year, month)
+		asOf = minTime(now, periodEnd)
+
+	case pb.PeriodType_PERIOD_TYPE_YEARLY:
+		year := now.Year()
+		if selectedYear > 0 {
+			year = selectedYear
+		}
+		periodStart = time.Date(year, time.January, 1, 0, 0, 0, 0, time.Local)
+		periodEnd = time.Date(year, time.December, 31, 23, 59, 59, 999999999, time.Local)
+		asOf = minTime(now, periodEnd)
+
+	default:
+		periodStart, periodEnd = repository.GetPeriodBounds(modelPeriodType, now, now)
+		asOf = now
+	}
 
 	// Calculate progress
 	totalDays := int(periodEnd.Sub(periodStart).Hours()/24) + 1
-	daysElapsed := int(now.Sub(periodStart).Hours()/24) + 1
-	if daysElapsed > totalDays {
-		daysElapsed = totalDays
+	daysElapsed := 0
+	if !asOf.Before(periodStart) {
+		daysElapsed = int(asOf.Sub(periodStart).Hours()/24) + 1
+		if daysElapsed > totalDays {
+			daysElapsed = totalDays
+		}
 	}
 	daysRemaining := totalDays - daysElapsed
+	if daysRemaining < 0 {
+		daysRemaining = 0
+	}
+
 	periodProgress := float64(daysElapsed) / float64(totalDays) * 100
 
-	// Get budgets for this period type
-	budgets, err := h.budgetRepo.List(ctx, userID, &modelPeriodType)
+	// Get budgets
+	var budgetPeriodFilter *model.PeriodType
+	if periodType == pb.PeriodType_PERIOD_TYPE_WEEKLY || periodType == pb.PeriodType_PERIOD_TYPE_DAILY {
+		budgetPeriodFilter = &modelPeriodType
+	}
+
+	budgets, err := h.budgetRepo.List(ctx, userID, budgetPeriodFilter)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to list budgets")
 	}
 
-	var totalBudgeted, totalSpent decimal.Decimal
-	var categoryDetails []*pb.BudgetSummary
-
-	for _, budget := range budgets {
-		budgetStatus, err := h.budgetRepo.GetBudgetStatus(ctx, &budget)
-		if err != nil {
-			continue
-		}
-		totalBudgeted = totalBudgeted.Add(budget.Amount)
-		totalSpent = totalSpent.Add(budgetStatus.Spent)
-		categoryDetails = append(categoryDetails, reportBudgetStatusToSummary(budgetStatus))
+	spendingByCategory, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, periodStart, asOf, model.CategoryTypeExpense)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to get spending by category")
 	}
+
+	spentByCategory := make(map[uuid.UUID]decimal.Decimal, len(spendingByCategory))
+	for _, s := range spendingByCategory {
+		spentByCategory[s.CategoryID] = s.Total
+	}
+
+	includeBudget := func(period model.PeriodType) bool {
+		switch periodType {
+		case pb.PeriodType_PERIOD_TYPE_YEARLY:
+			return true
+		case pb.PeriodType_PERIOD_TYPE_MONTHLY:
+			return true
+		case pb.PeriodType_PERIOD_TYPE_WEEKLY:
+			return period == model.PeriodTypeWeekly
+		case pb.PeriodType_PERIOD_TYPE_DAILY:
+			return period == model.PeriodTypeDaily
+		default:
+			return period == modelPeriodType
+		}
+	}
+
+	agg := buildBudgetSummariesForRange(budgets, spentByCategory, periodStart, periodEnd, includeBudget)
+
+	totalBudgeted := agg.totalBudgeted
+	totalSpent := agg.totalSpentUnique
 
 	// Calculate expected spending based on period progress
 	expectedSpent := totalBudgeted.Mul(decimal.NewFromFloat(periodProgress / 100))
@@ -424,7 +496,7 @@ func (h *ReportHandler) GetBudgetTrackingReport(ctx context.Context, req *pb.Get
 			IsOnTrack:                    isOnTrack,
 			StatusMessage:                statusMessage,
 			ProjectedEndOfPeriodSpending: reportDecimalToMoney(projectedSpending, "SGD"),
-			CategoryDetails:              categoryDetails,
+			CategoryDetails:              agg.summaries,
 		},
 	}, nil
 }
@@ -537,28 +609,109 @@ func (h *ReportHandler) GetNetWorthTrend(ctx context.Context, req *pb.GetNetWort
 		return nil, err
 	}
 
-	months := int(req.GetMonths())
-	if months <= 0 {
-		months = 12
+	user, err := h.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to load user profile")
+	}
+
+	interval, selectedYear, selectedMonth, err := netWorthTrendOptionsFromMetadata(ctx)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	var trend []*pb.NetWorthTrendPoint
+	rateCache := make(map[string]decimal.Decimal)
 	now := time.Now()
-	for i := months - 1; i >= 0; i-- {
-		_, monthEnd := getMonthBounds(now.Year(), int(now.Month())-i)
 
-		totalAssets, totalLiabilities, err := h.assetRepo.GetTotalsAsOf(ctx, userID, monthEnd)
-		if err != nil {
-			return nil, status.Error(codes.Internal, "failed to get historical asset totals")
+	switch interval {
+	case netWorthTrendIntervalDaily:
+		targetYear := now.Year()
+		targetMonth := int(now.Month())
+		if selectedMonth != "" {
+			parsedMonth, _ := time.Parse("2006-01", selectedMonth)
+			targetYear = parsedMonth.Year()
+			targetMonth = int(parsedMonth.Month())
 		}
 
-		netWorth := totalAssets.Sub(totalLiabilities)
-		trend = append(trend, &pb.NetWorthTrendPoint{
-			Month:       monthEnd.Format("2006-01"),
-			NetWorth:    reportDecimalToMoney(netWorth, "SGD"),
-			Assets:      reportDecimalToMoney(totalAssets, "SGD"),
-			Liabilities: reportDecimalToMoney(totalLiabilities, "SGD"),
-		})
+		monthStart, monthEnd := getMonthBounds(targetYear, targetMonth)
+		for day := monthStart; !day.After(monthEnd); day = day.AddDate(0, 0, 1) {
+			dayEnd := time.Date(day.Year(), day.Month(), day.Day(), 23, 59, 59, 999999999, day.Location())
+			totalAssets, totalLiabilities, totalsErr := h.getConvertedNetWorthTotalsAsOf(ctx, userID, user.BaseCurrency, dayEnd, rateCache)
+			if totalsErr != nil {
+				if errors.Is(totalsErr, repository.ErrExchangeRateNotFound) {
+					return nil, status.Error(codes.FailedPrecondition, "missing exchange rate for net worth trend conversion")
+				}
+				return nil, status.Error(codes.Internal, "failed to get historical net worth totals")
+			}
+
+			netWorth := totalAssets.Sub(totalLiabilities)
+			trend = append(trend, &pb.NetWorthTrendPoint{
+				Month:       day.Format("2006-01-02"),
+				NetWorth:    reportDecimalToMoney(netWorth, user.BaseCurrency),
+				Assets:      reportDecimalToMoney(totalAssets, user.BaseCurrency),
+				Liabilities: reportDecimalToMoney(totalLiabilities, user.BaseCurrency),
+			})
+		}
+
+	case netWorthTrendIntervalMonthly:
+		if selectedYear > 0 {
+			if selectedYear > now.Year() {
+				trend = []*pb.NetWorthTrendPoint{}
+				break
+			}
+
+			endMonth := 12
+			if selectedYear == now.Year() {
+				endMonth = int(now.Month())
+			}
+
+			for month := 1; month <= endMonth; month++ {
+				_, monthEnd := getMonthBounds(selectedYear, month)
+				totalAssets, totalLiabilities, totalsErr := h.getConvertedNetWorthTotalsAsOf(ctx, userID, user.BaseCurrency, monthEnd, rateCache)
+				if totalsErr != nil {
+					if errors.Is(totalsErr, repository.ErrExchangeRateNotFound) {
+						return nil, status.Error(codes.FailedPrecondition, "missing exchange rate for net worth trend conversion")
+					}
+					return nil, status.Error(codes.Internal, "failed to get historical net worth totals")
+				}
+
+				netWorth := totalAssets.Sub(totalLiabilities)
+				trend = append(trend, &pb.NetWorthTrendPoint{
+					Month:       monthEnd.Format("2006-01"),
+					NetWorth:    reportDecimalToMoney(netWorth, user.BaseCurrency),
+					Assets:      reportDecimalToMoney(totalAssets, user.BaseCurrency),
+					Liabilities: reportDecimalToMoney(totalLiabilities, user.BaseCurrency),
+				})
+			}
+			break
+		}
+
+		months := int(req.GetMonths())
+		if months <= 0 {
+			months = 12
+		}
+
+		for i := months - 1; i >= 0; i-- {
+			_, monthEnd := getMonthBounds(now.Year(), int(now.Month())-i)
+			totalAssets, totalLiabilities, totalsErr := h.getConvertedNetWorthTotalsAsOf(ctx, userID, user.BaseCurrency, monthEnd, rateCache)
+			if totalsErr != nil {
+				if errors.Is(totalsErr, repository.ErrExchangeRateNotFound) {
+					return nil, status.Error(codes.FailedPrecondition, "missing exchange rate for net worth trend conversion")
+				}
+				return nil, status.Error(codes.Internal, "failed to get historical net worth totals")
+			}
+
+			netWorth := totalAssets.Sub(totalLiabilities)
+			trend = append(trend, &pb.NetWorthTrendPoint{
+				Month:       monthEnd.Format("2006-01"),
+				NetWorth:    reportDecimalToMoney(netWorth, user.BaseCurrency),
+				Assets:      reportDecimalToMoney(totalAssets, user.BaseCurrency),
+				Liabilities: reportDecimalToMoney(totalLiabilities, user.BaseCurrency),
+			})
+		}
+
+	default:
+		return nil, status.Error(codes.InvalidArgument, "unsupported trend interval")
 	}
 
 	totalChange := decimal.Zero
@@ -574,9 +727,335 @@ func (h *ReportHandler) GetNetWorthTrend(ctx context.Context, req *pb.GetNetWort
 
 	return &pb.GetNetWorthTrendResponse{
 		Trend:                 trend,
-		TotalChange:           reportDecimalToMoney(totalChange, "SGD"),
+		TotalChange:           reportDecimalToMoney(totalChange, user.BaseCurrency),
 		TotalChangePercentage: totalChangePercentage,
 	}, nil
+}
+
+func (h *ReportHandler) getConvertedNetWorthTotalsAsOf(
+	ctx context.Context,
+	userID uuid.UUID,
+	baseCurrency string,
+	asOf time.Time,
+	rateCache map[string]decimal.Decimal,
+) (decimal.Decimal, decimal.Decimal, error) {
+	balances, err := h.assetRepo.ListBalancesAsOf(ctx, userID, asOf)
+	if err != nil {
+		return decimal.Zero, decimal.Zero, err
+	}
+
+	totalAssets := decimal.Zero
+	totalLiabilities := decimal.Zero
+
+	for _, item := range balances {
+		converted, convErr := convertAmountAsOfWithCache(ctx, h.currencyRepo, rateCache, item.Balance, item.Currency, baseCurrency, asOf)
+		if convErr != nil {
+			return decimal.Zero, decimal.Zero, convErr
+		}
+
+		if item.IsLiability {
+			totalLiabilities = totalLiabilities.Add(converted)
+			continue
+		}
+
+		totalAssets = totalAssets.Add(converted)
+	}
+
+	return totalAssets, totalLiabilities, nil
+}
+
+func convertAmountAsOfWithCache(
+	ctx context.Context,
+	currencyRepo *repository.CurrencyRepository,
+	rateCache map[string]decimal.Decimal,
+	amount decimal.Decimal,
+	fromCurrency string,
+	toCurrency string,
+	asOf time.Time,
+) (decimal.Decimal, error) {
+	if fromCurrency == toCurrency {
+		return amount.Round(2), nil
+	}
+
+	directKey := fromCurrency + ":" + toCurrency
+	if rate, ok := rateCache[directKey]; ok {
+		return amount.Mul(rate).Round(2), nil
+	}
+
+	inverseKey := toCurrency + ":" + fromCurrency
+	if rate, ok := rateCache[inverseKey]; ok {
+		if rate.IsZero() {
+			return decimal.Zero, errors.New("invalid zero exchange rate")
+		}
+		return amount.Div(rate).Round(2), nil
+	}
+
+	rate, err := currencyRepo.GetExchangeRateAsOf(ctx, fromCurrency, toCurrency, asOf)
+	if err == nil {
+		rateCache[directKey] = rate.Rate
+		return amount.Mul(rate.Rate).Round(2), nil
+	}
+	if !errors.Is(err, repository.ErrExchangeRateNotFound) {
+		return decimal.Zero, err
+	}
+
+	inverseRate, invErr := currencyRepo.GetExchangeRateAsOf(ctx, toCurrency, fromCurrency, asOf)
+	if invErr != nil {
+		if errors.Is(invErr, repository.ErrExchangeRateNotFound) {
+			return decimal.Zero, repository.ErrExchangeRateNotFound
+		}
+		return decimal.Zero, invErr
+	}
+
+	if inverseRate.Rate.IsZero() {
+		return decimal.Zero, errors.New("invalid zero exchange rate")
+	}
+
+	rateCache[inverseKey] = inverseRate.Rate
+	return amount.Div(inverseRate.Rate).Round(2), nil
+}
+
+const (
+	netWorthTrendIntervalMonthly = "monthly"
+	netWorthTrendIntervalDaily   = "daily"
+)
+
+func netWorthTrendOptionsFromMetadata(ctx context.Context) (string, int, string, error) {
+	interval := netWorthTrendIntervalMonthly
+	selectedYear := 0
+	selectedMonth := ""
+
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return interval, selectedYear, selectedMonth, nil
+	}
+
+	if value := firstMetadataValue(md, "trend-interval", "x-trend-interval", "grpcgateway-trend-interval"); value != "" {
+		normalized := strings.ToLower(strings.TrimSpace(value))
+		switch normalized {
+		case netWorthTrendIntervalMonthly, netWorthTrendIntervalDaily:
+			interval = normalized
+		default:
+			return "", 0, "", errors.New("trend-interval must be monthly or daily")
+		}
+	}
+
+	if value := firstMetadataValue(md, "trend-year", "x-trend-year", "grpcgateway-trend-year"); value != "" {
+		parsedYear, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return "", 0, "", errors.New("trend-year must be a valid year")
+		}
+		if parsedYear < 1970 || parsedYear > 9999 {
+			return "", 0, "", errors.New("trend-year must be between 1970 and 9999")
+		}
+		selectedYear = parsedYear
+	}
+
+	if value := firstMetadataValue(md, "trend-month", "x-trend-month", "grpcgateway-trend-month"); value != "" {
+		month := strings.TrimSpace(value)
+		if _, err := time.Parse("2006-01", month); err != nil {
+			return "", 0, "", errors.New("trend-month must use YYYY-MM format")
+		}
+		selectedMonth = month
+	}
+
+	return interval, selectedYear, selectedMonth, nil
+}
+
+func firstMetadataValue(md metadata.MD, keys ...string) string {
+	for _, key := range keys {
+		values := md.Get(key)
+		if len(values) == 0 {
+			continue
+		}
+		if strings.TrimSpace(values[0]) != "" {
+			return values[0]
+		}
+	}
+	return ""
+}
+
+type budgetSummaryAggregation struct {
+	summaries       []*pb.BudgetSummary
+	totalBudgeted   decimal.Decimal
+	totalSpentUnique decimal.Decimal
+}
+
+func buildBudgetSummariesForRange(
+	budgets []model.Budget,
+	spentByCategory map[uuid.UUID]decimal.Decimal,
+	periodStart time.Time,
+	periodEnd time.Time,
+	includeBudget func(model.PeriodType) bool,
+) budgetSummaryAggregation {
+	agg := budgetSummaryAggregation{
+		summaries: make([]*pb.BudgetSummary, 0, len(budgets)),
+	}
+	seenCategories := make(map[uuid.UUID]bool)
+
+	for _, budget := range budgets {
+		if !includeBudget(budget.PeriodType) {
+			continue
+		}
+
+		budgeted := calculateBudgetAmountForRange(&budget, periodStart, periodEnd)
+		spent := spentByCategory[budget.CategoryID]
+		remaining := budgeted.Sub(spent)
+
+		percentageUsed := 0.0
+		if !budgeted.IsZero() {
+			percentageUsed = spent.Div(budgeted).InexactFloat64() * 100
+		}
+
+		agg.summaries = append(agg.summaries, &pb.BudgetSummary{
+			CategoryId:     budget.CategoryID.String(),
+			CategoryName:   budget.CategoryName,
+			Budgeted:       reportDecimalToMoney(budgeted, budget.Currency),
+			Spent:          reportDecimalToMoney(spent, budget.Currency),
+			Remaining:      reportDecimalToMoney(remaining, budget.Currency),
+			PercentageUsed: percentageUsed,
+			IsOverBudget:   remaining.IsNegative(),
+		})
+
+		agg.totalBudgeted = agg.totalBudgeted.Add(budgeted)
+		if !seenCategories[budget.CategoryID] {
+			agg.totalSpentUnique = agg.totalSpentUnique.Add(spent)
+			seenCategories[budget.CategoryID] = true
+		}
+	}
+
+	return agg
+}
+
+func calculateBudgetAmountForRange(budget *model.Budget, periodStart, periodEnd time.Time) decimal.Decimal {
+	if budget == nil || periodEnd.Before(periodStart) {
+		return decimal.Zero
+	}
+
+	cycles := countBudgetCyclesInRange(budget.PeriodType, budget.StartDate, periodStart, periodEnd)
+	if cycles <= 0 {
+		return decimal.Zero
+	}
+
+	return budget.Amount.Mul(decimal.NewFromInt(int64(cycles)))
+}
+
+func countBudgetCyclesInRange(periodType model.PeriodType, startDate, periodStart, periodEnd time.Time) int {
+	rangeStart := time.Date(periodStart.Year(), periodStart.Month(), periodStart.Day(), 0, 0, 0, 0, periodStart.Location())
+	rangeEnd := time.Date(periodEnd.Year(), periodEnd.Month(), periodEnd.Day(), 23, 59, 59, 999999999, periodEnd.Location())
+	anchor := time.Date(startDate.In(rangeStart.Location()).Year(), startDate.In(rangeStart.Location()).Month(), startDate.In(rangeStart.Location()).Day(), 0, 0, 0, 0, rangeStart.Location())
+
+	if rangeEnd.Before(anchor) {
+		return 0
+	}
+
+	if periodType == model.PeriodTypeDaily {
+		effectiveStart := rangeStart
+		if anchor.After(effectiveStart) {
+			effectiveStart = anchor
+		}
+		if rangeEnd.Before(effectiveStart) {
+			return 0
+		}
+		return int(rangeEnd.Sub(effectiveStart).Hours()/24) + 1
+	}
+
+	cycleStart := anchor
+	for cycleStart.Before(rangeStart) {
+		next := nextBudgetCycleStart(periodType, cycleStart)
+		if !next.After(cycleStart) {
+			break
+		}
+		cycleStart = next
+	}
+
+	count := 0
+	for !cycleStart.After(rangeEnd) {
+		count++
+		next := nextBudgetCycleStart(periodType, cycleStart)
+		if !next.After(cycleStart) {
+			break
+		}
+		cycleStart = next
+	}
+
+	return count
+}
+
+func nextBudgetCycleStart(periodType model.PeriodType, current time.Time) time.Time {
+	switch periodType {
+	case model.PeriodTypeWeekly:
+		return current.AddDate(0, 0, 7)
+	case model.PeriodTypeMonthly:
+		return addMonthsPreserveDay(current, 1)
+	case model.PeriodTypeYearly:
+		return addYearsPreserveDay(current, 1)
+	case model.PeriodTypeDaily:
+		fallthrough
+	default:
+		return current.AddDate(0, 0, 1)
+	}
+}
+
+func addMonthsPreserveDay(d time.Time, months int) time.Time {
+	base := time.Date(d.Year(), d.Month(), 1, d.Hour(), d.Minute(), d.Second(), d.Nanosecond(), d.Location())
+	targetMonthStart := base.AddDate(0, months, 0)
+	lastDay := time.Date(targetMonthStart.Year(), targetMonthStart.Month()+1, 0, 0, 0, 0, 0, d.Location()).Day()
+	day := d.Day()
+	if day > lastDay {
+		day = lastDay
+	}
+	return time.Date(targetMonthStart.Year(), targetMonthStart.Month(), day, d.Hour(), d.Minute(), d.Second(), d.Nanosecond(), d.Location())
+}
+
+func addYearsPreserveDay(d time.Time, years int) time.Time {
+	base := time.Date(d.Year()+years, d.Month(), 1, d.Hour(), d.Minute(), d.Second(), d.Nanosecond(), d.Location())
+	lastDay := time.Date(base.Year(), base.Month()+1, 0, 0, 0, 0, 0, d.Location()).Day()
+	day := d.Day()
+	if day > lastDay {
+		day = lastDay
+	}
+	return time.Date(base.Year(), base.Month(), day, d.Hour(), d.Minute(), d.Second(), d.Nanosecond(), d.Location())
+}
+
+func budgetTrackingContextFromMetadata(ctx context.Context) (int, int, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return 0, 0, nil
+	}
+
+	selectedYear := 0
+	if value := firstMetadataValue(md, "report-year", "x-report-year", "grpcgateway-report-year"); value != "" {
+		parsedYear, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return 0, 0, errors.New("report-year must be a valid year")
+		}
+		if parsedYear < 1970 || parsedYear > 9999 {
+			return 0, 0, errors.New("report-year must be between 1970 and 9999")
+		}
+		selectedYear = parsedYear
+	}
+
+	selectedMonth := 0
+	if value := firstMetadataValue(md, "report-month", "x-report-month", "grpcgateway-report-month"); value != "" {
+		parsedMonth, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return 0, 0, errors.New("report-month must be between 1 and 12")
+		}
+		if parsedMonth < 1 || parsedMonth > 12 {
+			return 0, 0, errors.New("report-month must be between 1 and 12")
+		}
+		selectedMonth = parsedMonth
+	}
+
+	return selectedYear, selectedMonth, nil
+}
+
+func minTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
 }
 
 // Helper functions

@@ -405,13 +405,41 @@ export const reportApi = {
     return response.data.report
   },
 
-  getNetWorthTrend: async (months = 12): Promise<NetWorthTrendReport> => {
-    const response = await api.get('/reports/net-worth-trend', { params: { months } })
+  getNetWorthTrend: async (params?: {
+    months?: number
+    interval?: 'monthly' | 'daily'
+    year?: number
+    month?: string
+  }): Promise<NetWorthTrendReport> => {
+    const queryParams = {
+      months: params?.months ?? 12,
+    }
+
+    const metadataHeaders: Record<string, string> = {}
+    if (params?.interval) metadataHeaders['Grpc-Metadata-trend-interval'] = params.interval
+    if (typeof params?.year === 'number') metadataHeaders['Grpc-Metadata-trend-year'] = String(params.year)
+    if (params?.month) metadataHeaders['Grpc-Metadata-trend-month'] = params.month
+
+    const response = await api.get('/reports/net-worth-trend', {
+      params: queryParams,
+      headers: Object.keys(metadataHeaders).length > 0 ? metadataHeaders : undefined,
+    })
     return response.data
   },
   
-  getBudgetTrackingReport: async (): Promise<BudgetTrackingReport> => {
-    const response = await api.get('/reports/budget-tracking')
+  getBudgetTrackingReport: async (params?: {
+    periodType?: PeriodType
+    year?: number
+    month?: number
+  }): Promise<BudgetTrackingReport> => {
+    const metadataHeaders: Record<string, string> = {}
+    if (typeof params?.year === 'number') metadataHeaders['Grpc-Metadata-report-year'] = String(params.year)
+    if (typeof params?.month === 'number') metadataHeaders['Grpc-Metadata-report-month'] = String(params.month)
+
+    const response = await api.get('/reports/budget-tracking', {
+      params: params?.periodType ? { periodType: params.periodType } : undefined,
+      headers: Object.keys(metadataHeaders).length > 0 ? metadataHeaders : undefined,
+    })
     return response.data.report
   },
   

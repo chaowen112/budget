@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/shopspring/decimal"
@@ -82,8 +83,25 @@ func (r *CurrencyRepository) UpsertExchangeRate(ctx context.Context, from, to st
 		SET rate = $3, fetched_at = NOW()
 	`
 
-	_, err := r.db.Pool.Exec(ctx, query, from, to, rate)
-	return err
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, query, from, to, rate); err != nil {
+		return err
+	}
+
+	historyQuery := `
+		INSERT INTO exchange_rate_history (from_currency, to_currency, rate, fetched_at)
+		VALUES ($1, $2, $3, NOW())
+	`
+	if _, err := tx.Exec(ctx, historyQuery, from, to, rate); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 // BulkUpsertExchangeRates inserts or updates multiple exchange rates
@@ -100,14 +118,45 @@ func (r *CurrencyRepository) BulkUpsertExchangeRates(ctx context.Context, baseCu
 		ON CONFLICT (from_currency, to_currency) DO UPDATE
 		SET rate = $3, fetched_at = NOW()
 	`
+	historyQuery := `
+		INSERT INTO exchange_rate_history (from_currency, to_currency, rate, fetched_at)
+		VALUES ($1, $2, $3, NOW())
+	`
 
 	for currency, rate := range rates {
 		if _, err := tx.Exec(ctx, query, baseCurrency, currency, rate); err != nil {
 			return err
 		}
+		if _, err := tx.Exec(ctx, historyQuery, baseCurrency, currency, rate); err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit(ctx)
+}
+
+// GetExchangeRateAsOf retrieves the most recent exchange rate at/before a timestamp.
+func (r *CurrencyRepository) GetExchangeRateAsOf(ctx context.Context, from, to string, asOf time.Time) (*model.ExchangeRate, error) {
+	query := `
+		SELECT id, from_currency, to_currency, rate, fetched_at
+		FROM exchange_rate_history
+		WHERE from_currency = $1 AND to_currency = $2 AND fetched_at <= $3
+		ORDER BY fetched_at DESC
+		LIMIT 1
+	`
+
+	var rate model.ExchangeRate
+	err := r.db.Pool.QueryRow(ctx, query, from, to, asOf).Scan(
+		&rate.ID, &rate.FromCurrency, &rate.ToCurrency, &rate.Rate, &rate.FetchedAt,
+	)
+	if err == nil {
+		return &rate, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+
+	return r.GetExchangeRate(ctx, from, to)
 }
 
 // ConvertAmount converts an amount from one currency to another using stored rates.
@@ -132,6 +181,40 @@ func (r *CurrencyRepository) ConvertAmount(ctx context.Context, amount decimal.D
 	}
 
 	inverse, invErr := r.GetExchangeRate(ctx, to, from)
+	if invErr == nil {
+		if inverse.Rate.IsZero() {
+			return decimal.Zero, errors.New("invalid zero exchange rate")
+		}
+		return amount.Div(inverse.Rate).Round(2), nil
+	}
+	if errors.Is(invErr, ErrExchangeRateNotFound) {
+		return decimal.Zero, ErrExchangeRateNotFound
+	}
+
+	return decimal.Zero, invErr
+}
+
+// ConvertAmountAsOf converts an amount using the latest rate at/before a timestamp.
+func (r *CurrencyRepository) ConvertAmountAsOf(ctx context.Context, amount decimal.Decimal, from, to string, asOf time.Time) (decimal.Decimal, error) {
+	from = strings.ToUpper(strings.TrimSpace(from))
+	to = strings.ToUpper(strings.TrimSpace(to))
+
+	if from == "" || to == "" {
+		return decimal.Zero, ErrExchangeRateNotFound
+	}
+	if from == to {
+		return amount.Round(2), nil
+	}
+
+	direct, err := r.GetExchangeRateAsOf(ctx, from, to, asOf)
+	if err == nil {
+		return amount.Mul(direct.Rate).Round(2), nil
+	}
+	if !errors.Is(err, ErrExchangeRateNotFound) {
+		return decimal.Zero, err
+	}
+
+	inverse, invErr := r.GetExchangeRateAsOf(ctx, to, from, asOf)
 	if invErr == nil {
 		if inverse.Rate.IsZero() {
 			return decimal.Zero, errors.New("invalid zero exchange rate")

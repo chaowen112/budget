@@ -68,7 +68,7 @@ export default function Assets() {
 
   const { data: netWorthTrend } = useQuery({
     queryKey: ['netWorthTrend', 12],
-    queryFn: () => reportApi.getNetWorthTrend(12),
+    queryFn: () => reportApi.getNetWorthTrend({ months: 12, interval: 'monthly' }),
   })
 
   const { data: selectedAssetHistory } = useQuery({
