@@ -218,6 +218,7 @@ func (h *ReportHandler) GetMonthlyReport(ctx context.Context, req *pb.GetMonthly
 		func(periodType model.PeriodType) bool {
 			return periodType == model.PeriodTypeMonthly || periodType == model.PeriodTypeWeekly
 		},
+		calculateBudgetAmountForMonthlyRange,
 	)
 
 	pbSpending := spendingByCategoryToProto(spendingByCategory, totalExpenses)
@@ -439,7 +440,7 @@ func (h *ReportHandler) GetBudgetTrackingReport(ctx context.Context, req *pb.Get
 		case pb.PeriodType_PERIOD_TYPE_YEARLY:
 			return true
 		case pb.PeriodType_PERIOD_TYPE_MONTHLY:
-			return true
+			return period == model.PeriodTypeMonthly || period == model.PeriodTypeWeekly
 		case pb.PeriodType_PERIOD_TYPE_WEEKLY:
 			return period == model.PeriodTypeWeekly
 		case pb.PeriodType_PERIOD_TYPE_DAILY:
@@ -449,7 +450,14 @@ func (h *ReportHandler) GetBudgetTrackingReport(ctx context.Context, req *pb.Get
 		}
 	}
 
-	agg := buildBudgetSummariesForRange(budgets, spentByCategory, periodStart, periodEnd, includeBudget)
+	budgetAmountCalculator := calculateBudgetAmountByCycles
+	if periodType == pb.PeriodType_PERIOD_TYPE_YEARLY {
+		budgetAmountCalculator = calculateBudgetAmountForYearlyRange
+	} else if periodType == pb.PeriodType_PERIOD_TYPE_MONTHLY {
+		budgetAmountCalculator = calculateBudgetAmountForMonthlyRange
+	}
+
+	agg := buildBudgetSummariesForRange(budgets, spentByCategory, periodStart, periodEnd, includeBudget, budgetAmountCalculator)
 
 	totalBudgeted := agg.totalBudgeted
 	totalSpent := agg.totalSpentUnique
@@ -887,6 +895,7 @@ func buildBudgetSummariesForRange(
 	periodStart time.Time,
 	periodEnd time.Time,
 	includeBudget func(model.PeriodType) bool,
+	budgetAmountCalculator func(*model.Budget, time.Time, time.Time) decimal.Decimal,
 ) budgetSummaryAggregation {
 	agg := budgetSummaryAggregation{
 		summaries: make([]*pb.BudgetSummary, 0, len(budgets)),
@@ -898,7 +907,7 @@ func buildBudgetSummariesForRange(
 			continue
 		}
 
-		budgeted := calculateBudgetAmountForRange(&budget, periodStart, periodEnd)
+		budgeted := budgetAmountCalculator(&budget, periodStart, periodEnd)
 		spent := spentByCategory[budget.CategoryID]
 		remaining := budgeted.Sub(spent)
 
@@ -927,7 +936,58 @@ func buildBudgetSummariesForRange(
 	return agg
 }
 
-func calculateBudgetAmountForRange(budget *model.Budget, periodStart, periodEnd time.Time) decimal.Decimal {
+func calculateBudgetAmountForMonthlyRange(budget *model.Budget, periodStart, periodEnd time.Time) decimal.Decimal {
+	if budget == nil || periodEnd.Before(periodStart) {
+		return decimal.Zero
+	}
+
+	if budget.StartDate.After(periodEnd) {
+		return decimal.Zero
+	}
+
+	rangeStart := startOfDay(periodStart)
+	rangeEnd := endOfDay(periodEnd)
+	budgetStart := startOfDay(budget.StartDate)
+
+	activeStart := maxTime(rangeStart, budgetStart)
+	activeDays := inclusiveDays(activeStart, rangeEnd)
+	if activeDays <= 0 {
+		return decimal.Zero
+	}
+
+	switch budget.PeriodType {
+	case model.PeriodTypeWeekly:
+		return budget.Amount.Div(decimal.NewFromInt(7)).Mul(decimal.NewFromInt(int64(activeDays)))
+	case model.PeriodTypeMonthly:
+		return budget.Amount
+	default:
+		return calculateBudgetAmountByCycles(budget, periodStart, periodEnd)
+	}
+}
+
+func calculateBudgetAmountForYearlyRange(budget *model.Budget, periodStart, periodEnd time.Time) decimal.Decimal {
+	if budget == nil || periodEnd.Before(periodStart) {
+		return decimal.Zero
+	}
+	if budget.StartDate.After(periodEnd) {
+		return decimal.Zero
+	}
+
+	switch budget.PeriodType {
+	case model.PeriodTypeDaily:
+		return budget.Amount.Mul(decimal.NewFromInt(int64(inclusiveDays(startOfDay(periodStart), endOfDay(periodEnd)))))
+	case model.PeriodTypeWeekly:
+		return budget.Amount.Mul(decimal.NewFromInt(52))
+	case model.PeriodTypeMonthly:
+		return budget.Amount.Mul(decimal.NewFromInt(12))
+	case model.PeriodTypeYearly:
+		return budget.Amount
+	default:
+		return decimal.Zero
+	}
+}
+
+func calculateBudgetAmountByCycles(budget *model.Budget, periodStart, periodEnd time.Time) decimal.Decimal {
 	if budget == nil || periodEnd.Before(periodStart) {
 		return decimal.Zero
 	}
@@ -938,6 +998,21 @@ func calculateBudgetAmountForRange(budget *model.Budget, periodStart, periodEnd 
 	}
 
 	return budget.Amount.Mul(decimal.NewFromInt(int64(cycles)))
+}
+
+func inclusiveDays(start, end time.Time) int {
+	if end.Before(start) {
+		return 0
+	}
+	return int(end.Sub(start).Hours()/24) + 1
+}
+
+func startOfDay(value time.Time) time.Time {
+	return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, value.Location())
+}
+
+func endOfDay(value time.Time) time.Time {
+	return time.Date(value.Year(), value.Month(), value.Day(), 23, 59, 59, 999999999, value.Location())
 }
 
 func countBudgetCyclesInRange(periodType model.PeriodType, startDate, periodStart, periodEnd time.Time) int {
@@ -1053,6 +1128,13 @@ func budgetTrackingContextFromMetadata(ctx context.Context) (int, int, error) {
 
 func minTime(a, b time.Time) time.Time {
 	if a.Before(b) {
+		return a
+	}
+	return b
+}
+
+func maxTime(a, b time.Time) time.Time {
+	if a.After(b) {
 		return a
 	}
 	return b
