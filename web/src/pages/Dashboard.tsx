@@ -31,6 +31,15 @@ const CHART_COLORS = [
   '#ef4444', '#ec4899', '#3b82f6', '#84cc16',
 ]
 
+type DonutItem = {
+  name: string
+  value: number
+}
+
+function sortDonutItemsByAmountDesc<T extends DonutItem>(items: T[]): T[] {
+  return [...items].sort((a, b) => b.value - a.value)
+}
+
 // Custom chart tooltip
 function ChartTooltip({ active, payload, label, formatter }: {
   active?: boolean
@@ -122,28 +131,36 @@ export default function Dashboard() {
   const savingsRate = monthlyReport?.savingsRate ?? 0
   const currency = user?.baseCurrency || 'SGD'
 
-  const spendingData = monthlyReport?.spendingByCategory?.map((cat, i) => ({
-    name: cat.categoryName,
-    value: moneyToNumber(cat.amount),
+  const spendingData = sortDonutItemsByAmountDesc(
+    monthlyReport?.spendingByCategory?.map((cat) => ({
+      name: cat.categoryName,
+      value: moneyToNumber(cat.amount),
+    })) || []
+  ).map((item, i) => ({
+    ...item,
     color: CHART_COLORS[i % CHART_COLORS.length],
-  })) || []
+  }))
 
-  const assetBreakdownData = (assets || [])
+  const assetBreakdownData = sortDonutItemsByAmountDesc((assets || [])
     .filter((a) => !a.isLiability)
-    .map((a, i) => ({
+    .map((a) => ({
       name: a.name,
       value: convertToDisplayAmount({ amount: a.currentValue, currency: a.currency }),
+    }))
+    .filter((item) => item.value > 0)).map((item, i) => ({
+      ...item,
       color: CHART_COLORS[i % CHART_COLORS.length],
     }))
-    .filter((item) => item.value > 0)
-  const liabilityBreakdownData = (assets || [])
+  const liabilityBreakdownData = sortDonutItemsByAmountDesc((assets || [])
     .filter((a) => a.isLiability)
-    .map((a, i) => ({
+    .map((a) => ({
       name: a.name,
       value: convertToDisplayAmount({ amount: a.currentValue, currency: a.currency }),
+    }))
+    .filter((item) => item.value > 0)).map((item, i) => ({
+      ...item,
       color: CHART_COLORS[(i + 3) % CHART_COLORS.length],
     }))
-    .filter((item) => item.value > 0)
   const assetBreakdownTotal = assetBreakdownData.reduce((sum, item) => sum + item.value, 0)
   const liabilityBreakdownTotal = liabilityBreakdownData.reduce((sum, item) => sum + item.value, 0)
 
@@ -334,8 +351,8 @@ export default function Dashboard() {
                     </ResponsiveContainer>
                   </div>
                   <div className="mt-3 space-y-1.5">
-                    {spendingData.slice(0, 4).map((item, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs">
+                    {spendingData.slice(0, 4).map((item) => (
+                      <div key={item.name} className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
                           <span className="text-zinc-600 dark:text-zinc-400 truncate max-w-[100px]">{item.name}</span>
