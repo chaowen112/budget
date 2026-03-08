@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
@@ -28,6 +30,7 @@ import (
 	pb "github.com/chaowen/budget/gen/budget/v1"
 	"github.com/chaowen/budget/internal/config"
 	"github.com/chaowen/budget/internal/handler"
+	"github.com/chaowen/budget/internal/metrics"
 	"github.com/chaowen/budget/internal/middleware"
 	"github.com/chaowen/budget/internal/model"
 	"github.com/chaowen/budget/internal/pkg/currency"
@@ -90,6 +93,13 @@ func run() error {
 	currencyRepo := repository.NewCurrencyRepository(db)
 	cpfRepo := repository.NewCPFRepository(db)
 
+	metricsCollector := metrics.NewCollector(prometheus.DefaultRegisterer)
+	nodeName, hostErr := os.Hostname()
+	if hostErr != nil {
+		nodeName = "unknown"
+	}
+	metricsCollector.StartBusinessMetricsUpdater(ctx, db, nodeName, 30*time.Second)
+
 	// Initialize JWT manager
 	jwtManager := jwt.NewManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 
@@ -119,6 +129,7 @@ func run() error {
 	// Create gRPC server with interceptors
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
+			metricsCollector.GRPCUnaryInterceptor(),
 			middleware.AuthInterceptor(jwtManager, middleware.PublicMethods()),
 		),
 	)
@@ -189,6 +200,16 @@ func run() error {
 
 	// Create HTTP server with CORS support
 	httpMux := http.NewServeMux()
+
+	// Expose Prometheus metrics
+	httpMux.Handle("/metrics", promhttp.Handler())
+
+	// Basic health endpoint for probes
+	httpMux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
 
 	// Serve OpenAPI spec
 	httpMux.HandleFunc("/api/openapi.json", func(w http.ResponseWriter, r *http.Request) {
@@ -264,7 +285,7 @@ func run() error {
 	httpAddr := ":" + cfg.Server.HTTPPort
 	httpServer := &http.Server{
 		Addr:    httpAddr,
-		Handler: httpMux,
+		Handler: metricsCollector.HTTPMiddleware(httpMux),
 	}
 
 	go func() {
