@@ -12,6 +12,43 @@ import { Button, Modal, FormField, Input, Select } from '../components/ui'
 const CREATE_CATEGORY_OPTION = '__create_new_category__'
 type ModalMode = 'transaction' | 'transfer'
 
+type PaginationItem = number | 'ellipsis-left' | 'ellipsis-right'
+
+function buildPaginationItems(currentPage: number, totalPages: number): PaginationItem[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1)
+  }
+
+  let start = Math.max(2, currentPage - 1)
+  let end = Math.min(totalPages - 1, currentPage + 1)
+
+  if (currentPage <= 3) {
+    start = 2
+    end = 4
+  }
+
+  if (currentPage >= totalPages - 2) {
+    start = totalPages - 3
+    end = totalPages - 1
+  }
+
+  const items: PaginationItem[] = [1]
+  if (start > 2) {
+    items.push('ellipsis-left')
+  }
+
+  for (let page = start; page <= end; page += 1) {
+    items.push(page)
+  }
+
+  if (end < totalPages - 1) {
+    items.push('ellipsis-right')
+  }
+
+  items.push(totalPages)
+  return items
+}
+
 export default function Transactions() {
   const { user } = useAuth()
   const { formatConverted } = useCurrency()
@@ -22,6 +59,8 @@ export default function Transactions() {
   const [editingTransfer, setEditingTransfer] = useState<Transfer | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCategory, setFilterCategory] = useState<string>('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(100)
   const [transactionCategoryId, setTransactionCategoryId] = useState('')
   const [transactionSourceAssetId, setTransactionSourceAssetId] = useState('')
   const [transactionAmountInput, setTransactionAmountInput] = useState('')
@@ -44,8 +83,14 @@ export default function Transactions() {
   const [assistantCompletionNote, setAssistantCompletionNote] = useState('')
 
   const { data: transactionsData, isLoading } = useQuery({
-    queryKey: ['transactions'],
-    queryFn: () => transactionApi.list({ pageSize: 100 }),
+    queryKey: ['transactions', currentPage, pageSize, filterCategory, searchTerm],
+    queryFn: () =>
+      transactionApi.list({
+        page: currentPage,
+        pageSize,
+        categoryId: filterCategory || undefined,
+        keyword: searchTerm.trim() || undefined,
+      }),
   })
 
   const { data: categories } = useQuery({
@@ -147,6 +192,11 @@ export default function Transactions() {
   })
 
   const transactions = transactionsData?.transactions || []
+  const transactionPagination = transactionsData?.pagination
+  const totalPages = Math.max(transactionPagination?.totalPages || 1, 1)
+  const totalCount = transactionPagination?.totalCount || transactions.length
+  const paginationItems = buildPaginationItems(currentPage, totalPages)
+
   const sourceLinkMap = new Map((transactionSourceLinks || []).map((item) => [item.transactionId, item]))
   const transactionsWithSource = transactions.map((t) => {
     const link = sourceLinkMap.get(t.id)
@@ -158,15 +208,7 @@ export default function Transactions() {
   })
   const hasCategories = (categories?.length || 0) > 0
   const hasAssets = (assets?.length || 0) > 0
-  const filteredTransactions = transactionsWithSource.filter((t) => {
-    const matchesSearch =
-      !searchTerm ||
-      t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.sourceAssetName?.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = !filterCategory || t.categoryId === filterCategory
-    return matchesSearch && matchesCategory
-  })
+  const filteredTransactions = transactionsWithSource
 
   const filteredTransfers = (transfers || []).filter((t) => {
     const q = searchTerm.toLowerCase()
@@ -556,13 +598,19 @@ export default function Transactions() {
             type="text"
             placeholder="Search transactions..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value)
+              setCurrentPage(1)
+            }}
             className="pl-9"
           />
         </div>
         <Select
           value={filterCategory}
-          onChange={(e) => setFilterCategory(e.target.value)}
+          onChange={(e) => {
+            setFilterCategory(e.target.value)
+            setCurrentPage(1)
+          }}
           className="sm:w-48"
         >
           <option value="">All Categories</option>
@@ -803,6 +851,74 @@ export default function Transactions() {
             })}
           </div>
         )}
+
+        <div className="border-t border-zinc-100 dark:border-zinc-800 px-4 sm:px-5 py-3 flex justify-end">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">Showing {transactions.length} of {totalCount}</span>
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">Page size</span>
+              <Select
+                value={String(pageSize)}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="w-24"
+              >
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+              </Select>
+              <nav aria-label="Transactions pagination">
+                <ul className="pagination pagination-sm mb-0">
+                  <li className={`page-item ${currentPage <= 1 ? 'disabled' : ''}`}>
+                    <button
+                      type="button"
+                      className="page-link"
+                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                      disabled={currentPage <= 1}
+                    >
+                      Previous
+                    </button>
+                  </li>
+                  {paginationItems.map((item, index) => {
+                    if (typeof item !== 'number') {
+                      return (
+                        <li key={`${item}-${index}`} className="page-item disabled" aria-hidden="true">
+                          <span className="page-link">...</span>
+                        </li>
+                      )
+                    }
+
+                    return (
+                      <li key={item} className={`page-item ${item === currentPage ? 'active' : ''}`}>
+                        <button
+                          type="button"
+                          className="page-link"
+                          onClick={() => setCurrentPage(item)}
+                          aria-current={item === currentPage ? 'page' : undefined}
+                        >
+                          {item}
+                        </button>
+                      </li>
+                    )
+                  })}
+                  <li className={`page-item ${currentPage >= totalPages ? 'disabled' : ''}`}>
+                    <button
+                      type="button"
+                      className="page-link"
+                      onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage >= totalPages}
+                    >
+                      Next
+                    </button>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Modal */}

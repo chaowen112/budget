@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,7 @@ type TransactionFilter struct {
 	Type       *model.CategoryType
 	StartDate  *time.Time
 	EndDate    *time.Time
+	Search     string
 	Tags       []string
 	Currency   string
 	Page       int
@@ -57,34 +59,55 @@ func (r *TransactionRepository) List(ctx context.Context, filter TransactionFilt
 		SELECT COUNT(*)
 		FROM transactions t
 		JOIN categories c ON t.category_id = c.id
+		LEFT JOIN transaction_asset_links tal ON tal.transaction_id = t.id
+		LEFT JOIN assets sa ON sa.id = tal.asset_id
 		WHERE t.user_id = $1
 	`
 	args := []any{filter.UserID}
 	argIndex := 2
 
 	if filter.CategoryID != nil {
-		countQuery += ` AND t.category_id = $` + string(rune('0'+argIndex))
+		countQuery += ` AND t.category_id = ` + placeholder(argIndex)
 		args = append(args, *filter.CategoryID)
 		argIndex++
 	}
 	if filter.Type != nil {
-		countQuery += ` AND t.type = $` + string(rune('0'+argIndex))
+		countQuery += ` AND t.type = ` + placeholder(argIndex)
 		args = append(args, *filter.Type)
 		argIndex++
 	}
 	if filter.StartDate != nil {
-		countQuery += ` AND t.transaction_date >= $` + string(rune('0'+argIndex))
+		countQuery += ` AND t.transaction_date >= ` + placeholder(argIndex)
 		args = append(args, *filter.StartDate)
 		argIndex++
 	}
 	if filter.EndDate != nil {
-		countQuery += ` AND t.transaction_date <= $` + string(rune('0'+argIndex))
+		countQuery += ` AND t.transaction_date <= ` + placeholder(argIndex)
 		args = append(args, *filter.EndDate)
 		argIndex++
 	}
+	if len(filter.Tags) > 0 {
+		countQuery += ` AND t.tags @> ` + placeholder(argIndex)
+		args = append(args, filter.Tags)
+		argIndex++
+	}
 	if filter.Currency != "" {
-		countQuery += ` AND t.currency = $` + string(rune('0'+argIndex))
+		countQuery += ` AND t.currency = ` + placeholder(argIndex)
 		args = append(args, filter.Currency)
+		argIndex++
+	}
+	if filter.Search != "" {
+		countQuery += ` AND (
+			COALESCE(t.description, '') ILIKE ` + placeholder(argIndex) + `
+			OR c.name ILIKE ` + placeholder(argIndex) + `
+			OR COALESCE(sa.name, '') ILIKE ` + placeholder(argIndex) + `
+			OR EXISTS (
+				SELECT 1
+				FROM unnest(t.tags) AS tag
+				WHERE tag ILIKE ` + placeholder(argIndex) + `
+			)
+		)`
+		args = append(args, "%"+filter.Search+"%")
 		argIndex++
 	}
 
@@ -100,6 +123,8 @@ func (r *TransactionRepository) List(ctx context.Context, filter TransactionFilt
 		       t.transaction_date, t.description, t.tags, t.created_at, t.updated_at
 		FROM transactions t
 		JOIN categories c ON t.category_id = c.id
+		LEFT JOIN transaction_asset_links tal ON tal.transaction_id = t.id
+		LEFT JOIN assets sa ON sa.id = tal.asset_id
 		WHERE t.user_id = $1
 	`
 
@@ -107,28 +132,47 @@ func (r *TransactionRepository) List(ctx context.Context, filter TransactionFilt
 	argIndex = 2
 
 	if filter.CategoryID != nil {
-		query += ` AND t.category_id = $` + string(rune('0'+argIndex))
+		query += ` AND t.category_id = ` + placeholder(argIndex)
 		args = append(args, *filter.CategoryID)
 		argIndex++
 	}
 	if filter.Type != nil {
-		query += ` AND t.type = $` + string(rune('0'+argIndex))
+		query += ` AND t.type = ` + placeholder(argIndex)
 		args = append(args, *filter.Type)
 		argIndex++
 	}
 	if filter.StartDate != nil {
-		query += ` AND t.transaction_date >= $` + string(rune('0'+argIndex))
+		query += ` AND t.transaction_date >= ` + placeholder(argIndex)
 		args = append(args, *filter.StartDate)
 		argIndex++
 	}
 	if filter.EndDate != nil {
-		query += ` AND t.transaction_date <= $` + string(rune('0'+argIndex))
+		query += ` AND t.transaction_date <= ` + placeholder(argIndex)
 		args = append(args, *filter.EndDate)
 		argIndex++
 	}
+	if len(filter.Tags) > 0 {
+		query += ` AND t.tags @> ` + placeholder(argIndex)
+		args = append(args, filter.Tags)
+		argIndex++
+	}
 	if filter.Currency != "" {
-		query += ` AND t.currency = $` + string(rune('0'+argIndex))
+		query += ` AND t.currency = ` + placeholder(argIndex)
 		args = append(args, filter.Currency)
+		argIndex++
+	}
+	if filter.Search != "" {
+		query += ` AND (
+			COALESCE(t.description, '') ILIKE ` + placeholder(argIndex) + `
+			OR c.name ILIKE ` + placeholder(argIndex) + `
+			OR COALESCE(sa.name, '') ILIKE ` + placeholder(argIndex) + `
+			OR EXISTS (
+				SELECT 1
+				FROM unnest(t.tags) AS tag
+				WHERE tag ILIKE ` + placeholder(argIndex) + `
+			)
+		)`
+		args = append(args, "%"+filter.Search+"%")
 		argIndex++
 	}
 
@@ -140,7 +184,7 @@ func (r *TransactionRepository) List(ctx context.Context, filter TransactionFilt
 		if offset < 0 {
 			offset = 0
 		}
-		query += ` LIMIT $` + string(rune('0'+argIndex)) + ` OFFSET $` + string(rune('0'+argIndex+1))
+		query += ` LIMIT ` + placeholder(argIndex) + ` OFFSET ` + placeholder(argIndex+1)
 		args = append(args, filter.PageSize, offset)
 	}
 
@@ -167,6 +211,10 @@ func (r *TransactionRepository) List(ctx context.Context, filter TransactionFilt
 		Transactions: transactions,
 		TotalCount:   totalCount,
 	}, rows.Err()
+}
+
+func placeholder(index int) string {
+	return fmt.Sprintf("$%d", index)
 }
 
 // GetByID retrieves a transaction by ID

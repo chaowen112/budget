@@ -26,13 +26,15 @@ type GoalHandler struct {
 	goalRepo        *repository.GoalRepository
 	assetRepo       *repository.AssetRepository
 	transactionRepo *repository.TransactionRepository
+	currencyRepo    *repository.CurrencyRepository
 }
 
-func NewGoalHandler(goalRepo *repository.GoalRepository, assetRepo *repository.AssetRepository, transactionRepo *repository.TransactionRepository) *GoalHandler {
+func NewGoalHandler(goalRepo *repository.GoalRepository, assetRepo *repository.AssetRepository, transactionRepo *repository.TransactionRepository, currencyRepo *repository.CurrencyRepository) *GoalHandler {
 	return &GoalHandler{
 		goalRepo:        goalRepo,
 		assetRepo:       assetRepo,
 		transactionRepo: transactionRepo,
+		currencyRepo:    currencyRepo,
 	}
 }
 
@@ -495,6 +497,7 @@ func (h *GoalHandler) SetNetWorthGoal(ctx context.Context, req *pb.SetNetWorthGo
 	if currency == "" {
 		currency = "SGD"
 	}
+	currency = strings.ToUpper(strings.TrimSpace(currency))
 
 	goal := &model.NetWorthGoal{
 		UserID:       userID,
@@ -567,18 +570,13 @@ func (h *GoalHandler) GetNetWorthGoalProgress(ctx context.Context, req *pb.GetNe
 		return nil, status.Error(codes.Internal, "failed to get net worth goal")
 	}
 
-	// Get current net worth
-	totalAssets, err := h.assetRepo.GetTotalAssets(ctx, userID)
+	currentNetWorth, err := h.calculateCurrentNetWorthInCurrency(ctx, userID, goal.Currency)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to get total assets")
+		if errors.Is(err, repository.ErrExchangeRateNotFound) {
+			return nil, status.Error(codes.FailedPrecondition, "missing exchange rate for net worth goal conversion")
+		}
+		return nil, status.Error(codes.Internal, "failed to calculate net worth with exchange rates")
 	}
-
-	totalLiabilities, err := h.assetRepo.GetTotalLiabilities(ctx, userID)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to get total liabilities")
-	}
-
-	currentNetWorth := totalAssets.Sub(totalLiabilities)
 
 	// Calculate estimated months to goal based on average monthly savings
 	estimatedMonths := calculateEstimatedMonthsToGoal(ctx, h.transactionRepo, userID, goal, currentNetWorth)
@@ -653,4 +651,35 @@ func calculateEstimatedMonthsToGoal(ctx context.Context, transactionRepo *reposi
 	}
 
 	return int32(months)
+}
+
+func (h *GoalHandler) calculateCurrentNetWorthInCurrency(ctx context.Context, userID uuid.UUID, targetCurrency string) (decimal.Decimal, error) {
+	targetCurrency = strings.ToUpper(strings.TrimSpace(targetCurrency))
+	if targetCurrency == "" {
+		targetCurrency = "SGD"
+	}
+
+	assets, err := h.assetRepo.List(ctx, userID, nil, true)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	totalAssets := decimal.Zero
+	totalLiabilities := decimal.Zero
+
+	for _, asset := range assets {
+		converted, convErr := h.currencyRepo.ConvertAmount(ctx, asset.CurrentValue, asset.Currency, targetCurrency)
+		if convErr != nil {
+			return decimal.Zero, convErr
+		}
+
+		if asset.IsLiability {
+			totalLiabilities = totalLiabilities.Add(converted)
+			continue
+		}
+
+		totalAssets = totalAssets.Add(converted)
+	}
+
+	return totalAssets.Sub(totalLiabilities), nil
 }

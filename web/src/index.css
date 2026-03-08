@@ -42,3 +42,45 @@ body {
 *:focus-visible {
   @apply outline-none ring-2 ring-violet-500/60 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950;
 }
+
+/* Bootstrap-like pagination */
+.pagination {
+  display: flex;
+  flex-wrap: nowrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.page-item {
+  display: inline-flex;
+}
+
+.page-link {
+  @apply border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 rounded-md;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.page-item:not(.disabled):not(.active) .page-link:hover {
+  @apply bg-zinc-100 dark:bg-zinc-800;
+}
+
+.page-item.active .page-link {
+  @apply bg-violet-600 border-violet-600 text-white;
+}
+
+.page-item.disabled .page-link {
+  @apply bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500;
+  cursor: not-allowed;
+}

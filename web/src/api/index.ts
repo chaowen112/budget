@@ -86,17 +86,37 @@ export const categoryApi = {
 // Transaction API
 export const transactionApi = {
   list: async (params?: {
+    page?: number
     startDate?: string
     endDate?: string
     categoryId?: string
+    keyword?: string
     type?: CategoryType
+    currency?: string
     pageSize?: number
-    pageToken?: string
-  }): Promise<{ transactions: Transaction[]; nextPageToken?: string }> => {
-    const response = await api.get('/transactions', { params })
+  }): Promise<{
+    transactions: Transaction[]
+    pagination?: { page: number; pageSize: number; totalCount: number; totalPages: number }
+  }> => {
+    const queryParams: Record<string, string | number> = {}
+
+    if (params?.page) queryParams['pagination.page'] = params.page
+    if (params?.pageSize) queryParams['pagination.pageSize'] = params.pageSize
+    if (params?.startDate) queryParams['dateRange.startDate'] = params.startDate
+    if (params?.endDate) queryParams['dateRange.endDate'] = params.endDate
+    if (params?.categoryId) queryParams.categoryId = params.categoryId
+    if (params?.type) queryParams.type = params.type
+    if (params?.currency) queryParams.currency = params.currency
+
+    const response = await api.get('/transactions', {
+      params: queryParams,
+      headers: params?.keyword
+        ? { 'Grpc-Metadata-search-keyword': params.keyword }
+        : undefined,
+    })
     return {
       transactions: response.data.transactions || [],
-      nextPageToken: response.data.nextPageToken,
+      pagination: response.data.pagination,
     }
   },
   

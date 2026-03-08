@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"google.golang.org/grpc/codes"
@@ -197,9 +198,10 @@ func (h *TransactionHandler) ListTransactions(ctx context.Context, req *pb.ListT
 
 	if req.CategoryId != "" {
 		categoryID, err := uuid.Parse(req.CategoryId)
-		if err == nil {
-			filter.CategoryID = &categoryID
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid category_id")
 		}
+		filter.CategoryID = &categoryID
 	}
 
 	if req.Type != pb.TransactionType_TRANSACTION_TYPE_UNSPECIFIED {
@@ -216,6 +218,15 @@ func (h *TransactionHandler) ListTransactions(ctx context.Context, req *pb.ListT
 			endDate := req.DateRange.EndDate.AsTime()
 			filter.EndDate = &endDate
 		}
+	}
+
+	if len(req.Tags) > 0 {
+		filter.Tags = req.Tags
+	}
+
+	searchKeyword := searchKeywordFromMetadata(ctx)
+	if searchKeyword != "" {
+		filter.Search = searchKeyword
 	}
 
 	result, err := h.transactionRepo.List(ctx, filter)
@@ -438,6 +449,28 @@ func sourceAssetIDFromMetadataOptional(ctx context.Context) (*uuid.UUID, error) 
 	}
 
 	return nil, nil
+}
+
+func searchKeywordFromMetadata(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+
+	keys := []string{"search-keyword", "x-search-keyword", "grpcgateway-search-keyword"}
+	for _, key := range keys {
+		values := md.Get(key)
+		if len(values) == 0 {
+			continue
+		}
+		keyword := strings.TrimSpace(values[0])
+		if keyword == "" {
+			continue
+		}
+		return keyword
+	}
+
+	return ""
 }
 
 func isUndefinedTableError(err error) bool {
