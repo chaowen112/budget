@@ -33,6 +33,19 @@ import type {
   TransactionSourceLink,
 } from '../types'
 
+function dateInputToUTCISOString(value: string): string {
+  const [yearStr, monthStr, dayStr] = value.split('-')
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+  const day = Number(dayStr)
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return new Date(value).toISOString()
+  }
+
+  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0)).toISOString()
+}
+
 // Auth API
 export const authApi = {
   login: async (data: LoginRequest): Promise<AuthResponse> => {
@@ -171,7 +184,7 @@ export const budgetApi = {
   }): Promise<Budget> => {
     const response = await api.post('/budgets', {
       ...data,
-      startDate: new Date(data.startDate).toISOString(),
+      startDate: dateInputToUTCISOString(data.startDate),
     })
     return response.data.budget
   },

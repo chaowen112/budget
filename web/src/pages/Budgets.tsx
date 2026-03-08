@@ -40,68 +40,73 @@ function addYears(date: Date, years: number) {
   return d
 }
 
-function endOfDay(date: Date) {
+function startOfDay(date: Date) {
   const d = new Date(date)
-  d.setHours(23, 59, 59, 999)
+  d.setHours(0, 0, 0, 0)
   return d
 }
 
+function toUtcStartOfDateISOString(date: Date) {
+  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0)).toISOString()
+}
+
+function toUtcEndOfDateISOString(date: Date) {
+  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)).toISOString()
+}
+
 function getCycleEndDate(startDate: Date, periodType: PeriodType, now: Date) {
-  const start = new Date(startDate)
+  const start = startOfDay(startDate)
+  const current = new Date(now)
 
   if (periodType === 'PERIOD_TYPE_WEEKLY') {
     const msPerDay = 1000 * 60 * 60 * 24
-    const days = Math.max(0, Math.floor((now.getTime() - start.getTime()) / msPerDay))
+    const days = Math.max(0, Math.floor((startOfDay(current).getTime() - start.getTime()) / msPerDay))
     const cycles = Math.floor(days / 7)
     const cycleStart = new Date(start)
     cycleStart.setDate(start.getDate() + cycles * 7)
-    const cycleEnd = new Date(cycleStart)
-    cycleEnd.setDate(cycleStart.getDate() + 6)
-    return endOfDay(cycleEnd)
+    return new Date(cycleStart.getTime() + (7 * msPerDay) - 1)
   }
 
   if (periodType === 'PERIOD_TYPE_MONTHLY') {
     let cycleStart = new Date(start)
-    while (addMonths(cycleStart, 1) <= now) {
+    while (addMonths(cycleStart, 1) <= current) {
       cycleStart = addMonths(cycleStart, 1)
     }
-    return endOfDay(new Date(addMonths(cycleStart, 1).getTime() - 1))
+    return new Date(addMonths(cycleStart, 1).getTime() - 1)
   }
 
   let cycleStart = new Date(start)
-  while (addYears(cycleStart, 1) <= now) {
+  while (addYears(cycleStart, 1) <= current) {
     cycleStart = addYears(cycleStart, 1)
   }
-  return endOfDay(new Date(addYears(cycleStart, 1).getTime() - 1))
+  return new Date(addYears(cycleStart, 1).getTime() - 1)
 }
 
 function getCycleStartDate(startDate: Date, periodType: PeriodType, now: Date) {
-  const start = new Date(startDate)
+  const start = startOfDay(startDate)
+  const current = new Date(now)
 
   if (periodType === 'PERIOD_TYPE_WEEKLY') {
     const msPerDay = 1000 * 60 * 60 * 24
-    const days = Math.max(0, Math.floor((now.getTime() - start.getTime()) / msPerDay))
+    const days = Math.max(0, Math.floor((startOfDay(current).getTime() - start.getTime()) / msPerDay))
     const cycles = Math.floor(days / 7)
     const cycleStart = new Date(start)
     cycleStart.setDate(start.getDate() + cycles * 7)
-    cycleStart.setHours(0, 0, 0, 0)
     return cycleStart
   }
 
   if (periodType === 'PERIOD_TYPE_MONTHLY') {
     let cycleStart = new Date(start)
-    while (addMonths(cycleStart, 1) <= now) {
+    while (addMonths(cycleStart, 1) <= current) {
       cycleStart = addMonths(cycleStart, 1)
     }
-    cycleStart.setHours(0, 0, 0, 0)
     return cycleStart
   }
 
   let cycleStart = new Date(start)
-  while (addYears(cycleStart, 1) <= now) {
+  while (addYears(cycleStart, 1) <= current) {
     cycleStart = addYears(cycleStart, 1)
   }
-  cycleStart.setHours(0, 0, 0, 0)
   return cycleStart
 }
 
@@ -147,8 +152,8 @@ export default function Budgets() {
       transactionApi.list({
         categoryId: activeBudgetForTransactions!.categoryId,
         type: 'TRANSACTION_TYPE_EXPENSE',
-        startDate: activeBudgetDateRange!.start.toISOString(),
-        endDate: activeBudgetDateRange!.end.toISOString(),
+        startDate: toUtcStartOfDateISOString(activeBudgetDateRange!.start),
+        endDate: toUtcEndOfDateISOString(activeBudgetDateRange!.end),
         pageSize: 200,
       }),
   })

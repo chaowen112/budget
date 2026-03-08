@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -59,7 +60,7 @@ func (h *BudgetHandler) CreateBudget(ctx context.Context, req *pb.CreateBudgetRe
 		currency = "SGD"
 	}
 
-	startDate := req.StartDate.AsTime()
+	startDate := normalizeDateOnly(req.StartDate.AsTime())
 
 	budget := &model.Budget{
 		UserID:     userID,
@@ -165,7 +166,7 @@ func (h *BudgetHandler) UpdateBudget(ctx context.Context, req *pb.UpdateBudgetRe
 	}
 
 	if req.StartDate != nil {
-		budget.StartDate = req.StartDate.AsTime()
+		budget.StartDate = normalizeDateOnly(req.StartDate.AsTime())
 	}
 
 	if err := h.budgetRepo.Update(ctx, budget); err != nil {
@@ -335,4 +336,9 @@ func protoToPeriodType(pt pb.PeriodType) model.PeriodType {
 	default:
 		return model.PeriodTypeMonthly
 	}
+}
+
+func normalizeDateOnly(value time.Time) time.Time {
+	year, month, day := value.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
 }

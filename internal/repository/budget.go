@@ -160,55 +160,60 @@ func (r *BudgetRepository) GetSpentAmount(ctx context.Context, userID, categoryI
 
 // GetPeriodBounds calculates the start and end of a budget period
 func GetPeriodBounds(periodType model.PeriodType, now time.Time, startDate time.Time) (time.Time, time.Time) {
-	startDate = startDate.In(now.Location())
+	now = now.In(now.Location())
+	startDate = startOfDay(startDate.In(now.Location()))
 
 	switch periodType {
 	case model.PeriodTypeDaily:
 		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		end := start.Add(24*time.Hour - time.Second)
+		end := start.Add(24*time.Hour).Add(-time.Nanosecond)
 		return start, end
 
 	case model.PeriodTypeWeekly:
 		if now.Before(startDate) {
-			cycleStart := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, now.Location())
-			cycleEnd := cycleStart.AddDate(0, 0, 7).Add(-time.Second)
+			cycleStart := startDate
+			cycleEnd := cycleStart.AddDate(0, 0, 7).Add(-time.Nanosecond)
 			return cycleStart, cycleEnd
 		}
 
-		startAnchor := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, now.Location())
+		startAnchor := startDate
 		daysSinceStart := int(math.Floor(now.Sub(startAnchor).Hours() / 24))
 		cycles := daysSinceStart / 7
 		cycleStart := startAnchor.AddDate(0, 0, cycles*7)
-		cycleEnd := cycleStart.AddDate(0, 0, 7).Add(-time.Second)
+		cycleEnd := cycleStart.AddDate(0, 0, 7).Add(-time.Nanosecond)
 		return cycleStart, cycleEnd
 
 	case model.PeriodTypeMonthly:
-		cycleStart := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, now.Location())
+		cycleStart := startDate
 		if now.Before(cycleStart) {
-			return cycleStart, addMonths(cycleStart, 1).Add(-time.Second)
+			return cycleStart, addMonths(cycleStart, 1).Add(-time.Nanosecond)
 		}
 
 		for !addMonths(cycleStart, 1).After(now) {
 			cycleStart = addMonths(cycleStart, 1)
 		}
-		cycleEnd := addMonths(cycleStart, 1).Add(-time.Second)
+		cycleEnd := addMonths(cycleStart, 1).Add(-time.Nanosecond)
 		return cycleStart, cycleEnd
 
 	case model.PeriodTypeYearly:
-		cycleStart := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, now.Location())
+		cycleStart := startDate
 		if now.Before(cycleStart) {
-			return cycleStart, addYears(cycleStart, 1).Add(-time.Second)
+			return cycleStart, addYears(cycleStart, 1).Add(-time.Nanosecond)
 		}
 
 		for !addYears(cycleStart, 1).After(now) {
 			cycleStart = addYears(cycleStart, 1)
 		}
-		cycleEnd := addYears(cycleStart, 1).Add(-time.Second)
+		cycleEnd := addYears(cycleStart, 1).Add(-time.Nanosecond)
 		return cycleStart, cycleEnd
 
 	default:
 		return now, now
 	}
+}
+
+func startOfDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
 func addMonths(d time.Time, months int) time.Time {
