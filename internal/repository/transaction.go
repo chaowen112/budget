@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	ErrTransactionNotFound = errors.New("transaction not found")
+	ErrTransactionNotFound          = errors.New("transaction not found")
 	ErrTransactionAssetLinkNotFound = errors.New("transaction asset link not found")
 )
 
@@ -357,15 +357,15 @@ func (r *TransactionRepository) ListSourceAssetLinks(ctx context.Context, userID
 	return links, rows.Err()
 }
 
-// GetSpendingByCategory gets spending grouped by category for a date range
+// GetSpendingByCategory gets spending grouped by category and currency for a date range
 func (r *TransactionRepository) GetSpendingByCategory(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time, transactionType model.CategoryType) ([]CategorySpending, error) {
 	query := `
-		SELECT c.id, c.name, SUM(t.amount) as total, COUNT(*) as count
+		SELECT c.id, c.name, t.currency, SUM(t.amount) as total, COUNT(*) as count
 		FROM transactions t
 		JOIN categories c ON t.category_id = c.id
 		WHERE t.user_id = $1 AND t.type = $2
 		  AND t.transaction_date >= $3 AND t.transaction_date <= $4
-		GROUP BY c.id, c.name
+		GROUP BY c.id, c.name, t.currency
 		ORDER BY total DESC
 	`
 
@@ -378,7 +378,7 @@ func (r *TransactionRepository) GetSpendingByCategory(ctx context.Context, userI
 	var results []CategorySpending
 	for rows.Next() {
 		var cs CategorySpending
-		if err := rows.Scan(&cs.CategoryID, &cs.CategoryName, &cs.Total, &cs.Count); err != nil {
+		if err := rows.Scan(&cs.CategoryID, &cs.CategoryName, &cs.Currency, &cs.Total, &cs.Count); err != nil {
 			return nil, err
 		}
 		results = append(results, cs)
@@ -387,24 +387,45 @@ func (r *TransactionRepository) GetSpendingByCategory(ctx context.Context, userI
 	return results, rows.Err()
 }
 
-// CategorySpending represents spending for a category
+// CategorySpending represents spending for a category in a specific currency
 type CategorySpending struct {
 	CategoryID   uuid.UUID
 	CategoryName string
+	Currency     string
 	Total        decimal.Decimal
 	Count        int
 }
 
-// GetTotalByType gets total amount by transaction type for a date range
-func (r *TransactionRepository) GetTotalByType(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time, transactionType model.CategoryType) (decimal.Decimal, error) {
+// CurrencyAmount represents an amount in a specific currency
+type CurrencyAmount struct {
+	Currency string
+	Amount   decimal.Decimal
+}
+
+// GetTotalByType gets total amounts grouped by currency for a transaction type and date range
+func (r *TransactionRepository) GetTotalByType(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time, transactionType model.CategoryType) ([]CurrencyAmount, error) {
 	query := `
-		SELECT COALESCE(SUM(amount), 0)
+		SELECT currency, COALESCE(SUM(amount), 0)
 		FROM transactions
 		WHERE user_id = $1 AND type = $2
 		  AND transaction_date >= $3 AND transaction_date <= $4
+		GROUP BY currency
 	`
 
-	var total decimal.Decimal
-	err := r.db.Pool.QueryRow(ctx, query, userID, transactionType, startDate, endDate).Scan(&total)
-	return total, err
+	rows, err := r.db.Pool.Query(ctx, query, userID, transactionType, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []CurrencyAmount
+	for rows.Next() {
+		var ca CurrencyAmount
+		if err := rows.Scan(&ca.Currency, &ca.Amount); err != nil {
+			return nil, err
+		}
+		results = append(results, ca)
+	}
+
+	return results, rows.Err()
 }

@@ -579,7 +579,7 @@ func (h *GoalHandler) GetNetWorthGoalProgress(ctx context.Context, req *pb.GetNe
 	}
 
 	// Calculate estimated months to goal based on average monthly savings
-	estimatedMonths := calculateEstimatedMonthsToGoal(ctx, h.transactionRepo, userID, goal, currentNetWorth)
+	estimatedMonths := calculateEstimatedMonthsToGoal(ctx, h.transactionRepo, h.currencyRepo, userID, goal, currentNetWorth)
 
 	return &pb.GetNetWorthGoalProgressResponse{
 		Progress: netWorthGoalProgressToProto(goal, currentNetWorth, estimatedMonths),
@@ -618,7 +618,7 @@ func netWorthGoalProgressToProto(g *model.NetWorthGoal, currentNetWorth decimal.
 	}
 }
 
-func calculateEstimatedMonthsToGoal(ctx context.Context, transactionRepo *repository.TransactionRepository, userID uuid.UUID, goal *model.NetWorthGoal, currentNetWorth decimal.Decimal) int32 {
+func calculateEstimatedMonthsToGoal(ctx context.Context, transactionRepo *repository.TransactionRepository, currencyRepo *repository.CurrencyRepository, userID uuid.UUID, goal *model.NetWorthGoal, currentNetWorth decimal.Decimal) int32 {
 	remaining := goal.AmountRemaining(currentNetWorth)
 	if remaining.IsZero() || remaining.IsNegative() {
 		return 0 // Goal reached
@@ -628,14 +628,26 @@ func calculateEstimatedMonthsToGoal(ctx context.Context, transactionRepo *reposi
 	now := time.Now()
 	threeMonthsAgo := now.AddDate(0, -3, 0)
 
-	totalIncome, err := transactionRepo.GetTotalByType(ctx, userID, threeMonthsAgo, now, model.CategoryTypeIncome)
+	incomeAmounts, err := transactionRepo.GetTotalByType(ctx, userID, threeMonthsAgo, now, model.CategoryTypeIncome)
 	if err != nil {
 		return -1 // Unable to calculate
 	}
 
-	totalExpenses, err := transactionRepo.GetTotalByType(ctx, userID, threeMonthsAgo, now, model.CategoryTypeExpense)
+	expenseAmounts, err := transactionRepo.GetTotalByType(ctx, userID, threeMonthsAgo, now, model.CategoryTypeExpense)
 	if err != nil {
 		return -1 // Unable to calculate
+	}
+
+	totalIncome := decimal.Zero
+	for _, a := range incomeAmounts {
+		conv, _ := currencyRepo.ConvertAmount(ctx, a.Amount, a.Currency, goal.Currency)
+		totalIncome = totalIncome.Add(conv)
+	}
+
+	totalExpenses := decimal.Zero
+	for _, a := range expenseAmounts {
+		conv, _ := currencyRepo.ConvertAmount(ctx, a.Amount, a.Currency, goal.Currency)
+		totalExpenses = totalExpenses.Add(conv)
 	}
 
 	totalSavings := totalIncome.Sub(totalExpenses)

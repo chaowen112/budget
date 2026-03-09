@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { reportApi } from '../api'
 import type { BudgetTrackingReport, SavingGoalReport } from '../api'
@@ -446,9 +447,25 @@ export default function Reports() {
                     return (
                       <div key={item.categoryId}>
                         <div className="flex justify-between items-center mb-1.5">
-                          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                            {item.categoryName}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                              {item.categoryName}
+                            </span>
+                            <Link
+                              to={`/transactions?categoryId=${item.categoryId}&startDate=${encodeURIComponent(
+                                reportPeriod === 'yearly'
+                                  ? new Date(Date.UTC(selectedYear, 0, 1)).toISOString()
+                                  : new Date(Date.UTC(selectedYear, selectedMonth - 1, 1)).toISOString()
+                              )}&endDate=${encodeURIComponent(
+                                reportPeriod === 'yearly'
+                                  ? new Date(Date.UTC(selectedYear, 11, 31, 23, 59, 59, 999)).toISOString()
+                                  : new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59, 999)).toISOString()
+                              )}`}
+                              className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 font-medium transition-colors"
+                            >
+                              View Transactions
+                            </Link>
+                          </div>
                           <span className="text-xs text-zinc-500 dark:text-zinc-400">
                             {formatConverted(item.spent)}{' '}
                             <span className="text-zinc-400 dark:text-zinc-600">/</span>{' '}

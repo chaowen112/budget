@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { transactionApi, categoryApi, assetApi, transferApi, assistantApi } from '../api'
-import { formatDate, numberToMoney, moneyToNumber } from '../lib/utils'
+import { formatDate, formatMoney, numberToMoney, moneyToNumber } from '../lib/utils'
 import { useAuth } from '../store/AuthContext'
-import { useCurrency, DISPLAY_CURRENCIES } from '../store/CurrencyContext'
+import { DISPLAY_CURRENCIES } from '../store/CurrencyContext'
 import type { Transaction, Category, CategoryType, Transfer, AssistantSuggestion } from '../types'
 import { Plus, Pencil, Trash2, Search, ArrowDownLeft, ArrowUpRight, ArrowRightLeft } from 'lucide-react'
 import { Button, Modal, FormField, Input, Select } from '../components/ui'
@@ -51,14 +51,16 @@ function buildPaginationItems(currentPage: number, totalPages: number): Paginati
 
 export default function Transactions() {
   const { user } = useAuth()
-  const { formatConverted } = useCurrency()
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<ModalMode>('transaction')
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [editingTransfer, setEditingTransfer] = useState<Transfer | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterCategory, setFilterCategory] = useState<string>('')
+  const [searchParams] = useSearchParams()
+  const [filterCategory, setFilterCategory] = useState<string>(searchParams.get('categoryId') || '')
+  const [filterStartDate] = useState<string>(searchParams.get('startDate') || '')
+  const [filterEndDate] = useState<string>(searchParams.get('endDate') || '')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(100)
   const [transactionCategoryId, setTransactionCategoryId] = useState('')
@@ -83,13 +85,15 @@ export default function Transactions() {
   const [assistantCompletionNote, setAssistantCompletionNote] = useState('')
 
   const { data: transactionsData, isLoading } = useQuery({
-    queryKey: ['transactions', currentPage, pageSize, filterCategory, searchTerm],
+    queryKey: ['transactions', currentPage, pageSize, filterCategory, searchTerm, filterStartDate, filterEndDate],
     queryFn: () =>
       transactionApi.list({
         page: currentPage,
         pageSize,
         categoryId: filterCategory || undefined,
         keyword: searchTerm.trim() || undefined,
+        startDate: filterStartDate || undefined,
+        endDate: filterEndDate || undefined,
       }),
   })
 
@@ -224,7 +228,14 @@ export default function Transactions() {
   const timelineItems = [
     ...filteredTransactions.map((transaction) => ({ kind: 'transaction' as const, date: transaction.transactionDate, transaction })),
     ...filteredTransfers.map((transfer) => ({ kind: 'transfer' as const, date: transfer.transferDate, transfer })),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  ].sort((a, b) => {
+    const timeA = new Date(a.date).getTime()
+    const timeB = new Date(b.date).getTime()
+    if (timeA !== timeB) return timeB - timeA
+    const createdAtA = a.kind === 'transaction' ? a.transaction.createdAt : a.transfer.createdAt
+    const createdAtB = b.kind === 'transaction' ? b.transaction.createdAt : b.transfer.createdAt
+    return new Date(createdAtB).getTime() - new Date(createdAtA).getTime()
+  })
 
   const selectedFromAsset = assets?.find((a) => a.id === transferFromAssetId)
   const selectedToAsset = assets?.find((a) => a.id === transferToAssetId)
@@ -717,7 +728,7 @@ export default function Transactions() {
                     </div>
                     <div className="flex flex-col items-end gap-1.5 sm:gap-2 flex-shrink-0">
                       <span className="text-sm font-semibold tabular-nums text-sky-600 dark:text-sky-400">
-                        {formatConverted({ amount: transfer.fromAmount, currency: transfer.fromCurrency })}
+                        {formatMoney({ amount: transfer.fromAmount, currency: transfer.fromCurrency })}
                       </span>
                       <div className="flex items-center gap-1">
                         <button
@@ -767,11 +778,10 @@ export default function Transactions() {
                 >
                   {/* Icon */}
                   <div
-                    className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      isExpense
-                        ? 'bg-red-50 dark:bg-red-500/10'
-                        : 'bg-emerald-50 dark:bg-emerald-500/10'
-                    }`}
+                    className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isExpense
+                      ? 'bg-red-50 dark:bg-red-500/10'
+                      : 'bg-emerald-50 dark:bg-emerald-500/10'
+                      }`}
                   >
                     {isExpense ? (
                       <ArrowDownLeft className="h-4 w-4 text-red-500 dark:text-red-400" />
@@ -790,24 +800,18 @@ export default function Transactions() {
                       {transaction.sourceAssetName ? ` · ${transaction.sourceAssetName}` : ''}
                       {' · '}
                       {formatDate(transaction.transactionDate)}
-                      {transaction.amount.currency !== 'SGD' && (
-                        <span className="ml-1.5 text-zinc-400 dark:text-zinc-500">
-                          ({transaction.amount.currency})
-                        </span>
-                      )}
                     </p>
                   </div>
 
                   {/* Amount + Actions */}
                   <div className="flex flex-col items-end gap-1.5 sm:gap-2 flex-shrink-0">
                     <span
-                      className={`text-sm font-semibold tabular-nums ${
-                        isExpense
-                          ? 'text-red-500 dark:text-red-400'
-                          : 'text-emerald-600 dark:text-emerald-400'
-                      }`}
+                      className={`text-sm font-semibold tabular-nums ${isExpense
+                        ? 'text-red-500 dark:text-red-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
                     >
-                      {isExpense ? '-' : '+'}{formatConverted(transaction.amount)}
+                      {isExpense ? '-' : '+'}{formatMoney(transaction.amount)}
                     </span>
 
                     <div className="flex items-center gap-1">
@@ -989,7 +993,7 @@ export default function Transactions() {
               </FormField>
 
               <div className="grid grid-cols-2 gap-3">
-              <FormField label="From Amount">
+                <FormField label="From Amount">
                   <Input
                     type="number"
                     name="fromAmount"
@@ -1065,140 +1069,140 @@ export default function Transactions() {
             </>
           ) : (
             <>
-          <FormField label="Category">
-            <Select
-              name="categoryId"
-              required
-              value={transactionCategoryId}
-              onChange={(e) => handleTransactionCategoryChange(e.target.value)}
-            >
-              <option value="">Select category</option>
-              <option value={CREATE_CATEGORY_OPTION}>+ Create new category...</option>
-              <optgroup label="Expenses">
-                {categories
-                  ?.filter((c) => c.type === 'TRANSACTION_TYPE_EXPENSE')
-                  .map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-              </optgroup>
-              <optgroup label="Income">
-                {categories
-                  ?.filter((c) => c.type === 'TRANSACTION_TYPE_INCOME')
-                  .map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-              </optgroup>
-            </Select>
-          </FormField>
+              <FormField label="Category">
+                <Select
+                  name="categoryId"
+                  required
+                  value={transactionCategoryId}
+                  onChange={(e) => handleTransactionCategoryChange(e.target.value)}
+                >
+                  <option value="">Select category</option>
+                  <option value={CREATE_CATEGORY_OPTION}>+ Create new category...</option>
+                  <optgroup label="Expenses">
+                    {categories
+                      ?.filter((c) => c.type === 'TRANSACTION_TYPE_EXPENSE')
+                      .map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="Income">
+                    {categories
+                      ?.filter((c) => c.type === 'TRANSACTION_TYPE_INCOME')
+                      .map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                  </optgroup>
+                </Select>
+              </FormField>
 
-          <FormField label="Source Asset">
-            <Select
-              name="sourceAssetId"
-              required={!editingTransaction}
-              value={transactionSourceAssetId}
-              onChange={(e) => setTransactionSourceAssetId(e.target.value)}
-            >
-              <option value="">{editingTransaction ? 'Keep existing asset link' : 'Select asset'}</option>
-              {assets?.map((asset) => (
-                <option key={asset.id} value={asset.id}>
-                  {asset.name}
-                </option>
-              ))}
-            </Select>
-          </FormField>
+              <FormField label="Source Asset">
+                <Select
+                  name="sourceAssetId"
+                  required={!editingTransaction}
+                  value={transactionSourceAssetId}
+                  onChange={(e) => setTransactionSourceAssetId(e.target.value)}
+                >
+                  <option value="">{editingTransaction ? 'Keep existing asset link' : 'Select asset'}</option>
+                  {assets?.map((asset) => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
 
-          {showQuickCategoryForm && (
-            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {showQuickCategoryForm && (
+                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <Input
+                      type="text"
+                      value={quickCategoryName}
+                      onChange={(e) => setQuickCategoryName(e.target.value)}
+                      placeholder="Category name"
+                      className="sm:col-span-2"
+                    />
+                    <Select
+                      value={quickCategoryType}
+                      onChange={(e) => setQuickCategoryType(e.target.value as CategoryType)}
+                    >
+                      <option value="TRANSACTION_TYPE_EXPENSE">Expense</option>
+                      <option value="TRANSACTION_TYPE_INCOME">Income</option>
+                    </Select>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setShowQuickCategoryForm(false)
+                        setQuickCategoryName('')
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      loading={createCategoryMutation.isPending}
+                      onClick={handleQuickCategoryCreate}
+                    >
+                      Add Category
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Amount + Currency side by side */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <FormField label="Amount">
+                    <Input
+                      type="number"
+                      name="amount"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={transactionAmountInput}
+                      onChange={(e) => setTransactionAmountInput(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </FormField>
+                </div>
+                <div>
+                  <FormField label="Currency">
+                    <Select
+                      name="currency"
+                      value={transactionCurrencyInput}
+                      onChange={(e) => setTransactionCurrencyInput(e.target.value)}
+                    >
+                      {DISPLAY_CURRENCIES.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </Select>
+                  </FormField>
+                </div>
+              </div>
+
+              <FormField label="Description">
                 <Input
                   type="text"
-                  value={quickCategoryName}
-                  onChange={(e) => setQuickCategoryName(e.target.value)}
-                  placeholder="Category name"
-                  className="sm:col-span-2"
+                  name="description"
+                  value={transactionDescriptionInput}
+                  onChange={(e) => setTransactionDescriptionInput(e.target.value)}
+                  placeholder="What was this for?"
                 />
-                <Select
-                  value={quickCategoryType}
-                  onChange={(e) => setQuickCategoryType(e.target.value as CategoryType)}
-                >
-                  <option value="TRANSACTION_TYPE_EXPENSE">Expense</option>
-                  <option value="TRANSACTION_TYPE_INCOME">Income</option>
-                </Select>
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    setShowQuickCategoryForm(false)
-                    setQuickCategoryName('')
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  loading={createCategoryMutation.isPending}
-                  onClick={handleQuickCategoryCreate}
-                >
-                  Add Category
-                </Button>
-              </div>
-            </div>
-          )}
+              </FormField>
 
-          {/* Amount + Currency side by side */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2">
-              <FormField label="Amount">
+              <FormField label="Date">
                 <Input
-                  type="number"
-                  name="amount"
-                  step="0.01"
-                  min="0"
+                  type="date"
+                  name="date"
                   required
-                  value={transactionAmountInput}
-                  onChange={(e) => setTransactionAmountInput(e.target.value)}
-                  placeholder="0.00"
+                  value={transactionDateInput}
+                  onChange={(e) => setTransactionDateInput(e.target.value)}
                 />
               </FormField>
-            </div>
-            <div>
-              <FormField label="Currency">
-                <Select
-                  name="currency"
-                  value={transactionCurrencyInput}
-                  onChange={(e) => setTransactionCurrencyInput(e.target.value)}
-                >
-                  {DISPLAY_CURRENCIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </Select>
-              </FormField>
-            </div>
-          </div>
-
-          <FormField label="Description">
-            <Input
-              type="text"
-              name="description"
-              value={transactionDescriptionInput}
-              onChange={(e) => setTransactionDescriptionInput(e.target.value)}
-              placeholder="What was this for?"
-            />
-          </FormField>
-
-          <FormField label="Date">
-            <Input
-              type="date"
-              name="date"
-              required
-              value={transactionDateInput}
-              onChange={(e) => setTransactionDateInput(e.target.value)}
-            />
-          </FormField>
             </>
           )}
         </form>
