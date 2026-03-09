@@ -66,24 +66,36 @@ func (h *ReportHandler) GetWeeklyReport(ctx context.Context, req *pb.GetWeeklyRe
 		weekOf = time.Now()
 	}
 
+	user, err := h.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to load user profile")
+	}
+	baseCurrency := user.BaseCurrency
+
 	weekStart, weekEnd := getWeekBounds(weekOf)
 
 	// Get spending by category
-	spendingByCategory, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, weekStart, weekEnd, model.CategoryTypeExpense)
+	rawSpendingByCategory, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, weekStart, weekEnd, model.CategoryTypeExpense)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get spending by category")
 	}
+	spendingByCategory, _, err := h.sumCategorySpending(ctx, rawSpendingByCategory, baseCurrency)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to convert currencies")
+	}
 
 	// Get total income and expenses
-	totalIncome, err := h.transactionRepo.GetTotalByType(ctx, userID, weekStart, weekEnd, model.CategoryTypeIncome)
+	rawIncome, err := h.transactionRepo.GetTotalByType(ctx, userID, weekStart, weekEnd, model.CategoryTypeIncome)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get total income")
 	}
+	totalIncome, _ := h.sumCurrencyAmounts(ctx, rawIncome, baseCurrency)
 
-	totalExpenses, err := h.transactionRepo.GetTotalByType(ctx, userID, weekStart, weekEnd, model.CategoryTypeExpense)
+	rawExpenses, err := h.transactionRepo.GetTotalByType(ctx, userID, weekStart, weekEnd, model.CategoryTypeExpense)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get total expenses")
 	}
+	totalExpenses, _ := h.sumCurrencyAmounts(ctx, rawExpenses, baseCurrency)
 
 	netSavings := totalIncome.Sub(totalExpenses)
 
@@ -115,12 +127,12 @@ func (h *ReportHandler) GetWeeklyReport(ctx context.Context, req *pb.GetWeeklyRe
 		Report: &pb.WeeklyReport{
 			WeekStart:            timestamppb.New(weekStart),
 			WeekEnd:              timestamppb.New(weekEnd),
-			TotalIncome:          reportDecimalToMoney(totalIncome, "SGD"),
-			TotalExpenses:        reportDecimalToMoney(totalExpenses, "SGD"),
-			NetSavings:           reportDecimalToMoney(netSavings, "SGD"),
+			TotalIncome:          reportDecimalToMoney(totalIncome, baseCurrency),
+			TotalExpenses:        reportDecimalToMoney(totalExpenses, baseCurrency),
+			NetSavings:           reportDecimalToMoney(netSavings, baseCurrency),
 			SpendingByCategory:   pbSpending,
 			BudgetSummaries:      budgetSummaries,
-			DailyAverageSpending: reportDecimalToMoney(dailyAverage, "SGD"),
+			DailyAverageSpending: reportDecimalToMoney(dailyAverage, baseCurrency),
 		},
 	}, nil
 }
@@ -147,24 +159,33 @@ func (h *ReportHandler) GetMonthlyReport(ctx context.Context, req *pb.GetMonthly
 		month = int(now.Month())
 	}
 
+	user, err := h.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to load user profile")
+	}
+	baseCurrency := user.BaseCurrency
+
 	monthStart, monthEnd := getMonthBounds(year, month)
 
 	// Get spending by category
-	spendingByCategory, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
+	rawSpendingByCategory, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get spending by category")
 	}
+	spendingByCategory, _, _ := h.sumCategorySpending(ctx, rawSpendingByCategory, baseCurrency)
 
 	// Get total income and expenses
-	totalIncome, err := h.transactionRepo.GetTotalByType(ctx, userID, monthStart, monthEnd, model.CategoryTypeIncome)
+	rawTotalIncome, err := h.transactionRepo.GetTotalByType(ctx, userID, monthStart, monthEnd, model.CategoryTypeIncome)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get total income")
 	}
+	totalIncome, _ := h.sumCurrencyAmounts(ctx, rawTotalIncome, baseCurrency)
 
-	totalExpenses, err := h.transactionRepo.GetTotalByType(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
+	rawTotalExpenses, err := h.transactionRepo.GetTotalByType(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get total expenses")
 	}
+	totalExpenses, _ := h.sumCurrencyAmounts(ctx, rawTotalExpenses, baseCurrency)
 
 	netSavings := totalIncome.Sub(totalExpenses)
 
@@ -180,8 +201,10 @@ func (h *ReportHandler) GetMonthlyReport(ctx context.Context, req *pb.GetMonthly
 
 	// Get previous month data for comparison
 	prevMonthStart, prevMonthEnd := getMonthBounds(year, month-1)
-	prevIncome, _ := h.transactionRepo.GetTotalByType(ctx, userID, prevMonthStart, prevMonthEnd, model.CategoryTypeIncome)
-	prevExpenses, _ := h.transactionRepo.GetTotalByType(ctx, userID, prevMonthStart, prevMonthEnd, model.CategoryTypeExpense)
+	rawPrevIncome, _ := h.transactionRepo.GetTotalByType(ctx, userID, prevMonthStart, prevMonthEnd, model.CategoryTypeIncome)
+	prevIncome, _ := h.sumCurrencyAmounts(ctx, rawPrevIncome, baseCurrency)
+	rawPrevExpenses, _ := h.transactionRepo.GetTotalByType(ctx, userID, prevMonthStart, prevMonthEnd, model.CategoryTypeExpense)
+	prevExpenses, _ := h.sumCurrencyAmounts(ctx, rawPrevExpenses, baseCurrency)
 
 	incomeChange := totalIncome.Sub(prevIncome)
 	expenseChange := totalExpenses.Sub(prevExpenses)
@@ -200,10 +223,11 @@ func (h *ReportHandler) GetMonthlyReport(ctx context.Context, req *pb.GetMonthly
 		return nil, status.Error(codes.Internal, "failed to get budgets")
 	}
 
-	spendingForBudgets, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
+	rawSpendingForBudgets, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get budget spending by category")
 	}
+	spendingForBudgets, _, _ := h.sumCategorySpending(ctx, rawSpendingForBudgets, baseCurrency)
 
 	spentByCategory := make(map[uuid.UUID]decimal.Decimal, len(spendingForBudgets))
 	for _, s := range spendingForBudgets {
@@ -226,15 +250,15 @@ func (h *ReportHandler) GetMonthlyReport(ctx context.Context, req *pb.GetMonthly
 	return &pb.GetMonthlyReportResponse{
 		Report: &pb.MonthlyReport{
 			Month:                   time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.Local).Format("2006-01"),
-			TotalIncome:             reportDecimalToMoney(totalIncome, "SGD"),
-			TotalExpenses:           reportDecimalToMoney(totalExpenses, "SGD"),
-			NetSavings:              reportDecimalToMoney(netSavings, "SGD"),
+			TotalIncome:             reportDecimalToMoney(totalIncome, baseCurrency),
+			TotalExpenses:           reportDecimalToMoney(totalExpenses, baseCurrency),
+			NetSavings:              reportDecimalToMoney(netSavings, baseCurrency),
 			SavingsRate:             savingsRate,
 			SpendingByCategory:      pbSpending,
 			BudgetSummaries:         agg.summaries,
-			DailyAverageSpending:    reportDecimalToMoney(dailyAverage, "SGD"),
-			IncomeChange:            reportDecimalToMoney(incomeChange, "SGD"),
-			ExpenseChange:           reportDecimalToMoney(expenseChange, "SGD"),
+			DailyAverageSpending:    reportDecimalToMoney(dailyAverage, baseCurrency),
+			IncomeChange:            reportDecimalToMoney(incomeChange, baseCurrency),
+			ExpenseChange:           reportDecimalToMoney(expenseChange, baseCurrency),
 			IncomeChangePercentage:  incomeChangePercentage,
 			ExpenseChangePercentage: expenseChangePercentage,
 		},
@@ -362,6 +386,13 @@ func (h *ReportHandler) GetBudgetTrackingReport(ctx context.Context, req *pb.Get
 	}
 
 	modelPeriodType := reportProtoToPeriodType(periodType)
+
+	user, err := h.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to load user profile")
+	}
+	baseCurrency := user.BaseCurrency
+
 	now := time.Now()
 
 	selectedYear, selectedMonth, err := budgetTrackingContextFromMetadata(ctx)
@@ -425,10 +456,11 @@ func (h *ReportHandler) GetBudgetTrackingReport(ctx context.Context, req *pb.Get
 		return nil, status.Error(codes.Internal, "failed to list budgets")
 	}
 
-	spendingByCategory, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, periodStart, asOf, model.CategoryTypeExpense)
+	rawSpendingByCategory, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, periodStart, asOf, model.CategoryTypeExpense)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get spending by category")
 	}
+	spendingByCategory, _, _ := h.sumCategorySpending(ctx, rawSpendingByCategory, baseCurrency)
 
 	spentByCategory := make(map[uuid.UUID]decimal.Decimal, len(spendingByCategory))
 	for _, s := range spendingByCategory {
@@ -497,13 +529,13 @@ func (h *ReportHandler) GetBudgetTrackingReport(ctx context.Context, req *pb.Get
 			DaysElapsed:                  int32(daysElapsed),
 			DaysRemaining:                int32(daysRemaining),
 			PeriodProgressPercentage:     periodProgress,
-			TotalBudgeted:                reportDecimalToMoney(totalBudgeted, "SGD"),
-			TotalSpent:                   reportDecimalToMoney(totalSpent, "SGD"),
-			ExpectedSpent:                reportDecimalToMoney(expectedSpent, "SGD"),
+			TotalBudgeted:                reportDecimalToMoney(totalBudgeted, baseCurrency),
+			TotalSpent:                   reportDecimalToMoney(totalSpent, baseCurrency),
+			ExpectedSpent:                reportDecimalToMoney(expectedSpent, baseCurrency),
 			BudgetUtilization:            budgetUtilization,
 			IsOnTrack:                    isOnTrack,
 			StatusMessage:                statusMessage,
-			ProjectedEndOfPeriodSpending: reportDecimalToMoney(projectedSpending, "SGD"),
+			ProjectedEndOfPeriodSpending: reportDecimalToMoney(projectedSpending, baseCurrency),
 			CategoryDetails:              agg.summaries,
 		},
 	}, nil
@@ -520,6 +552,12 @@ func (h *ReportHandler) GetSpendingTrend(ctx context.Context, req *pb.GetSpendin
 	if months <= 0 {
 		months = 6
 	}
+
+	user, err := h.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to load user profile")
+	}
+	baseCurrency := user.BaseCurrency
 
 	var categoryID *uuid.UUID
 	if req.GetCategoryId() != "" {
@@ -541,10 +579,11 @@ func (h *ReportHandler) GetSpendingTrend(ctx context.Context, req *pb.GetSpendin
 		var monthTotal decimal.Decimal
 		if categoryID != nil {
 			// Get spending for specific category
-			spending, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
+			rawSpending, err := h.transactionRepo.GetSpendingByCategory(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
 			if err != nil {
 				continue
 			}
+			spending, _, _ := h.sumCategorySpending(ctx, rawSpending, baseCurrency)
 			for _, s := range spending {
 				if s.CategoryID == *categoryID {
 					monthTotal = s.Total
@@ -552,15 +591,16 @@ func (h *ReportHandler) GetSpendingTrend(ctx context.Context, req *pb.GetSpendin
 				}
 			}
 		} else {
-			monthTotal, err = h.transactionRepo.GetTotalByType(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
+			rawMonthTotal, err := h.transactionRepo.GetTotalByType(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
 			if err != nil {
 				continue
 			}
+			monthTotal, _ = h.sumCurrencyAmounts(ctx, rawMonthTotal, baseCurrency)
 		}
 
 		trend = append(trend, &pb.SpendingTrendPoint{
 			Month:  monthStart.Format("2006-01"),
-			Amount: reportDecimalToMoney(monthTotal, "SGD"),
+			Amount: reportDecimalToMoney(monthTotal, baseCurrency),
 		})
 
 		total = total.Add(monthTotal)
@@ -603,9 +643,9 @@ func (h *ReportHandler) GetSpendingTrend(ctx context.Context, req *pb.GetSpendin
 
 	return &pb.GetSpendingTrendResponse{
 		Trend:          trend,
-		Average:        reportDecimalToMoney(average, "SGD"),
-		Min:            reportDecimalToMoney(min, "SGD"),
-		Max:            reportDecimalToMoney(max, "SGD"),
+		Average:        reportDecimalToMoney(average, baseCurrency),
+		Min:            reportDecimalToMoney(min, baseCurrency),
+		Max:            reportDecimalToMoney(max, baseCurrency),
 		TrendDirection: trendDirection,
 	}, nil
 }
@@ -884,8 +924,8 @@ func firstMetadataValue(md metadata.MD, keys ...string) string {
 }
 
 type budgetSummaryAggregation struct {
-	summaries       []*pb.BudgetSummary
-	totalBudgeted   decimal.Decimal
+	summaries        []*pb.BudgetSummary
+	totalBudgeted    decimal.Decimal
 	totalSpentUnique decimal.Decimal
 }
 
@@ -1267,4 +1307,44 @@ func reportProtoToPeriodType(pt pb.PeriodType) model.PeriodType {
 	default:
 		return model.PeriodTypeMonthly
 	}
+}
+
+func (h *ReportHandler) sumCurrencyAmounts(ctx context.Context, amounts []repository.CurrencyAmount, targetCurrency string) (decimal.Decimal, error) {
+	total := decimal.Zero
+	for _, ca := range amounts {
+		converted, err := h.currencyRepo.ConvertAmount(ctx, ca.Amount, ca.Currency, targetCurrency)
+		if err != nil {
+			return decimal.Zero, err
+		}
+		total = total.Add(converted)
+	}
+	return total, nil
+}
+
+func (h *ReportHandler) sumCategorySpending(ctx context.Context, spending []repository.CategorySpending, targetCurrency string) ([]repository.CategorySpending, decimal.Decimal, error) {
+	total := decimal.Zero
+	categoryMap := make(map[uuid.UUID]repository.CategorySpending)
+	for _, cs := range spending {
+		converted, err := h.currencyRepo.ConvertAmount(ctx, cs.Total, cs.Currency, targetCurrency)
+		if err != nil {
+			return nil, decimal.Zero, err
+		}
+
+		if existing, ok := categoryMap[cs.CategoryID]; ok {
+			existing.Total = existing.Total.Add(converted)
+			existing.Count += cs.Count
+			categoryMap[cs.CategoryID] = existing
+		} else {
+			cs.Total = converted
+			cs.Currency = targetCurrency
+			categoryMap[cs.CategoryID] = cs
+		}
+		total = total.Add(converted)
+	}
+
+	var result []repository.CategorySpending
+	for _, cs := range categoryMap {
+		result = append(result, cs)
+	}
+	return result, total, nil
 }
