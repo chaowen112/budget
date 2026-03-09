@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { assetApi, reportApi } from '../api'
 import { useAuth } from '../store/AuthContext'
 import { useCurrency, DISPLAY_CURRENCIES } from '../store/CurrencyContext'
-import { formatDate } from '../lib/utils'
+import { formatDate, formatMoney } from '../lib/utils'
 import type { Asset, AssetCategory, AssetSnapshot, AssetType } from '../types'
 import { Plus, Pencil, Trash2, Building, Car, Coins, CreditCard, Landmark, Wallet, Bitcoin, TrendingDown, TrendingUp, Scale, LineChart as LineChartIcon } from 'lucide-react'
 import { Button, Modal, FormField, Input, Select } from '../components/ui'
@@ -222,16 +222,14 @@ export default function Assets() {
     return (
       <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors duration-150 group">
         <div
-          className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-            isLiability
+          className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isLiability
               ? 'bg-red-50 dark:bg-red-500/10'
               : 'bg-emerald-50 dark:bg-emerald-500/10'
-          }`}
+            }`}
         >
           <Icon
-            className={`h-4 w-4 ${
-              isLiability ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
-            }`}
+            className={`h-4 w-4 ${isLiability ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+              }`}
           />
         </div>
         <div className="flex-1 min-w-0">
@@ -241,11 +239,10 @@ export default function Assets() {
           </p>
         </div>
         <span
-          className={`text-sm font-semibold tabular-nums flex-shrink-0 ${
-            isLiability ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
-          }`}
+          className={`text-sm font-semibold tabular-nums flex-shrink-0 ${isLiability ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+            }`}
         >
-          {isLiability ? '-' : ''}{formatConverted({ amount: asset.currentValue, currency: asset.currency })}
+          {isLiability ? '-' : ''}{formatMoney({ amount: String(asset.currentValue), currency: asset.currency })}
         </span>
         <div className="flex gap-1">
           <button
@@ -313,8 +310,8 @@ export default function Assets() {
             </span>
           </div>
           <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
-          {formatConverted({ amount: totalAssets.toString(), currency: displayCurrency })}
-        </p>
+            {formatConverted({ amount: totalAssets.toString(), currency: displayCurrency })}
+          </p>
         </div>
 
         {/* Total Liabilities */}
@@ -343,11 +340,10 @@ export default function Assets() {
             </span>
           </div>
           <p
-            className={`text-2xl font-bold tracking-tight tabular-nums ${
-              netWorth >= 0
+            className={`text-2xl font-bold tracking-tight tabular-nums ${netWorth >= 0
                 ? 'text-violet-600 dark:text-violet-400'
                 : 'text-red-500 dark:text-red-400'
-            }`}
+              }`}
           >
             {formatConverted({ amount: netWorth.toString(), currency: displayCurrency })}
           </p>
@@ -392,14 +388,12 @@ export default function Assets() {
       <label className="inline-flex items-center gap-2 cursor-pointer select-none">
         <div
           onClick={() => setShowLiabilities((v) => !v)}
-          className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${
-            showLiabilities ? 'bg-violet-500' : 'bg-zinc-200 dark:bg-zinc-700'
-          }`}
+          className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${showLiabilities ? 'bg-violet-500' : 'bg-zinc-200 dark:bg-zinc-700'
+            }`}
         >
           <div
-            className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-              showLiabilities ? 'translate-x-4' : 'translate-x-0'
-            }`}
+            className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${showLiabilities ? 'translate-x-4' : 'translate-x-0'
+              }`}
           />
         </div>
         <span className="text-sm text-zinc-700 dark:text-zinc-300">Show liabilities</span>
@@ -442,11 +436,10 @@ export default function Assets() {
                     key={category}
                     type="button"
                     onClick={() => toggleCategoryFilter(category)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                      active
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${active
                         ? 'bg-violet-600 border-violet-600 text-white'
                         : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
-                    }`}
+                      }`}
                   >
                     {getCategoryLabel(category)}
                   </button>
