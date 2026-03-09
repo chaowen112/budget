@@ -223,8 +223,8 @@ export default function Assets() {
       <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors duration-150 group">
         <div
           className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isLiability
-              ? 'bg-red-50 dark:bg-red-500/10'
-              : 'bg-emerald-50 dark:bg-emerald-500/10'
+            ? 'bg-red-50 dark:bg-red-500/10'
+            : 'bg-emerald-50 dark:bg-emerald-500/10'
             }`}
         >
           <Icon
@@ -341,8 +341,8 @@ export default function Assets() {
           </div>
           <p
             className={`text-2xl font-bold tracking-tight tabular-nums ${netWorth >= 0
-                ? 'text-violet-600 dark:text-violet-400'
-                : 'text-red-500 dark:text-red-400'
+              ? 'text-violet-600 dark:text-violet-400'
+              : 'text-red-500 dark:text-red-400'
               }`}
           >
             {formatConverted({ amount: netWorth.toString(), currency: displayCurrency })}
@@ -437,8 +437,8 @@ export default function Assets() {
                     type="button"
                     onClick={() => toggleCategoryFilter(category)}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${active
-                        ? 'bg-violet-600 border-violet-600 text-white'
-                        : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+                      ? 'bg-violet-600 border-violet-600 text-white'
+                      : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                       }`}
                   >
                     {getCategoryLabel(category)}
@@ -596,7 +596,7 @@ export default function Assets() {
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} />
                 <Tooltip
-                  formatter={(value: number | undefined) => [formatConverted({ amount: String(value ?? 0), currency: baseCurrency }), 'Value']}
+                  formatter={(value: number | undefined) => [formatMoney({ amount: String(value ?? 0), currency: historyAsset?.currency || baseCurrency }), 'Value']}
                   contentStyle={{
                     background: '#18181b',
                     border: '1px solid #3f3f46',
