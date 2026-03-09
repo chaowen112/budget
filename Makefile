@@ -15,15 +15,15 @@ build-go:
 
 # Build frontend UI
 ui:
-	cd web && npm run build
+	cd web && pnpm run build
 
 # Install frontend dependencies
 ui-deps:
-	cd web && npm install
+	cd web && pnpm install
 
 # Run frontend dev server
 ui-dev:
-	cd web && npm run dev
+	cd web && pnpm run dev
 
 # Run the application locally
 run:
