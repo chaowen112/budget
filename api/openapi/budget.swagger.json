@@ -1,8 +1,9 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "budget/v1/common.proto",
-    "version": "version not set"
+    "title": "Budget Tracking API",
+    "description": "API for managing personal finances, tracking assets, and budgets.",
+    "version": "1.0"
   },
   "tags": [
     {
@@ -4174,5 +4175,18 @@
       },
       "title": "WeeklyReport"
     }
-  }
+  },
+  "securityDefinitions": {
+    "ApiKeyAuth": {
+      "type": "apiKey",
+      "description": "Authentication token. Format: Bearer \u003capi_key\u003e or Bearer \u003cjwt_token\u003e",
+      "name": "Authorization",
+      "in": "header"
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ]
 }
