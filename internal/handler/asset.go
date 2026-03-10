@@ -89,6 +89,14 @@ func (h *AssetHandler) CreateAsset(ctx context.Context, req *pb.CreateAssetReque
 		}
 	}
 
+	cost := decimal.Zero
+	if req.Cost != "" {
+		cost, err = decimal.NewFromString(req.Cost)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid cost")
+		}
+	}
+
 	currency := strings.ToUpper(strings.TrimSpace(req.Currency))
 	if currency == "" {
 		user, err := h.userRepo.GetByID(ctx, userID)
@@ -109,6 +117,7 @@ func (h *AssetHandler) CreateAsset(ctx context.Context, req *pb.CreateAssetReque
 		Name:         req.Name,
 		Currency:     currency,
 		CurrentValue: currentValue,
+		Cost:         cost,
 		IsLiability:  req.IsLiability,
 		CustomFields: customFields,
 	}
@@ -262,6 +271,14 @@ func (h *AssetHandler) UpdateAsset(ctx context.Context, req *pb.UpdateAssetReque
 			return nil, status.Error(codes.Internal, "failed to adjust asset ledger balance")
 		}
 		asset.CurrentValue = currentValue
+	}
+
+	if req.Cost != "" {
+		cost, err := decimal.NewFromString(req.Cost)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid cost")
+		}
+		asset.Cost = cost
 	}
 
 	if req.CustomFields != nil {
@@ -429,6 +446,7 @@ func assetToProto(a *model.Asset) *pb.Asset {
 		Name:          a.Name,
 		Currency:      a.Currency,
 		CurrentValue:  a.CurrentValue.String(),
+		Cost:          a.Cost.String(),
 		IsLiability:   a.IsLiability,
 		CustomFields:  customFields,
 		CreatedAt:     timestamppb.New(a.CreatedAt),

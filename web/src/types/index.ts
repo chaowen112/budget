@@ -169,7 +169,7 @@ export interface NetWorthGoalProgress {
 }
 
 // Asset types
-export type AssetCategory = 
+export type AssetCategory =
   | 'ASSET_CATEGORY_CASH'
   | 'ASSET_CATEGORY_BANK'
   | 'ASSET_CATEGORY_INVESTMENT'
@@ -192,6 +192,7 @@ export interface Asset {
   name: string
   currency: string
   currentValue: string  // Decimal string
+  cost?: string
   isLiability: boolean
   customFields?: Record<string, unknown>
   createdAt: string

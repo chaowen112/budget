@@ -52,21 +52,21 @@ export const authApi = {
     const response = await api.post('/auth/login', data)
     return response.data
   },
-  
+
   register: async (data: RegisterRequest): Promise<AuthResponse> => {
     const response = await api.post('/auth/register', data)
     return response.data
   },
-  
+
   logout: async (refreshToken: string): Promise<void> => {
     await api.post('/auth/logout', { refreshToken })
   },
-  
+
   getProfile: async (): Promise<User> => {
     const response = await api.get('/users/me')
     return response.data.user
   },
-  
+
   updateProfile: async (data: { name?: string; baseCurrency?: string }): Promise<User> => {
     const response = await api.patch('/users/me', data)
     return response.data.user
@@ -80,17 +80,17 @@ export const categoryApi = {
     const response = await api.get('/categories', { params })
     return response.data.categories || []
   },
-  
+
   create: async (data: { name: string; type: CategoryType; icon?: string; color?: string }): Promise<Category> => {
     const response = await api.post('/categories', data)
     return response.data.category
   },
-  
+
   update: async (id: string, data: { name?: string; icon?: string; color?: string }): Promise<Category> => {
     const response = await api.patch(`/categories/${id}`, data)
     return response.data.category
   },
-  
+
   delete: async (id: string): Promise<void> => {
     await api.delete(`/categories/${id}`)
   },
@@ -132,12 +132,12 @@ export const transactionApi = {
       pagination: response.data.pagination,
     }
   },
-  
+
   get: async (id: string): Promise<Transaction> => {
     const response = await api.get(`/transactions/${id}`)
     return response.data.transaction
   },
-  
+
   create: async (data: CreateTransactionRequest): Promise<Transaction> => {
     const { sourceAssetId, ...payload } = data
     const response = await api.post('/transactions', payload, {
@@ -145,7 +145,7 @@ export const transactionApi = {
     })
     return response.data.transaction
   },
-  
+
   update: async (id: string, data: Partial<CreateTransactionRequest>): Promise<Transaction> => {
     const { sourceAssetId, ...payload } = data
     const response = await api.patch(`/transactions/${id}`, payload, {
@@ -153,7 +153,7 @@ export const transactionApi = {
     })
     return response.data.transaction
   },
-  
+
   delete: async (id: string): Promise<void> => {
     await api.delete(`/transactions/${id}`)
   },
@@ -170,12 +170,12 @@ export const budgetApi = {
     const response = await api.get('/budgets')
     return response.data.budgets || []
   },
-  
+
   get: async (id: string): Promise<Budget> => {
     const response = await api.get(`/budgets/${id}`)
     return response.data.budget
   },
-  
+
   create: async (data: {
     categoryId: string
     amount: Money
@@ -188,21 +188,21 @@ export const budgetApi = {
     })
     return response.data.budget
   },
-  
+
   update: async (id: string, data: { amount?: Money }): Promise<Budget> => {
     const response = await api.patch(`/budgets/${id}`, data)
     return response.data.budget
   },
-  
+
   delete: async (id: string): Promise<void> => {
     await api.delete(`/budgets/${id}`)
   },
-  
+
   getStatus: async (id: string): Promise<BudgetStatus> => {
     const response = await api.get(`/budgets/${id}/status`)
     return response.data
   },
-  
+
   getAllStatuses: async (): Promise<BudgetStatus[]> => {
     const response = await api.get('/budgets/status')
     return response.data.statuses || []
@@ -216,12 +216,12 @@ export const goalApi = {
     const response = await api.get('/goals', { params })
     return response.data.goals || []
   },
-  
+
   get: async (id: string): Promise<SavingGoal> => {
     const response = await api.get(`/goals/${id}`)
     return response.data.goal
   },
-  
+
   create: async (data: {
     name: string
     targetAmount: Money
@@ -239,7 +239,7 @@ export const goalApi = {
     const response = await api.post('/goals', payload)
     return response.data.goal
   },
-  
+
   update: async (id: string, data: {
     name?: string
     targetAmount?: Money
@@ -253,11 +253,11 @@ export const goalApi = {
     const response = await api.patch(`/goals/${id}`, payload)
     return response.data.goal
   },
-  
+
   delete: async (id: string): Promise<void> => {
     await api.delete(`/goals/${id}`)
   },
-  
+
   updateProgress: async (id: string, currentAmount: Money, source = 'manual'): Promise<SavingGoal> => {
     const response = await api.put(
       `/goals/${id}/progress`,
@@ -266,12 +266,12 @@ export const goalApi = {
     )
     return response.data.goal
   },
-  
+
   getProgress: async (id: string): Promise<GoalProgress> => {
     const response = await api.get(`/goals/${id}/progress`)
     return response.data
   },
-  
+
   getAllProgress: async (): Promise<GoalProgress[]> => {
     const response = await api.get('/goals/progress')
     return response.data.progress || []
@@ -281,13 +281,13 @@ export const goalApi = {
     const response = await api.get(`/goals/${id}/history`, { params: { max_points: 365 } })
     return response.data
   },
-  
+
   // Net Worth Goal API
   getNetWorthGoal: async (): Promise<NetWorthGoal | null> => {
     const response = await api.get('/net-worth-goal')
     return response.data.goal || null
   },
-  
+
   setNetWorthGoal: async (data: {
     name: string
     targetAmount: Money
@@ -296,11 +296,11 @@ export const goalApi = {
     const response = await api.put('/net-worth-goal', data)
     return response.data.goal
   },
-  
+
   deleteNetWorthGoal: async (): Promise<void> => {
     await api.delete('/net-worth-goal')
   },
-  
+
   getNetWorthGoalProgress: async (): Promise<NetWorthGoalProgress | null> => {
     const response = await api.get('/net-worth-goal/progress')
     return response.data.progress || null
@@ -313,28 +313,31 @@ export const assetApi = {
     category?: AssetCategory
     includeLiabilities?: boolean
   }): Promise<Asset[]> => {
-    const response = await api.get('/assets', { params: { 
-      category: params?.category,
-      include_liabilities: params?.includeLiabilities 
-    }})
+    const response = await api.get('/assets', {
+      params: {
+        category: params?.category,
+        include_liabilities: params?.includeLiabilities
+      }
+    })
     return response.data.assets || []
   },
-  
+
   get: async (id: string): Promise<Asset> => {
     const response = await api.get(`/assets/${id}`)
     return response.data.asset
   },
-  
+
   listAssetTypes: async (category?: AssetCategory): Promise<{ id: string; name: string; category: AssetCategory }[]> => {
     const response = await api.get('/asset-types', { params: category ? { category } : {} })
     return response.data.assetTypes || []
   },
-  
+
   create: async (data: {
     assetTypeId: string
     name: string
     currency: string
     currentValue: string  // Decimal string
+    cost?: string
     isLiability?: boolean
   }): Promise<Asset> => {
     const response = await api.post('/assets', {
@@ -342,21 +345,24 @@ export const assetApi = {
       name: data.name,
       currency: data.currency,
       current_value: data.currentValue,
+      cost: data.cost,
       is_liability: data.isLiability || false,
     })
     return response.data.asset
   },
-  
+
   update: async (id: string, data: {
     assetTypeId?: string
     name?: string
     currency?: string
     currentValue?: string
+    cost?: string
     notes?: string
   }): Promise<Asset> => {
     const payload: Record<string, unknown> = {}
     if (data.name) payload.name = data.name
     if (data.currentValue) payload.current_value = data.currentValue
+    if (data.cost !== undefined) payload.cost = data.cost
     if (data.notes) payload.notes = data.notes
     const headers: Record<string, string> = {}
     if (data.assetTypeId) headers['Grpc-Metadata-asset-type-id'] = data.assetTypeId
@@ -367,7 +373,7 @@ export const assetApi = {
     })
     return response.data.asset
   },
-  
+
   delete: async (id: string): Promise<void> => {
     await api.delete(`/assets/${id}`)
   },
@@ -394,12 +400,12 @@ export const reportApi = {
     const response = await api.get('/reports/monthly', { params: { month: monthStr } })
     return response.data.report
   },
-  
+
   getWeeklyReport: async (year: number, week: number): Promise<MonthlyReport> => {
     const response = await api.get('/reports/weekly', { params: { year, week } })
     return response.data.report
   },
-  
+
   getNetWorthReport: async (): Promise<NetWorthReport> => {
     const response = await api.get('/reports/net-worth')
     return response.data.report
@@ -426,7 +432,7 @@ export const reportApi = {
     })
     return response.data
   },
-  
+
   getBudgetTrackingReport: async (params?: {
     periodType?: PeriodType
     year?: number
@@ -442,7 +448,7 @@ export const reportApi = {
     })
     return response.data.report
   },
-  
+
   getGoalsReport: async (): Promise<SavingGoalReport[]> => {
     const response = await api.get('/reports/goals')
     return response.data.goals || []
@@ -542,12 +548,12 @@ export const currencyApi = {
     const response = await api.get('/currencies')
     return response.data.currencies || []
   },
-  
+
   getExchangeRate: async (from: string, to: string): Promise<ExchangeRate> => {
     const response = await api.get('/currencies/rate', { params: { fromCurrency: from, toCurrency: to } })
     return response.data.rate
   },
-  
+
   convert: async (from: string, to: string, amount: Money): Promise<Money> => {
     const response = await api.post('/currencies/convert', {
       fromCurrency: from,

@@ -69,6 +69,7 @@ export default function Dashboard() {
   const currentYear = currentDate.getFullYear()
 
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false)
+  const [assetCompositionMode, setAssetCompositionMode] = useState<'category' | 'type' | 'liquidity' | 'currency' | 'asset'>('asset')
 
   const { data: monthlyReport, isLoading: isLoadingReport } = useQuery({
     queryKey: ['monthlyReport', currentYear, currentMonth],
@@ -118,6 +119,20 @@ export default function Dashboard() {
     .reduce((sum, a) => sum + convertToDisplayAmount({ amount: a.currentValue, currency: a.currency }), 0)
   const computedNetWorthDisplay = totalAssetsDisplay - totalLiabilitiesDisplay
 
+  let totalInvestmentValue = 0
+  let totalInvestmentCost = 0
+    ; (assets || []).forEach(a => {
+      const cost = a.cost ? Number(a.cost) : 0
+      if (cost > 0 && !a.isLiability) {
+        const v = convertToDisplayAmount({ amount: a.currentValue, currency: a.currency })
+        const c = convertToDisplayAmount({ amount: a.cost || '0', currency: a.currency })
+        totalInvestmentValue += v
+        totalInvestmentCost += c
+      }
+    })
+  const totalInvestmentPL = totalInvestmentValue - totalInvestmentCost
+  const totalInvestmentPLPct = totalInvestmentCost > 0 ? (totalInvestmentPL / totalInvestmentCost) * 100 : 0
+
   const netWorthGoal = netWorthGoalProgress?.goal || null
   const currentNetWorth = assets && assets.length > 0
     ? computedNetWorthDisplay
@@ -141,16 +156,44 @@ export default function Dashboard() {
     color: CHART_COLORS[i % CHART_COLORS.length],
   }))
 
-  const assetBreakdownData = sortDonutItemsByAmountDesc((assets || [])
-    .filter((a) => !a.isLiability)
-    .map((a) => ({
-      name: a.name,
-      value: convertToDisplayAmount({ amount: a.currentValue, currency: a.currency }),
-    }))
-    .filter((item) => item.value > 0)).map((item, i) => ({
-      ...item,
-      color: CHART_COLORS[i % CHART_COLORS.length],
-    }))
+  const assetBreakdownData = (() => {
+    if (assetCompositionMode === 'liquidity') {
+      return [
+        { name: 'Assets', value: totalAssetsDisplay, color: CHART_COLORS[0] },
+        { name: 'Liabilities', value: totalLiabilitiesDisplay, color: CHART_COLORS[1] }
+      ].filter(item => item.value > 0)
+    }
+
+    const dataMap: Record<string, number> = {}
+      ; (assets || []).forEach(a => {
+        if (a.isLiability) return
+        const val = convertToDisplayAmount({ amount: a.currentValue, currency: a.currency })
+        if (val <= 0) return
+
+        let key = a.name
+        if (assetCompositionMode === 'category') {
+          const ASSET_CATEGORY_LABELS: Record<string, string> = {
+            ASSET_CATEGORY_CASH: 'Cash',
+            ASSET_CATEGORY_BANK: 'Bank Accounts',
+            ASSET_CATEGORY_INVESTMENT: 'Investments',
+            ASSET_CATEGORY_PROPERTY: 'Real Estate',
+            ASSET_CATEGORY_VEHICLE: 'Vehicles',
+            ASSET_CATEGORY_CRYPTO: 'Cryptocurrency',
+            ASSET_CATEGORY_OTHER: 'Other Assets',
+          }
+          key = ASSET_CATEGORY_LABELS[a.category] || 'Other'
+        } else if (assetCompositionMode === 'type') {
+          key = a.assetTypeName || 'Other'
+        } else if (assetCompositionMode === 'currency') {
+          key = a.currency
+        }
+
+        dataMap[key] = (dataMap[key] || 0) + val
+      })
+
+    return sortDonutItemsByAmountDesc(Object.entries(dataMap).map(([name, value]) => ({ name, value })))
+      .map((item, i) => ({ ...item, color: CHART_COLORS[i % CHART_COLORS.length] }))
+  })()
   const liabilityBreakdownData = sortDonutItemsByAmountDesc((assets || [])
     .filter((a) => a.isLiability)
     .map((a) => ({
@@ -199,9 +242,9 @@ export default function Dashboard() {
       ) : (
         <>
           {/* ── Bento Grid ────────────────────────────────── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
 
-            {/* Row 1: 4 metric cards */}
+            {/* Row 1: 5 metric cards */}
             <MetricCard
               label="Monthly Income"
               value={formatConverted(monthlyReport?.totalIncome)}
@@ -227,6 +270,14 @@ export default function Dashboard() {
               value={formatConverted({ amount: computedNetWorthDisplay.toString(), currency: displayCurrency })}
               icon={Wallet}
               accent="blue"
+            />
+            <MetricCard
+              label="Total Investment"
+              value={formatConverted({ amount: totalInvestmentValue.toString(), currency: displayCurrency })}
+              icon={TrendingUp}
+              accent={totalInvestmentPL >= 0 ? "emerald" : "red"}
+              subtext={`${totalInvestmentPL >= 0 ? '+' : ''}${totalInvestmentPLPct.toFixed(2)}% P/L`}
+              subtextPositive={totalInvestmentPL >= 0}
             />
           </div>
 
@@ -264,7 +315,7 @@ export default function Dashboard() {
                     <div className="grid grid-cols-3 gap-3">
                       {[
                         { label: 'Current', value: formatConverted({ amount: currentNetWorth.toString(), currency }) },
-                        { label: 'Target',  value: formatConverted(netWorthGoal.targetAmount) },
+                        { label: 'Target', value: formatConverted(netWorthGoal.targetAmount) },
                         { label: 'Remaining', value: formatConverted({ amount: amountRemaining.toString(), currency }) },
                       ].map((s) => (
                         <div key={s.label} className="bg-white/10 rounded-xl px-3 py-2.5">
@@ -357,9 +408,9 @@ export default function Dashboard() {
                           <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
                           <span className="text-zinc-600 dark:text-zinc-400 truncate max-w-[100px]">{item.name}</span>
                         </div>
-                         <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                           {formatConverted({ amount: item.value.toString(), currency })}
-                         </span>
+                        <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                          {formatConverted({ amount: item.value.toString(), currency })}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -379,7 +430,17 @@ export default function Dashboard() {
                 <p className="text-xs font-medium tracking-wide text-zinc-400 dark:text-zinc-500 uppercase">
                   Asset Composition
                 </p>
-                <Wallet className="h-4 w-4 text-zinc-300 dark:text-zinc-600" />
+                <select
+                  className="text-xs bg-transparent border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-zinc-600 dark:text-zinc-300 focus:ring-violet-500 focus:border-violet-500"
+                  value={assetCompositionMode}
+                  onChange={(e) => setAssetCompositionMode(e.target.value as any)}
+                >
+                  <option value="asset">Individual Assets</option>
+                  <option value="category">By Category</option>
+                  <option value="type">By Type</option>
+                  <option value="liquidity">By Liquidity</option>
+                  <option value="currency">By Currency</option>
+                </select>
               </div>
               {assetBreakdownData.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
@@ -505,11 +566,11 @@ export default function Dashboard() {
                           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                             {status.budget.categoryName}
                           </span>
-                           <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                             {formatConverted(status.spent)}{' '}
-                             <span className="text-zinc-400 dark:text-zinc-600">/</span>{' '}
-                             {formatConverted(status.budget.amount)}
-                           </span>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {formatConverted(status.spent)}{' '}
+                            <span className="text-zinc-400 dark:text-zinc-600">/</span>{' '}
+                            {formatConverted(status.budget.amount)}
+                          </span>
                         </div>
                         <ProgressBar value={pct} variant={variant} />
                       </div>
@@ -626,15 +687,15 @@ export default function Dashboard() {
             <div className="flex justify-between">
               <span className="text-zinc-500 dark:text-zinc-400">Current Net Worth</span>
               <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {formatConverted({ amount: currentNetWorth.toString(), currency })}
+                {formatConverted({ amount: currentNetWorth.toString(), currency })}
+              </span>
+            </div>
+            {monthlySavings > 0 && (
+              <div className="flex justify-between">
+                <span className="text-zinc-500 dark:text-zinc-400">Monthly Savings</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {formatConverted({ amount: monthlySavings.toString(), currency })}
                 </span>
-              </div>
-              {monthlySavings > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-zinc-500 dark:text-zinc-400">Monthly Savings</span>
-                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                    {formatConverted({ amount: monthlySavings.toString(), currency })}
-                  </span>
               </div>
             )}
           </div>

@@ -106,15 +106,17 @@ export default function Assets() {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
     const currentValue = formData.get('currentValue') as string
+    const cost = formData.get('cost') as string | undefined
 
     if (editingAsset) {
       updateMutation.mutate({
         id: editingAsset.id,
         data: {
-          assetTypeId: assetTypeInput || editingAsset.assetTypeId,
+          assetTypeId: formData.get('assetTypeId') as string,
           name: formData.get('name') as string,
           currency: (formData.get('currency') as string) || assetCurrencyInput,
           currentValue,
+          cost: cost || undefined,
         },
       })
     } else {
@@ -123,6 +125,7 @@ export default function Assets() {
         name: formData.get('name') as string,
         currency: (formData.get('currency') as string) || user?.baseCurrency || 'SGD',
         currentValue,
+        cost: cost || undefined,
         isLiability: formData.get('isLiability') === 'true',
       })
     }
@@ -219,6 +222,11 @@ export default function Assets() {
 
   const AssetRow = ({ asset, isLiability }: { asset: Asset; isLiability: boolean }) => {
     const Icon = getCategoryIcon(asset.category)
+    const costValue = asset.cost ? Number(asset.cost) : 0
+    const currentValue = Number(asset.currentValue)
+    const diff = currentValue - costValue
+    const diffPct = costValue > 0 ? (diff / costValue) * 100 : 0
+
     return (
       <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors duration-150 group">
         <div
@@ -233,18 +241,32 @@ export default function Assets() {
           />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{asset.name}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{asset.name}</p>
+            {costValue > 0 && !isLiability && (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${diff >= 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
+                {diff >= 0 ? '+' : ''}{diffPct.toFixed(2)}%
+              </span>
+            )}
+          </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             {asset.assetTypeName || getCategoryLabel(asset.category)}
           </p>
         </div>
-        <span
-          className={`text-sm font-semibold tabular-nums flex-shrink-0 ${isLiability ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
-            }`}
-        >
-          {isLiability ? '-' : ''}{formatMoney({ amount: String(asset.currentValue), currency: asset.currency })}
-        </span>
-        <div className="flex gap-1">
+        <div className="flex flex-col items-end">
+          <span
+            className={`text-sm font-semibold tabular-nums flex-shrink-0 ${isLiability ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+              }`}
+          >
+            {isLiability ? '-' : ''}{formatMoney({ amount: String(asset.currentValue), currency: asset.currency })}
+          </span>
+          {costValue > 0 && !isLiability && (
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium mt-0.5">
+              Cost: {formatMoney({ amount: String(asset.cost), currency: asset.currency })}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-1 ml-2">
           <button
             onClick={() => setHistoryAsset(asset)}
             className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors duration-150"
@@ -560,6 +582,17 @@ export default function Assets() {
               min="0"
               required
               defaultValue={editingAsset?.currentValue || ''}
+              placeholder="0.00"
+            />
+          </FormField>
+
+          <FormField label="Cost (Optional)">
+            <Input
+              type="number"
+              name="cost"
+              step="0.01"
+              min="0"
+              defaultValue={editingAsset?.cost || ''}
               placeholder="0.00"
             />
           </FormField>

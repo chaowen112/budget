@@ -2152,6 +2152,9 @@
         },
         "customFields": {
           "type": "object"
+        },
+        "cost": {
+          "type": "string"
         }
       },
       "title": "UpdateAssetRequest"
@@ -2318,6 +2321,9 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "cost": {
+          "type": "string"
         }
       },
       "title": "Asset represents a user's asset or liability"
@@ -2708,6 +2714,9 @@
         },
         "customFields": {
           "type": "object"
+        },
+        "cost": {
+          "type": "string"
         }
       },
       "title": "CreateAssetRequest"

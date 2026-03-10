@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 
 	"github.com/chaowen/budget/internal/model"
@@ -148,7 +148,7 @@ func (r *AssetRepository) ListAssetTypes(ctx context.Context, category *model.As
 // List retrieves all assets for a user
 func (r *AssetRepository) List(ctx context.Context, userID uuid.UUID, category *model.AssetCategory, includeLiabilities bool) ([]model.Asset, error) {
 	query := `
-		SELECT a.id, a.user_id, a.asset_type_id, t.name, t.category, a.name, a.currency,
+		SELECT a.id, a.user_id, a.asset_type_id, t.name, t.category, a.name, a.currency, a.cost,
 		       COALESCE(
 				CASE
 					WHEN acc.id IS NULL THEN a.current_value
@@ -199,7 +199,7 @@ func (r *AssetRepository) List(ctx context.Context, userID uuid.UUID, category *
 		var a model.Asset
 		err := rows.Scan(
 			&a.ID, &a.UserID, &a.AssetTypeID, &a.AssetTypeName, &a.Category, &a.Name,
-			&a.Currency, &a.CurrentValue, &a.IsLiability, &a.CustomFields, &a.CreatedAt, &a.UpdatedAt,
+			&a.Currency, &a.Cost, &a.CurrentValue, &a.IsLiability, &a.CustomFields, &a.CreatedAt, &a.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -213,7 +213,7 @@ func (r *AssetRepository) List(ctx context.Context, userID uuid.UUID, category *
 // GetByID retrieves an asset by ID
 func (r *AssetRepository) GetByID(ctx context.Context, id, userID uuid.UUID) (*model.Asset, error) {
 	query := `
-		SELECT a.id, a.user_id, a.asset_type_id, t.name, t.category, a.name, a.currency,
+		SELECT a.id, a.user_id, a.asset_type_id, t.name, t.category, a.name, a.currency, a.cost,
 		       COALESCE(
 				CASE
 					WHEN acc.id IS NULL THEN a.current_value
@@ -242,7 +242,7 @@ func (r *AssetRepository) GetByID(ctx context.Context, id, userID uuid.UUID) (*m
 	var a model.Asset
 	err := r.db.Pool.QueryRow(ctx, query, id, userID).Scan(
 		&a.ID, &a.UserID, &a.AssetTypeID, &a.AssetTypeName, &a.Category, &a.Name,
-		&a.Currency, &a.CurrentValue, &a.IsLiability, &a.CustomFields, &a.CreatedAt, &a.UpdatedAt,
+		&a.Currency, &a.Cost, &a.CurrentValue, &a.IsLiability, &a.CustomFields, &a.CreatedAt, &a.UpdatedAt,
 	)
 
 	if err != nil {
@@ -262,13 +262,13 @@ func (r *AssetRepository) Create(ctx context.Context, a *model.Asset) error {
 	}
 
 	query := `
-		INSERT INTO assets (user_id, asset_type_id, name, currency, current_value, is_liability, custom_fields)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO assets (user_id, asset_type_id, name, currency, cost, current_value, is_liability, custom_fields)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at, updated_at
 	`
 
 	return r.db.Pool.QueryRow(ctx, query,
-		a.UserID, a.AssetTypeID, a.Name, a.Currency, a.CurrentValue, a.IsLiability, a.CustomFields,
+		a.UserID, a.AssetTypeID, a.Name, a.Currency, a.Cost, a.CurrentValue, a.IsLiability, a.CustomFields,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }
 
@@ -276,13 +276,13 @@ func (r *AssetRepository) Create(ctx context.Context, a *model.Asset) error {
 func (r *AssetRepository) Update(ctx context.Context, a *model.Asset) error {
 	query := `
 		UPDATE assets
-		SET asset_type_id = $3, name = $4, currency = $5, current_value = $6, custom_fields = $7, updated_at = NOW()
+		SET asset_type_id = $3, name = $4, currency = $5, cost = $6, current_value = $7, custom_fields = $8, updated_at = NOW()
 		WHERE id = $1 AND user_id = $2
 		RETURNING updated_at
 	`
 
 	err := r.db.Pool.QueryRow(ctx, query,
-		a.ID, a.UserID, a.AssetTypeID, a.Name, a.Currency, a.CurrentValue, a.CustomFields,
+		a.ID, a.UserID, a.AssetTypeID, a.Name, a.Currency, a.Cost, a.CurrentValue, a.CustomFields,
 	).Scan(&a.UpdatedAt)
 
 	if err != nil {
