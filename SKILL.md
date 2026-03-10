@@ -1,56 +1,54 @@
 ---
-name: Openclaw Expense Logging
-description: How Openclaw should handle expense reporting via text inputs and map them directly into the budget tracking API.
+name: Openclaw Budget Management
+description: How Openclaw should handle expense reporting, inquiring about budget statuses, and listing categories/assets via text inputs.
 ---
 
-# Openclaw Expense Logging Skill
+# Openclaw Budget Management Skill
 
-**Description**: Logs a new expense transaction into the budget tracking system using the provided Budget Tracking API.
+**Description**: Interacts with the user's budget tracking system. It can log new expense transactions, report on remaining budgets, list available categories, and check asset balances.
 
-## 1. When to trigger
-Trigger this skill when the user states they spent money on something.
-Examples: 
-- "spent 120 lunch"
-- "coffee 85"
-- "paid 50 for a taxi"
+## 1. Allowed Endpoints
+Openclaw is restricted to the following endpoints to keep operations lean and focused:
+- `POST /api/v1/transactions`: Log a new transaction.
+- `GET /api/v1/categories?type=TRANSACTION_TYPE_EXPENSE`: Fetch user categories.
+- `GET /api/v1/assets`: Retrieve a list of user assets and balances.
+- `GET /api/v1/budgets/status?periodType=PERIOD_TYPE_MONTHLY`: Retrieve the status of monthly budgets.
+- `GET /api/v1/reports/monthly`: Retrieve a monthly summary containing total spent, income, and budgets.
 
-## 2. Field Extraction Rules
-- **Amount** (Required): Extract the numerical amount directly from the text.
+## 2. Capabilities & Triggers
+
+### A. Logging Expenses
+**Trigger**: User states they spent money (e.g., "spent 120 lunch", "coffee 85").
+- **Amount** (Required): Extract the numerical amount.
 - **Type**: Default to `TRANSACTION_TYPE_EXPENSE`.
 - **Date**: Default to current date/time in the **Asia/Taipei** timezone, formatted as ISO 8601 (e.g., `2023-10-01T12:00:00Z`).
-- **Currency**: Fall back to the user's base currency from their profile if not specified.
+- **Currency**: Fall back to the user's base currency if not specified.
 - **Category Resolution**:
-   1. Call `GET /api/v1/categories?type=TRANSACTION_TYPE_EXPENSE` to get the user's active categories.
-   2. Map the text keyword (e.g., "lunch" -> "Food & Dining", "taxi" -> "Transport") to the closest existing category ID.
-   3. If ambiguous or no close match is found, **ask 1 follow-up question only**. Do not iterate endlessly.
+   1. Call `GET /api/v1/categories?type=TRANSACTION_TYPE_EXPENSE` to get active categories.
+   2. Map the text keyword (e.g., "lunch" -> "Food & Dining") to the closest existing category ID.
+   3. If ambiguous, ask 1 follow-up question only.
+- **Action**: Call `POST /api/v1/transactions` with the JSON payload.
+- **Response**: `"Logged [CURRENCY] [AMOUNT] to [Category] ✅"`. Optionally check `GET /api/v1/budgets/status` to append `"Budget remaining: [remaining amount]"`.
 
-## 3. Write Action
-Call `POST /api/v1/transactions` with the following JSON structure:
+### B. Inquiring About Budgets
+**Trigger**: User asks about their budget (e.g., "how much budget left for food?", "are we over budget?", "budget status").
+- **Action**: Call `GET /api/v1/budgets/status?periodType=PERIOD_TYPE_MONTHLY`. If they ask for a general summary, call `GET /api/v1/reports/monthly`.
+- **Response**:
+  - Summarize the specific category requested: `"You have [remaining amount] left in your [Category] budget for this month."`
+  - Proactive Warning: If the budget's `percentageUsed` is > 80%, warn the user playfully (e.g., `"Watch out, you've used 85% of your Dining budget!"`).
+  - If they are over budget, notify them clearly: `"You are currently over budget in [Category] by [amount]."`.
 
-```json
-{
-  "categoryId": "<matched_category_id>",
-  "sourceAssetId": "<optional_source_asset_id_if_known>", 
-  "amount": {
-    "amount": "120.00",
-    "currency": "SGD"
-  },
-  "transactionDate": "2023-10-01T12:00:00Z",
-  "description": "Lunch"
-}
-```
+### C. Listing Categories & Assets
+**Trigger**: User asks what categories or payment methods they have (e.g., "what categories do I have?", "what are my accounts?").
+- **Action**: Call `GET /api/v1/categories` or `GET /api/v1/assets`.
+- **Response**: Provide a clean, bulleted short-list of their requested data.
 
-## 4. Response Format
-After successfully logging the transaction to the API, format the conversation response:
-1. `"Logged [CURRENCY] [AMOUNT] to [Category] ✅"`
-2. *(Optional)* Call `GET /api/v1/budgets/status?periodType=PERIOD_TYPE_MONTHLY` to check the budget for that category. If a budget exists, append: `"Budget remaining: [remaining amount]"`.
-
-## 5. Failure Behavior
-- **401/403 Unauthorized**: Respond with `"API key invalid/expired, reconnect"`
+## 3. Failure Behavior
+- **401/403 Unauthorized**: Respond with `"API key invalid/expired, please check your connection settings."`
 - **429 Too Many Requests**: Retry the request with exponential backoff silently.
 - **Validation Error (400)**: Ask the user for the specific missing or invalid field.
 
-## 6. Authentication & Secrets
+## 4. Authentication & Secrets
 Authentication parameters are strictly provided to the runtime environment and must **never** be output to chat or stored in conversation history.
 Configure the following secrets in the Openclaw Secret Store or environment runtime:
 
@@ -59,4 +57,5 @@ BUDGET_BASE_URL=https://budget.tet.sg
 BUDGET_API_KEY=...
 \`\`\`
 
-When calling the API, affix the token to the header using the format `Authorization: Bearer <BUDGET_API_KEY>`.
+When calling the API, affix the token to the header using the format:
+`Authorization: Bearer <BUDGET_API_KEY>`
