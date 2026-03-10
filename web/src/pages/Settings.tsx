@@ -17,10 +17,17 @@ export default function Settings() {
   const [newCategoryType, setNewCategoryType] = useState<'TRANSACTION_TYPE_EXPENSE' | 'TRANSACTION_TYPE_INCOME'>('TRANSACTION_TYPE_EXPENSE')
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [newApiKeyName, setNewApiKeyName] = useState('')
+  const [newApiKeyValue, setNewApiKeyValue] = useState<string | null>(null)
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => categoryApi.list(),
+  })
+
+  const { data: apiKeys = [], refetch: refetchApiKeys } = useQuery({
+    queryKey: ['apiKeys'],
+    queryFn: authApi.listApiKeys,
   })
 
   const updateProfileMutation = useMutation({
@@ -83,6 +90,37 @@ export default function Settings() {
     },
   })
 
+  const createApiKeyMutation = useMutation({
+    mutationFn: (name: string) => authApi.createApiKey(name),
+    onSuccess: (data) => {
+      refetchApiKeys()
+      setNewApiKeyName('')
+      setNewApiKeyValue(data.keyValue!)
+      setSuccessMessage('API Key created successfully')
+      setTimeout(() => setSuccessMessage(''), 3000)
+    },
+    onError: (error: any) => {
+      setErrorMessage(error.response?.data?.message || 'Failed to create API key')
+      setTimeout(() => setErrorMessage(''), 3000)
+    },
+  })
+
+  const deleteApiKeyMutation = useMutation({
+    mutationFn: authApi.deleteApiKey,
+    onSuccess: () => {
+      if (apiKeys.length === 1) {
+        setNewApiKeyValue(null) // clear if we deleted the only key
+      }
+      refetchApiKeys()
+      setSuccessMessage('API Key deleted')
+      setTimeout(() => setSuccessMessage(''), 3000)
+    },
+    onError: () => {
+      setErrorMessage('Failed to delete API key')
+      setTimeout(() => setErrorMessage(''), 3000)
+    },
+  })
+
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     updateProfileMutation.mutate({ name, baseCurrency })
@@ -107,6 +145,13 @@ export default function Settings() {
     const trimmed = editingCategoryName.trim()
     if (!trimmed) return
     updateCategoryMutation.mutate({ id, name: trimmed })
+  }
+
+  const handleCreateApiKey = (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = newApiKeyName.trim()
+    if (!trimmed) return
+    createApiKeyMutation.mutate(trimmed)
   }
 
   const sectionClass =
@@ -319,6 +364,94 @@ export default function Settings() {
             {' '}and
             <Link to="/budgets" className="text-violet-600 dark:text-violet-400 hover:underline"> budgets</Link>.
           </p>
+        </div>
+      </div>
+
+      {/* API Keys */}
+      <div className={sectionClass}>
+        <div className={sectionHeaderClass}>
+          <div className="h-7 w-7 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center">
+            <Key className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">API Keys</h2>
+        </div>
+        <div className="p-5 space-y-5">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Manage API keys to access your data programmatically. You can have up to 3 active keys.
+          </p>
+
+          {newApiKeyValue && (
+            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 space-y-2">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                Please copy your API key now. It will not be shown again!
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-3 py-2 text-sm bg-white dark:bg-black/20 rounded-lg border border-amber-200 dark:border-amber-700/50 break-all font-mono">
+                  {newApiKeyValue}
+                </code>
+                <Button size="sm" onClick={() => {
+                  navigator.clipboard.writeText(newApiKeyValue)
+                  setSuccessMessage('Copied to clipboard!')
+                  setTimeout(() => setSuccessMessage(''), 2000)
+                }}>Copy</Button>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleCreateApiKey} className="flex gap-2 items-start">
+            <div className="flex-1">
+              <Input
+                value={newApiKeyName}
+                onChange={(e) => setNewApiKeyName(e.target.value)}
+                placeholder="New key name (e.g. Mobile App)"
+                disabled={apiKeys.length >= 3 || createApiKeyMutation.isPending}
+              />
+            </div>
+            <Button
+              type="submit"
+              icon={<Plus className="h-4 w-4" />}
+              loading={createApiKeyMutation.isPending}
+              disabled={apiKeys.length >= 3 || !newApiKeyName.trim()}
+            >
+              Generate
+            </Button>
+          </form>
+
+          {apiKeys.length > 0 ? (
+            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800 overflow-hidden">
+              {apiKeys.map((key) => (
+                <div key={key.id} className="p-4 flex items-center justify-between gap-4 bg-white dark:bg-zinc-900">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{key.name}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      <span>Created: {new Date(key.createdAt).toLocaleDateString()}</span>
+                      {key.lastUsedAt && (
+                        <>
+                          <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700"></span>
+                          <span>Last used: {new Date(key.lastUsedAt).toLocaleDateString()}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Delete API Key "${key.name}"? Applications using this key will lose access immediately.`)) {
+                        deleteApiKeyMutation.mutate(key.id)
+                      }
+                    }}
+                    className="h-8 w-8 flex-shrink-0 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-4">
+              You haven't generated any API keys yet.
+            </div>
+          )}
         </div>
       </div>
 

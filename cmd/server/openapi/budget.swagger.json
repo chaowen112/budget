@@ -1,8 +1,9 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "budget/v1/common.proto",
-    "version": "version not set"
+    "title": "Budget Tracking API",
+    "description": "API for managing personal finances, tracking assets, and budgets.",
+    "version": "1.0"
   },
   "tags": [
     {
@@ -2093,6 +2094,89 @@
         ]
       }
     },
+    "/api/v1/users/me/api-keys": {
+      "get": {
+        "operationId": "UserService_ListApiKeys",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListApiKeysResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "UserService"
+        ]
+      },
+      "post": {
+        "summary": "API Key management",
+        "operationId": "UserService_CreateApiKey",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateApiKeyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateApiKeyRequest"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/users/me/api-keys/{id}": {
+      "delete": {
+        "operationId": "UserService_DeleteApiKey",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteApiKeyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
     "/api/v1/users/me/password": {
       "post": {
         "summary": "Change password",
@@ -2152,6 +2236,9 @@
         },
         "customFields": {
           "type": "object"
+        },
+        "cost": {
+          "type": "string"
         }
       },
       "title": "UpdateAssetRequest"
@@ -2279,6 +2366,30 @@
         }
       }
     },
+    "v1ApiKey": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "keyValue": {
+          "type": "string",
+          "title": "Only populated on creation"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastUsedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "title": "ApiKey definitions"
+    },
     "v1Asset": {
       "type": "object",
       "properties": {
@@ -2318,6 +2429,9 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "cost": {
+          "type": "string"
         }
       },
       "title": "Asset represents a user's asset or liability"
@@ -2688,6 +2802,22 @@
         }
       }
     },
+    "v1CreateApiKeyRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "v1CreateApiKeyResponse": {
+      "type": "object",
+      "properties": {
+        "apiKey": {
+          "$ref": "#/definitions/v1ApiKey"
+        }
+      }
+    },
     "v1CreateAssetRequest": {
       "type": "object",
       "properties": {
@@ -2708,6 +2838,9 @@
         },
         "customFields": {
           "type": "object"
+        },
+        "cost": {
+          "type": "string"
         }
       },
       "title": "CreateAssetRequest"
@@ -2871,6 +3004,9 @@
         }
       },
       "title": "Date range for filtering"
+    },
+    "v1DeleteApiKeyResponse": {
+      "type": "object"
     },
     "v1DeleteAssetResponse": {
       "type": "object"
@@ -3190,6 +3326,18 @@
         }
       },
       "title": "GoalProgress shows progress toward a saving goal"
+    },
+    "v1ListApiKeysResponse": {
+      "type": "object",
+      "properties": {
+        "apiKeys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ApiKey"
+          }
+        }
+      }
     },
     "v1ListAssetTypesResponse": {
       "type": "object",
@@ -4027,5 +4175,18 @@
       },
       "title": "WeeklyReport"
     }
-  }
+  },
+  "securityDefinitions": {
+    "ApiKeyAuth": {
+      "type": "apiKey",
+      "description": "Authentication token. Format: Bearer \u003capi_key\u003e or Bearer \u003cjwt_token\u003e",
+      "name": "Authorization",
+      "in": "header"
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ]
 }

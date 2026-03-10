@@ -7,6 +7,14 @@ export interface User {
   createdAt: string
 }
 
+export interface ApiKey {
+  id: string
+  name: string
+  keyValue?: string
+  createdAt: string
+  lastUsedAt?: string
+}
+
 // Auth types
 export interface LoginRequest {
   email: string
@@ -169,7 +177,7 @@ export interface NetWorthGoalProgress {
 }
 
 // Asset types
-export type AssetCategory = 
+export type AssetCategory =
   | 'ASSET_CATEGORY_CASH'
   | 'ASSET_CATEGORY_BANK'
   | 'ASSET_CATEGORY_INVESTMENT'
@@ -192,6 +200,7 @@ export interface Asset {
   name: string
   currency: string
   currentValue: string  // Decimal string
+  cost?: string
   isLiability: boolean
   customFields?: Record<string, unknown>
   createdAt: string

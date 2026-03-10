@@ -41,6 +41,7 @@ message Asset {
   google.protobuf.Struct custom_fields = 9;  // Flexible custom data
   google.protobuf.Timestamp created_at = 10;
   google.protobuf.Timestamp updated_at = 11;
+  string cost = 12;
 }
 
 // AssetSnapshot for historical tracking
@@ -68,6 +69,7 @@ message CreateAssetRequest {
   string current_value = 4;
   bool is_liability = 5;
   google.protobuf.Struct custom_fields = 6;
+  string cost = 7;
 }
 
 message CreateAssetResponse {
@@ -104,6 +106,7 @@ message UpdateAssetRequest {
   string name = 2;
   string current_value = 3;
   google.protobuf.Struct custom_fields = 4;
+  string cost = 5;
 }
 
 message UpdateAssetResponse {

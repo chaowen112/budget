@@ -164,6 +164,7 @@ type Asset struct {
 	CustomFields  *structpb.Struct       `protobuf:"bytes,9,opt,name=custom_fields,json=customFields,proto3" json:"custom_fields,omitempty"` // Flexible custom data
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Cost          string                 `protobuf:"bytes,12,opt,name=cost,proto3" json:"cost,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -273,6 +274,13 @@ func (x *Asset) GetUpdatedAt() *timestamppb.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *Asset) GetCost() string {
+	if x != nil {
+		return x.Cost
+	}
+	return ""
 }
 
 // AssetSnapshot for historical tracking
@@ -442,6 +450,7 @@ type CreateAssetRequest struct {
 	CurrentValue  string                 `protobuf:"bytes,4,opt,name=current_value,json=currentValue,proto3" json:"current_value,omitempty"`
 	IsLiability   bool                   `protobuf:"varint,5,opt,name=is_liability,json=isLiability,proto3" json:"is_liability,omitempty"`
 	CustomFields  *structpb.Struct       `protobuf:"bytes,6,opt,name=custom_fields,json=customFields,proto3" json:"custom_fields,omitempty"`
+	Cost          string                 `protobuf:"bytes,7,opt,name=cost,proto3" json:"cost,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -516,6 +525,13 @@ func (x *CreateAssetRequest) GetCustomFields() *structpb.Struct {
 		return x.CustomFields
 	}
 	return nil
+}
+
+func (x *CreateAssetRequest) GetCost() string {
+	if x != nil {
+		return x.Cost
+	}
+	return ""
 }
 
 type CreateAssetResponse struct {
@@ -795,6 +811,7 @@ type UpdateAssetRequest struct {
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	CurrentValue  string                 `protobuf:"bytes,3,opt,name=current_value,json=currentValue,proto3" json:"current_value,omitempty"`
 	CustomFields  *structpb.Struct       `protobuf:"bytes,4,opt,name=custom_fields,json=customFields,proto3" json:"custom_fields,omitempty"`
+	Cost          string                 `protobuf:"bytes,5,opt,name=cost,proto3" json:"cost,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -855,6 +872,13 @@ func (x *UpdateAssetRequest) GetCustomFields() *structpb.Struct {
 		return x.CustomFields
 	}
 	return nil
+}
+
+func (x *UpdateAssetRequest) GetCost() string {
+	if x != nil {
+		return x.Cost
+	}
+	return ""
 }
 
 type UpdateAssetResponse struct {
@@ -1192,7 +1216,7 @@ const file_budget_v1_asset_proto_rawDesc = "" +
 	"\tAssetType\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x124\n" +
-	"\bcategory\x18\x03 \x01(\x0e2\x18.budget.v1.AssetCategoryR\bcategory\"\xc5\x03\n" +
+	"\bcategory\x18\x03 \x01(\x0e2\x18.budget.v1.AssetCategoryR\bcategory\"\xd9\x03\n" +
 	"\x05Asset\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\"\n" +
 	"\rasset_type_id\x18\x02 \x01(\tR\vassetTypeId\x12&\n" +
@@ -1207,7 +1231,8 @@ const file_budget_v1_asset_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x8d\x01\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x12\n" +
+	"\x04cost\x18\f \x01(\tR\x04cost\"\x8d\x01\n" +
 	"\rAssetSnapshot\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\basset_id\x18\x02 \x01(\tR\aassetId\x12\x14\n" +
@@ -1218,14 +1243,15 @@ const file_budget_v1_asset_proto_rawDesc = "" +
 	"\bcategory\x18\x01 \x01(\x0e2\x18.budget.v1.AssetCategoryR\bcategory\"O\n" +
 	"\x16ListAssetTypesResponse\x125\n" +
 	"\vasset_types\x18\x01 \x03(\v2\x14.budget.v1.AssetTypeR\n" +
-	"assetTypes\"\xee\x01\n" +
+	"assetTypes\"\x82\x02\n" +
 	"\x12CreateAssetRequest\x12\"\n" +
 	"\rasset_type_id\x18\x01 \x01(\tR\vassetTypeId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
 	"\bcurrency\x18\x03 \x01(\tR\bcurrency\x12#\n" +
 	"\rcurrent_value\x18\x04 \x01(\tR\fcurrentValue\x12!\n" +
 	"\fis_liability\x18\x05 \x01(\bR\visLiability\x12<\n" +
-	"\rcustom_fields\x18\x06 \x01(\v2\x17.google.protobuf.StructR\fcustomFields\"=\n" +
+	"\rcustom_fields\x18\x06 \x01(\v2\x17.google.protobuf.StructR\fcustomFields\x12\x12\n" +
+	"\x04cost\x18\a \x01(\tR\x04cost\"=\n" +
 	"\x13CreateAssetResponse\x12&\n" +
 	"\x05asset\x18\x01 \x01(\v2\x10.budget.v1.AssetR\x05asset\"!\n" +
 	"\x0fGetAssetRequest\x12\x0e\n" +
@@ -1241,12 +1267,13 @@ const file_budget_v1_asset_proto_rawDesc = "" +
 	"\x12total_assets_value\x18\x02 \x01(\tR\x10totalAssetsValue\x126\n" +
 	"\x17total_liabilities_value\x18\x03 \x01(\tR\x15totalLiabilitiesValue\x12\x1b\n" +
 	"\tnet_worth\x18\x04 \x01(\tR\bnetWorth\x12#\n" +
-	"\rbase_currency\x18\x05 \x01(\tR\fbaseCurrency\"\x9b\x01\n" +
+	"\rbase_currency\x18\x05 \x01(\tR\fbaseCurrency\"\xaf\x01\n" +
 	"\x12UpdateAssetRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12#\n" +
 	"\rcurrent_value\x18\x03 \x01(\tR\fcurrentValue\x12<\n" +
-	"\rcustom_fields\x18\x04 \x01(\v2\x17.google.protobuf.StructR\fcustomFields\"=\n" +
+	"\rcustom_fields\x18\x04 \x01(\v2\x17.google.protobuf.StructR\fcustomFields\x12\x12\n" +
+	"\x04cost\x18\x05 \x01(\tR\x04cost\"=\n" +
 	"\x13UpdateAssetResponse\x12&\n" +
 	"\x05asset\x18\x01 \x01(\v2\x10.budget.v1.AssetR\x05asset\"$\n" +
 	"\x12DeleteAssetRequest\x12\x0e\n" +

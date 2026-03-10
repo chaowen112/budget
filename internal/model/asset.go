@@ -40,6 +40,7 @@ type Asset struct {
 	Currency      string          `json:"currency"`
 	CurrentValue  decimal.Decimal `json:"current_value"`
 	IsLiability   bool            `json:"is_liability"`
+	Cost          decimal.Decimal `json:"cost"`
 	CustomFields  json.RawMessage `json:"custom_fields"`
 	CreatedAt     time.Time       `json:"created_at"`
 	UpdatedAt     time.Time       `json:"updated_at"`

@@ -84,6 +84,33 @@ message LogoutRequest {
 
 message LogoutResponse {}
 
+// ApiKey definitions
+message ApiKey {
+  string id = 1;
+  string name = 2;
+  string key_value = 3;  // Only populated on creation
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp last_used_at = 5;
+}
+
+message CreateApiKeyRequest {
+  string name = 1;
+}
+
+message CreateApiKeyResponse {
+  ApiKey api_key = 1;
+}
+
+message ListApiKeysResponse {
+  repeated ApiKey api_keys = 1;
+}
+
+message DeleteApiKeyRequest {
+  string id = 1;
+}
+
+message DeleteApiKeyResponse {}
+
 // UserService handles user authentication and profile management
 service UserService {
   // Register a new user
@@ -138,6 +165,26 @@ service UserService {
     option (google.api.http) = {
       post: "/api/v1/auth/logout"
       body: "*"
+    };
+  }
+
+  // API Key management
+  rpc CreateApiKey(CreateApiKeyRequest) returns (CreateApiKeyResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/users/me/api-keys"
+      body: "*"
+    };
+  }
+
+  rpc ListApiKeys(GetProfileRequest) returns (ListApiKeysResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/users/me/api-keys"
+    };
+  }
+
+  rpc DeleteApiKey(DeleteApiKeyRequest) returns (DeleteApiKeyResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/users/me/api-keys/{id}"
     };
   }
 }

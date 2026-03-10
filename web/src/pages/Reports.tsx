@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+
 import { useQueries, useQuery } from '@tanstack/react-query'
-import { reportApi } from '../api'
+import { reportApi, transactionApi } from '../api'
 import type { BudgetTrackingReport, SavingGoalReport } from '../api'
 import { moneyToNumber, getMonthName } from '../lib/utils'
 import { useAuth } from '../store/AuthContext'
@@ -21,7 +21,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts'
-import { FormField, Input, ProgressBar, Select } from '../components/ui'
+import { FormField, Input, ProgressBar, Select, Modal, Button } from '../components/ui'
 
 // Violet-first palette that fits the design system
 const COLORS = [
@@ -70,6 +70,7 @@ export default function Reports() {
   const [reportPeriod, setReportPeriod] = useState<'monthly' | 'yearly'>('monthly')
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
+  const [selectedBudgetCategory, setSelectedBudgetCategory] = useState<{ id: string, name: string } | null>(null)
 
   const { data: monthlyReport, isLoading: isLoadingMonthly } = useQuery({
     queryKey: ['monthlyReport', selectedYear, selectedMonth],
@@ -118,6 +119,20 @@ export default function Reports() {
   const { data: goalsReport, isLoading: isLoadingGoals } = useQuery<SavingGoalReport[]>({
     queryKey: ['goalsReport'],
     queryFn: () => reportApi.getGoalsReport(),
+  })
+
+  const { data: categoryTransactionsData, isLoading: isLoadingCategoryTransactions } = useQuery({
+    queryKey: ['categoryTransactions', selectedBudgetCategory?.id, selectedYear, selectedMonth, reportPeriod],
+    queryFn: () => transactionApi.list({
+      categoryId: selectedBudgetCategory?.id,
+      startDate: reportPeriod === 'yearly'
+        ? new Date(Date.UTC(selectedYear, 0, 1)).toISOString()
+        : new Date(Date.UTC(selectedYear, selectedMonth - 1, 1)).toISOString(),
+      endDate: reportPeriod === 'yearly'
+        ? new Date(Date.UTC(selectedYear, 11, 31, 23, 59, 59, 999)).toISOString()
+        : new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59, 999)).toISOString(),
+    }),
+    enabled: !!selectedBudgetCategory,
   })
 
   const isLoadingYearly = yearlyMonthlyQueries.some((q) => q.isLoading)
@@ -439,6 +454,22 @@ export default function Reports() {
             {/* Budget Status */}
             <div className={cardClass}>
               <h2 className={headingClass}>Budget Status</h2>
+
+              {budgetReport && budgetRows.length > 0 && (
+                <div className="mb-6 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Overall Budget</span>
+                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                      {formatConverted(budgetReport.totalSpent)} <span className="text-zinc-400 dark:text-zinc-600">/</span> {formatConverted(budgetReport.totalBudgeted)}
+                    </span>
+                  </div>
+                  <ProgressBar
+                    value={moneyToNumber(budgetReport.totalBudgeted) > 0 ? (moneyToNumber(budgetReport.totalSpent) / moneyToNumber(budgetReport.totalBudgeted)) * 100 : 0}
+                    variant={(moneyToNumber(budgetReport.totalBudgeted) > 0 ? (moneyToNumber(budgetReport.totalSpent) / moneyToNumber(budgetReport.totalBudgeted)) * 100 : 0) > 100 ? 'danger' : (moneyToNumber(budgetReport.totalBudgeted) > 0 ? (moneyToNumber(budgetReport.totalSpent) / moneyToNumber(budgetReport.totalBudgeted)) * 100 : 0) > 80 ? 'warning' : 'success'}
+                  />
+                </div>
+              )}
+
               {budgetRows.length > 0 ? (
                 <div className="space-y-4">
                   {budgetRows.map((item) => {
@@ -451,20 +482,12 @@ export default function Reports() {
                             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                               {item.categoryName}
                             </span>
-                            <Link
-                              to={`/transactions?categoryId=${item.categoryId}&startDate=${encodeURIComponent(
-                                reportPeriod === 'yearly'
-                                  ? new Date(Date.UTC(selectedYear, 0, 1)).toISOString()
-                                  : new Date(Date.UTC(selectedYear, selectedMonth - 1, 1)).toISOString()
-                              )}&endDate=${encodeURIComponent(
-                                reportPeriod === 'yearly'
-                                  ? new Date(Date.UTC(selectedYear, 11, 31, 23, 59, 59, 999)).toISOString()
-                                  : new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59, 999)).toISOString()
-                              )}`}
+                            <button
+                              onClick={() => setSelectedBudgetCategory({ id: item.categoryId, name: item.categoryName })}
                               className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 font-medium transition-colors"
                             >
                               View Transactions
-                            </Link>
+                            </button>
                           </div>
                           <span className="text-xs text-zinc-500 dark:text-zinc-400">
                             {formatConverted(item.spent)}{' '}
@@ -561,6 +584,40 @@ export default function Reports() {
           </div>
         </>
       )}
+
+      {/* Transactions Modal */}
+      <Modal
+        open={!!selectedBudgetCategory}
+        onClose={() => setSelectedBudgetCategory(null)}
+        title={`${selectedBudgetCategory?.name} Transactions`}
+        footer={
+          <div className="flex justify-end">
+            <Button variant="secondary" onClick={() => setSelectedBudgetCategory(null)}>Close</Button>
+          </div>
+        }
+      >
+        <div className="max-h-[60vh] overflow-y-auto pr-2">
+          {isLoadingCategoryTransactions ? (
+            <div className="py-10 flex justify-center text-zinc-500 text-sm">Loading transactions...</div>
+          ) : categoryTransactionsData?.transactions.length ? (
+            <div className="space-y-3">
+              {categoryTransactionsData.transactions.map(tx => (
+                <div key={tx.id} className="flex justify-between items-center text-sm border-b border-zinc-100 dark:border-zinc-800 pb-3 last:border-0 last:pb-0 pt-1">
+                  <div>
+                    <p className="font-medium text-zinc-900 dark:text-zinc-100">{tx.description || tx.categoryName}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">{new Date(tx.transactionDate).toLocaleDateString()}</p>
+                  </div>
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    {formatConverted({ amount: String(tx.amount.amount), currency: tx.amount.currency })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-10 flex justify-center text-zinc-500 text-sm">No transactions found.</div>
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }
