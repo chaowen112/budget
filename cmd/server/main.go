@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -20,6 +19,7 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
@@ -35,6 +35,7 @@ import (
 	"github.com/chaowen/budget/internal/model"
 	"github.com/chaowen/budget/internal/pkg/currency"
 	"github.com/chaowen/budget/internal/pkg/jwt"
+	logger "github.com/chaowen/budget/internal/pkg/logger"
 	"github.com/chaowen/budget/internal/repository"
 	"github.com/chaowen/budget/internal/service"
 )
@@ -61,13 +62,23 @@ var openAPISpec embed.FS
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatalf("server error: %v", err)
+		log.WithError(err).Fatal("server error")
 	}
 }
 
 func run() error {
 	// Load configuration
 	cfg := config.Load()
+
+	// Initialize structured logger
+	logger.Init(cfg.LogLevel, cfg.LogDir)
+	log.SetFormatter(&log.JSONFormatter{TimestampFormat: "2006-01-02T15:04:05.000Z07:00"})
+	if lvl, err := log.ParseLevel(cfg.LogLevel); err == nil {
+		log.SetLevel(lvl)
+	}
+	log.SetOutput(logger.Log.Out)
+
+	log.WithFields(log.Fields{"env": cfg.Env, "log_level": cfg.LogLevel, "log_dir": cfg.LogDir}).Info("Configuration loaded")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -79,7 +90,7 @@ func run() error {
 	}
 	defer db.Close()
 
-	log.Println("Connected to database")
+	log.Info("Connected to database")
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
@@ -159,9 +170,9 @@ func run() error {
 	}
 
 	go func() {
-		log.Printf("gRPC server listening on %s", grpcAddr)
+		log.WithField("addr", grpcAddr).Info("gRPC server listening")
 		if err := grpcServer.Serve(grpcListener); err != nil {
-			log.Printf("gRPC server error: %v", err)
+			log.WithError(err).Error("gRPC server error")
 		}
 	}()
 
@@ -290,18 +301,18 @@ func run() error {
 	}
 
 	go func() {
-		log.Printf("HTTP server (gRPC-Gateway) listening on %s", httpAddr)
+		log.WithField("addr", httpAddr).Info("HTTP server (gRPC-Gateway) listening")
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
+			log.WithError(err).Error("HTTP server error")
 		}
 	}()
 
 	// Wait for shutdown signal
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
+	sig := <-sigCh
 
-	log.Println("Shutting down servers...")
+	log.WithField("signal", sig.String()).Info("Shutting down servers...")
 
 	// Graceful shutdown
 	grpcServer.GracefulStop()
@@ -310,10 +321,10 @@ func run() error {
 	defer shutdownCancel()
 
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
+		log.WithError(err).Error("HTTP server shutdown error")
 	}
 
-	log.Println("Servers stopped")
+	log.Info("Servers stopped")
 	return nil
 }
 

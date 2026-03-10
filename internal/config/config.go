@@ -8,6 +8,8 @@ import (
 
 type Config struct {
 	Env      string
+	LogLevel string
+	LogDir   string
 	Server   ServerConfig
 	Database DatabaseConfig
 	JWT      JWTConfig
@@ -43,7 +45,9 @@ type AIConfig struct {
 
 func Load() *Config {
 	return &Config{
-		Env: getEnv("ENV", "development"),
+		Env:      getEnv("ENV", "development"),
+		LogLevel: getEnv("LOG_LEVEL", "info"),
+		LogDir:   getEnv("LOG_DIR", "/var/log/budget"),
 		Server: ServerConfig{
 			HTTPPort: getEnv("SERVER_HTTP_PORT", "8080"),
 			GRPCPort: getEnv("SERVER_GRPC_PORT", "9090"),

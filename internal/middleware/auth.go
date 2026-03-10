@@ -3,7 +3,9 @@ package middleware
 import (
 	"context"
 	"strings"
+	"time"
 
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -25,35 +27,44 @@ const (
 // AuthInterceptor creates a gRPC interceptor for JWT authentication
 func AuthInterceptor(jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepository, publicMethods map[string]bool) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		start := time.Now()
+
 		// Skip auth for public methods
 		if publicMethods[info.FullMethod] {
-			return handler(ctx, req)
+			resp, err := handler(ctx, req)
+			logGRPCRequest(info.FullMethod, start, err, "public", uuid.Nil)
+			return resp, err
 		}
 
 		// Extract token from metadata
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
+			log.WithField("method", info.FullMethod).Warn("Auth failed: missing metadata")
 			return nil, status.Error(codes.Unauthenticated, "missing metadata")
 		}
 
 		authHeader := md.Get("authorization")
 		if len(authHeader) == 0 {
+			log.WithField("method", info.FullMethod).Warn("Auth failed: missing authorization header")
 			return nil, status.Error(codes.Unauthenticated, "missing authorization header")
 		}
 
 		// Parse Bearer token
 		token := strings.TrimPrefix(authHeader[0], "Bearer ")
 		if token == authHeader[0] {
+			log.WithField("method", info.FullMethod).Warn("Auth failed: invalid authorization format")
 			return nil, status.Error(codes.Unauthenticated, "invalid authorization format")
 		}
 
 		// API Key Auth logic
 		if strings.HasPrefix(token, "api_") {
 			if apiKeyRepo == nil {
+				log.WithField("method", info.FullMethod).Warn("Auth failed: api key verification disabled")
 				return nil, status.Error(codes.Unauthenticated, "api key verification disabled")
 			}
 			apiKey, err := apiKeyRepo.GetByKey(ctx, token)
 			if err != nil {
+				log.WithField("method", info.FullMethod).Warn("Auth failed: invalid api key")
 				return nil, status.Error(codes.Unauthenticated, "invalid api key")
 			}
 			// Update last used asynchronously
@@ -61,17 +72,20 @@ func AuthInterceptor(jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepos
 				_ = apiKeyRepo.UpdateLastUsed(context.Background(), apiKey.ID)
 			}()
 
-			// Inject only UserID Key as API Keys do not hold the email directly right now
 			ctx = context.WithValue(ctx, UserIDKey, apiKey.UserID)
-			return handler(ctx, req)
+			resp, handlerErr := handler(ctx, req)
+			logGRPCRequest(info.FullMethod, start, handlerErr, "api_key", apiKey.UserID)
+			return resp, handlerErr
 		}
 
 		// Validate token
 		claims, err := jwtManager.ValidateAccessToken(token)
 		if err != nil {
 			if err == jwt.ErrExpiredToken {
+				log.WithField("method", info.FullMethod).Warn("Auth failed: token expired")
 				return nil, status.Error(codes.Unauthenticated, "token expired")
 			}
+			log.WithField("method", info.FullMethod).Warn("Auth failed: invalid token")
 			return nil, status.Error(codes.Unauthenticated, "invalid token")
 		}
 
@@ -79,7 +93,34 @@ func AuthInterceptor(jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepos
 		ctx = context.WithValue(ctx, UserIDKey, claims.UserID)
 		ctx = context.WithValue(ctx, UserEmailKey, claims.Email)
 
-		return handler(ctx, req)
+		resp, handlerErr := handler(ctx, req)
+		logGRPCRequest(info.FullMethod, start, handlerErr, "jwt", claims.UserID)
+		return resp, handlerErr
+	}
+}
+
+func logGRPCRequest(method string, start time.Time, err error, authType string, userID uuid.UUID) {
+	duration := time.Since(start)
+	fields := log.Fields{
+		"method":    method,
+		"duration":  duration.String(),
+		"auth_type": authType,
+	}
+	if userID != uuid.Nil {
+		fields["user_id"] = userID.String()
+	}
+
+	if err != nil {
+		st, _ := status.FromError(err)
+		fields["grpc_code"] = st.Code().String()
+		if st.Code() == codes.Internal {
+			log.WithFields(fields).WithError(err).Error("gRPC request failed")
+		} else {
+			log.WithFields(fields).WithError(err).Warn("gRPC request completed with error")
+		}
+	} else {
+		fields["grpc_code"] = codes.OK.String()
+		log.WithFields(fields).Info("gRPC request completed")
 	}
 }
 
