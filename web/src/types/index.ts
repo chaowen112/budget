@@ -7,6 +7,14 @@ export interface User {
   createdAt: string
 }
 
+export interface ApiKey {
+  id: string
+  name: string
+  keyValue?: string
+  createdAt: string
+  lastUsedAt?: string
+}
+
 // Auth types
 export interface LoginRequest {
   email: string

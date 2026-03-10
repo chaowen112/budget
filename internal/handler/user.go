@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -170,6 +171,81 @@ func (h *UserHandler) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.Lo
 	_ = h.userService.Logout(ctx, req.RefreshToken)
 
 	return &pb.LogoutResponse{}, nil
+}
+
+func (h *UserHandler) CreateApiKey(ctx context.Context, req *pb.CreateApiKeyRequest) (*pb.CreateApiKeyResponse, error) {
+	userID, err := middleware.GetUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+
+	apiKey, err := h.userService.CreateApiKey(ctx, userID, req.Name)
+	if err != nil {
+		if err.Error() == "maximum limit of 3 API keys reached" {
+			return nil, status.Error(codes.ResourceExhausted, err.Error())
+		}
+		return nil, status.Error(codes.Internal, "failed to create api key")
+	}
+
+	return &pb.CreateApiKeyResponse{
+		ApiKey: &pb.ApiKey{
+			Id:        apiKey.ID.String(),
+			Name:      apiKey.Name,
+			KeyValue:  apiKey.KeyValue, // Only populated on creation
+			CreatedAt: timestamppb.New(apiKey.CreatedAt),
+		},
+	}, nil
+}
+
+func (h *UserHandler) ListApiKeys(ctx context.Context, req *pb.GetProfileRequest) (*pb.ListApiKeysResponse, error) {
+	userID, err := middleware.GetUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	keys, err := h.userService.ListApiKeys(ctx, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to list api keys")
+	}
+
+	var pbKeys []*pb.ApiKey
+	for _, key := range keys {
+		pbKey := &pb.ApiKey{
+			Id:        key.ID.String(),
+			Name:      key.Name,
+			CreatedAt: timestamppb.New(key.CreatedAt),
+		}
+		if key.LastUsedAt != nil {
+			pbKey.LastUsedAt = timestamppb.New(*key.LastUsedAt)
+		}
+		pbKeys = append(pbKeys, pbKey)
+	}
+
+	return &pb.ListApiKeysResponse{
+		ApiKeys: pbKeys,
+	}, nil
+}
+
+func (h *UserHandler) DeleteApiKey(ctx context.Context, req *pb.DeleteApiKeyRequest) (*pb.DeleteApiKeyResponse, error) {
+	userID, err := middleware.GetUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	keyID, err := uuid.Parse(req.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid api key id")
+	}
+
+	if err := h.userService.DeleteApiKey(ctx, userID, keyID); err != nil {
+		return nil, status.Error(codes.Internal, "failed to delete api key")
+	}
+
+	return &pb.DeleteApiKeyResponse{}, nil
 }
 
 func userToProto(user *model.User) *pb.User {

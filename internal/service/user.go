@@ -2,7 +2,11 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -19,12 +23,14 @@ var (
 
 type UserService struct {
 	userRepo   *repository.UserRepository
+	apiKeyRepo *repository.ApiKeyRepository
 	jwtManager *jwt.Manager
 }
 
-func NewUserService(userRepo *repository.UserRepository, jwtManager *jwt.Manager) *UserService {
+func NewUserService(userRepo *repository.UserRepository, apiKeyRepo *repository.ApiKeyRepository, jwtManager *jwt.Manager) *UserService {
 	return &UserService{
 		userRepo:   userRepo,
+		apiKeyRepo: apiKeyRepo,
 		jwtManager: jwtManager,
 	}
 }
@@ -231,4 +237,47 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 
 	// Invalidate all refresh tokens for security
 	return s.userRepo.DeleteUserRefreshTokens(ctx, userID)
+}
+
+// CreateApiKey creates a new API key for a user, limited to 3
+func (s *UserService) CreateApiKey(ctx context.Context, userID uuid.UUID, name string) (*model.ApiKey, error) {
+	// Check existing keys
+	keys, err := s.apiKeyRepo.ListByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing keys: %w", err)
+	}
+	if len(keys) >= 3 {
+		return nil, errors.New("maximum limit of 3 API keys reached")
+	}
+
+	// Generate secure token
+	randomBytes := make([]byte, 32)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return nil, fmt.Errorf("failed to generate secure key: %w", err)
+	}
+	keyValue := "api_" + base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(randomBytes)
+
+	apiKey := &model.ApiKey{
+		ID:        uuid.New(),
+		UserID:    userID,
+		KeyValue:  keyValue,
+		Name:      name,
+		CreatedAt: time.Now(),
+	}
+
+	if err := s.apiKeyRepo.Create(ctx, apiKey); err != nil {
+		return nil, fmt.Errorf("failed to save api key: %w", err)
+	}
+
+	return apiKey, nil
+}
+
+// ListApiKeys retrieves a user's API keys
+func (s *UserService) ListApiKeys(ctx context.Context, userID uuid.UUID) ([]*model.ApiKey, error) {
+	return s.apiKeyRepo.ListByUserID(ctx, userID)
+}
+
+// DeleteApiKey deletes a user's API key
+func (s *UserService) DeleteApiKey(ctx context.Context, userID uuid.UUID, keyID uuid.UUID) error {
+	return s.apiKeyRepo.Delete(ctx, keyID, userID)
 }

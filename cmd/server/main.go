@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -83,6 +83,7 @@ func run() error {
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
+	apiKeyRepo := repository.NewApiKeyRepository(db)
 	categoryRepo := repository.NewCategoryRepository(db)
 	transactionRepo := repository.NewTransactionRepository(db)
 	budgetRepo := repository.NewBudgetRepository(db)
@@ -104,7 +105,7 @@ func run() error {
 	jwtManager := jwt.NewManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 
 	// Initialize services
-	userService := service.NewUserService(userRepo, jwtManager)
+	userService := service.NewUserService(userRepo, apiKeyRepo, jwtManager)
 	transactionAssistantService := service.NewTransactionAssistantService(
 		cfg.AI.Provider,
 		cfg.AI.APIKey,
@@ -130,7 +131,7 @@ func run() error {
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			metricsCollector.GRPCUnaryInterceptor(),
-			middleware.AuthInterceptor(jwtManager, middleware.PublicMethods()),
+			middleware.AuthInterceptor(jwtManager, apiKeyRepo, middleware.PublicMethods()),
 		),
 	)
 
@@ -236,12 +237,12 @@ func run() error {
 	}
 
 	// Handle SPA routing - serve index.html for non-API routes
-		httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			// API routes go to gRPC gateway
-			if strings.HasPrefix(r.URL.Path, "/api/") {
-				if serveGoalHistory(w, r, jwtManager, goalHandler) {
-					return
-				}
+	httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// API routes go to gRPC gateway
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			if serveGoalHistory(w, r, jwtManager, goalHandler) {
+				return
+			}
 			if serveAccounting(w, r, jwtManager, accountingRepo) {
 				return
 			}
@@ -399,7 +400,7 @@ func serveGoalHistory(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Ma
 			"currency":      goal.Currency,
 			"createdAt":     goal.CreatedAt.Format(time.RFC3339),
 		},
-		"history": history,
+		"history":       history,
 		"contributions": contributionItems,
 	}
 	if goal.Deadline != nil {
@@ -547,20 +548,20 @@ func serveTransfers(
 		w.WriteHeader(statusCode)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"transfer": map[string]any{
-				"id":           t.ID.String(),
-				"fromAssetId":  t.FromAssetID.String(),
-				"toAssetId":    t.ToAssetID.String(),
-				"fromAmount":   t.FromAmount.String(),
-				"toAmount":     t.ToAmount.String(),
-				"fromCurrency": t.FromCurrency,
-				"toCurrency":   t.ToCurrency,
-				"exchangeRate": t.ExchangeRate.String(),
-				"transferDate": t.TransferDate.Format(time.RFC3339),
-				"description":  t.Description,
-				"createdAt":    t.CreatedAt.Format(time.RFC3339),
-				"updatedAt":    t.UpdatedAt.Format(time.RFC3339),
+				"id":            t.ID.String(),
+				"fromAssetId":   t.FromAssetID.String(),
+				"toAssetId":     t.ToAssetID.String(),
+				"fromAmount":    t.FromAmount.String(),
+				"toAmount":      t.ToAmount.String(),
+				"fromCurrency":  t.FromCurrency,
+				"toCurrency":    t.ToCurrency,
+				"exchangeRate":  t.ExchangeRate.String(),
+				"transferDate":  t.TransferDate.Format(time.RFC3339),
+				"description":   t.Description,
+				"createdAt":     t.CreatedAt.Format(time.RFC3339),
+				"updatedAt":     t.UpdatedAt.Format(time.RFC3339),
 				"fromAssetName": t.FromAssetName,
-				"toAssetName": t.ToAssetName,
+				"toAssetName":   t.ToAssetName,
 			},
 		})
 	}
@@ -574,20 +575,20 @@ func serveTransfers(
 		resp := make([]map[string]any, 0, len(items))
 		for _, t := range items {
 			resp = append(resp, map[string]any{
-				"id":           t.ID.String(),
-				"fromAssetId":  t.FromAssetID.String(),
-				"toAssetId":    t.ToAssetID.String(),
-				"fromAmount":   t.FromAmount.String(),
-				"toAmount":     t.ToAmount.String(),
-				"fromCurrency": t.FromCurrency,
-				"toCurrency":   t.ToCurrency,
-				"exchangeRate": t.ExchangeRate.String(),
-				"transferDate": t.TransferDate.Format(time.RFC3339),
-				"description":  t.Description,
-				"createdAt":    t.CreatedAt.Format(time.RFC3339),
-				"updatedAt":    t.UpdatedAt.Format(time.RFC3339),
+				"id":            t.ID.String(),
+				"fromAssetId":   t.FromAssetID.String(),
+				"toAssetId":     t.ToAssetID.String(),
+				"fromAmount":    t.FromAmount.String(),
+				"toAmount":      t.ToAmount.String(),
+				"fromCurrency":  t.FromCurrency,
+				"toCurrency":    t.ToCurrency,
+				"exchangeRate":  t.ExchangeRate.String(),
+				"transferDate":  t.TransferDate.Format(time.RFC3339),
+				"description":   t.Description,
+				"createdAt":     t.CreatedAt.Format(time.RFC3339),
+				"updatedAt":     t.UpdatedAt.Format(time.RFC3339),
 				"fromAssetName": t.FromAssetName,
-				"toAssetName": t.ToAssetName,
+				"toAssetName":   t.ToAssetName,
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")

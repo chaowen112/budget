@@ -31,6 +31,7 @@ import type {
   AssetCategory,
   Money,
   TransactionSourceLink,
+  ApiKey,
 } from '../types'
 
 function dateInputToUTCISOString(value: string): string {
@@ -70,6 +71,20 @@ export const authApi = {
   updateProfile: async (data: { name?: string; baseCurrency?: string }): Promise<User> => {
     const response = await api.patch('/users/me', data)
     return response.data.user
+  },
+
+  createApiKey: async (name: string): Promise<ApiKey> => {
+    const response = await api.post('/users/me/api-keys', { name })
+    return response.data.apiKey
+  },
+
+  listApiKeys: async (): Promise<ApiKey[]> => {
+    const response = await api.get('/users/me/api-keys')
+    return response.data.apiKeys || []
+  },
+
+  deleteApiKey: async (id: string): Promise<void> => {
+    await api.delete(`/users/me/api-keys/${id}`)
   },
 }
 

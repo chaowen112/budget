@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/chaowen/budget/internal/pkg/jwt"
+	"github.com/chaowen/budget/internal/repository"
 )
 
 type contextKey string
@@ -22,7 +23,7 @@ const (
 )
 
 // AuthInterceptor creates a gRPC interceptor for JWT authentication
-func AuthInterceptor(jwtManager *jwt.Manager, publicMethods map[string]bool) grpc.UnaryServerInterceptor {
+func AuthInterceptor(jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepository, publicMethods map[string]bool) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		// Skip auth for public methods
 		if publicMethods[info.FullMethod] {
@@ -44,6 +45,25 @@ func AuthInterceptor(jwtManager *jwt.Manager, publicMethods map[string]bool) grp
 		token := strings.TrimPrefix(authHeader[0], "Bearer ")
 		if token == authHeader[0] {
 			return nil, status.Error(codes.Unauthenticated, "invalid authorization format")
+		}
+
+		// API Key Auth logic
+		if strings.HasPrefix(token, "api_") {
+			if apiKeyRepo == nil {
+				return nil, status.Error(codes.Unauthenticated, "api key verification disabled")
+			}
+			apiKey, err := apiKeyRepo.GetByKey(ctx, token)
+			if err != nil {
+				return nil, status.Error(codes.Unauthenticated, "invalid api key")
+			}
+			// Update last used asynchronously
+			go func() {
+				_ = apiKeyRepo.UpdateLastUsed(context.Background(), apiKey.ID)
+			}()
+
+			// Inject only UserID Key as API Keys do not hold the email directly right now
+			ctx = context.WithValue(ctx, UserIDKey, apiKey.UserID)
+			return handler(ctx, req)
 		}
 
 		// Validate token

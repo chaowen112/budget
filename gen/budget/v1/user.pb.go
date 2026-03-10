@@ -787,6 +787,295 @@ func (*LogoutResponse) Descriptor() ([]byte, []int) {
 	return file_budget_v1_user_proto_rawDescGZIP(), []int{14}
 }
 
+// ApiKey definitions
+type ApiKey struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	KeyValue      string                 `protobuf:"bytes,3,opt,name=key_value,json=keyValue,proto3" json:"key_value,omitempty"` // Only populated on creation
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	LastUsedAt    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_used_at,json=lastUsedAt,proto3" json:"last_used_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApiKey) Reset() {
+	*x = ApiKey{}
+	mi := &file_budget_v1_user_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApiKey) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApiKey) ProtoMessage() {}
+
+func (x *ApiKey) ProtoReflect() protoreflect.Message {
+	mi := &file_budget_v1_user_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApiKey.ProtoReflect.Descriptor instead.
+func (*ApiKey) Descriptor() ([]byte, []int) {
+	return file_budget_v1_user_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ApiKey) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ApiKey) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ApiKey) GetKeyValue() string {
+	if x != nil {
+		return x.KeyValue
+	}
+	return ""
+}
+
+func (x *ApiKey) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *ApiKey) GetLastUsedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastUsedAt
+	}
+	return nil
+}
+
+type CreateApiKeyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateApiKeyRequest) Reset() {
+	*x = CreateApiKeyRequest{}
+	mi := &file_budget_v1_user_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateApiKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateApiKeyRequest) ProtoMessage() {}
+
+func (x *CreateApiKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_budget_v1_user_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateApiKeyRequest.ProtoReflect.Descriptor instead.
+func (*CreateApiKeyRequest) Descriptor() ([]byte, []int) {
+	return file_budget_v1_user_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *CreateApiKeyRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type CreateApiKeyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApiKey        *ApiKey                `protobuf:"bytes,1,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateApiKeyResponse) Reset() {
+	*x = CreateApiKeyResponse{}
+	mi := &file_budget_v1_user_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateApiKeyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateApiKeyResponse) ProtoMessage() {}
+
+func (x *CreateApiKeyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_budget_v1_user_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateApiKeyResponse.ProtoReflect.Descriptor instead.
+func (*CreateApiKeyResponse) Descriptor() ([]byte, []int) {
+	return file_budget_v1_user_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *CreateApiKeyResponse) GetApiKey() *ApiKey {
+	if x != nil {
+		return x.ApiKey
+	}
+	return nil
+}
+
+type ListApiKeysResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApiKeys       []*ApiKey              `protobuf:"bytes,1,rep,name=api_keys,json=apiKeys,proto3" json:"api_keys,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListApiKeysResponse) Reset() {
+	*x = ListApiKeysResponse{}
+	mi := &file_budget_v1_user_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListApiKeysResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListApiKeysResponse) ProtoMessage() {}
+
+func (x *ListApiKeysResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_budget_v1_user_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListApiKeysResponse.ProtoReflect.Descriptor instead.
+func (*ListApiKeysResponse) Descriptor() ([]byte, []int) {
+	return file_budget_v1_user_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ListApiKeysResponse) GetApiKeys() []*ApiKey {
+	if x != nil {
+		return x.ApiKeys
+	}
+	return nil
+}
+
+type DeleteApiKeyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteApiKeyRequest) Reset() {
+	*x = DeleteApiKeyRequest{}
+	mi := &file_budget_v1_user_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteApiKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteApiKeyRequest) ProtoMessage() {}
+
+func (x *DeleteApiKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_budget_v1_user_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteApiKeyRequest.ProtoReflect.Descriptor instead.
+func (*DeleteApiKeyRequest) Descriptor() ([]byte, []int) {
+	return file_budget_v1_user_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *DeleteApiKeyRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type DeleteApiKeyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteApiKeyResponse) Reset() {
+	*x = DeleteApiKeyResponse{}
+	mi := &file_budget_v1_user_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteApiKeyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteApiKeyResponse) ProtoMessage() {}
+
+func (x *DeleteApiKeyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_budget_v1_user_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteApiKeyResponse.ProtoReflect.Descriptor instead.
+func (*DeleteApiKeyResponse) Descriptor() ([]byte, []int) {
+	return file_budget_v1_user_proto_rawDescGZIP(), []int{20}
+}
+
 var File_budget_v1_user_proto protoreflect.FileDescriptor
 
 const file_budget_v1_user_proto_rawDesc = "" +
@@ -834,7 +1123,24 @@ const file_budget_v1_user_proto_rawDesc = "" +
 	"\x16ChangePasswordResponse\"4\n" +
 	"\rLogoutRequest\x12#\n" +
 	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"\x10\n" +
-	"\x0eLogoutResponse2\xf3\x05\n" +
+	"\x0eLogoutResponse\"\xc2\x01\n" +
+	"\x06ApiKey\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1b\n" +
+	"\tkey_value\x18\x03 \x01(\tR\bkeyValue\x129\n" +
+	"\n" +
+	"created_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12<\n" +
+	"\flast_used_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"lastUsedAt\")\n" +
+	"\x13CreateApiKeyRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"B\n" +
+	"\x14CreateApiKeyResponse\x12*\n" +
+	"\aapi_key\x18\x01 \x01(\v2\x11.budget.v1.ApiKeyR\x06apiKey\"C\n" +
+	"\x13ListApiKeysResponse\x12,\n" +
+	"\bapi_keys\x18\x01 \x03(\v2\x11.budget.v1.ApiKeyR\aapiKeys\"%\n" +
+	"\x13DeleteApiKeyRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x16\n" +
+	"\x14DeleteApiKeyResponse2\xd3\b\n" +
 	"\vUserService\x12e\n" +
 	"\bRegister\x12\x1a.budget.v1.RegisterRequest\x1a\x1b.budget.v1.RegisterResponse\" \x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/api/v1/auth/register\x12Y\n" +
 	"\x05Login\x12\x17.budget.v1.LoginRequest\x1a\x18.budget.v1.LoginResponse\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/api/v1/auth/login\x12p\n" +
@@ -843,7 +1149,10 @@ const file_budget_v1_user_proto_rawDesc = "" +
 	"GetProfile\x12\x1c.budget.v1.GetProfileRequest\x1a\x1d.budget.v1.GetProfileResponse\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/api/v1/users/me\x12o\n" +
 	"\rUpdateProfile\x12\x1f.budget.v1.UpdateProfileRequest\x1a .budget.v1.UpdateProfileResponse\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*2\x10/api/v1/users/me\x12{\n" +
 	"\x0eChangePassword\x12 .budget.v1.ChangePasswordRequest\x1a!.budget.v1.ChangePasswordResponse\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/api/v1/users/me/password\x12]\n" +
-	"\x06Logout\x12\x18.budget.v1.LogoutRequest\x1a\x19.budget.v1.LogoutResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/api/v1/auth/logoutB\x91\x01\n" +
+	"\x06Logout\x12\x18.budget.v1.LogoutRequest\x1a\x19.budget.v1.LogoutResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/api/v1/auth/logout\x12u\n" +
+	"\fCreateApiKey\x12\x1e.budget.v1.CreateApiKeyRequest\x1a\x1f.budget.v1.CreateApiKeyResponse\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/api/v1/users/me/api-keys\x12n\n" +
+	"\vListApiKeys\x12\x1c.budget.v1.GetProfileRequest\x1a\x1e.budget.v1.ListApiKeysResponse\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/users/me/api-keys\x12w\n" +
+	"\fDeleteApiKey\x12\x1e.budget.v1.DeleteApiKeyRequest\x1a\x1f.budget.v1.DeleteApiKeyResponse\"&\x82\xd3\xe4\x93\x02 *\x1e/api/v1/users/me/api-keys/{id}B\x91\x01\n" +
 	"\rcom.budget.v1B\tUserProtoP\x01Z0github.com/chaowen/budget/gen/budget/v1;budgetv1\xa2\x02\x03BXX\xaa\x02\tBudget.V1\xca\x02\tBudget\\V1\xe2\x02\x15Budget\\V1\\GPBMetadata\xea\x02\n" +
 	"Budget::V1b\x06proto3"
 
@@ -859,7 +1168,7 @@ func file_budget_v1_user_proto_rawDescGZIP() []byte {
 	return file_budget_v1_user_proto_rawDescData
 }
 
-var file_budget_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_budget_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_budget_v1_user_proto_goTypes = []any{
 	(*User)(nil),                   // 0: budget.v1.User
 	(*RegisterRequest)(nil),        // 1: budget.v1.RegisterRequest
@@ -876,33 +1185,49 @@ var file_budget_v1_user_proto_goTypes = []any{
 	(*ChangePasswordResponse)(nil), // 12: budget.v1.ChangePasswordResponse
 	(*LogoutRequest)(nil),          // 13: budget.v1.LogoutRequest
 	(*LogoutResponse)(nil),         // 14: budget.v1.LogoutResponse
-	(*timestamppb.Timestamp)(nil),  // 15: google.protobuf.Timestamp
+	(*ApiKey)(nil),                 // 15: budget.v1.ApiKey
+	(*CreateApiKeyRequest)(nil),    // 16: budget.v1.CreateApiKeyRequest
+	(*CreateApiKeyResponse)(nil),   // 17: budget.v1.CreateApiKeyResponse
+	(*ListApiKeysResponse)(nil),    // 18: budget.v1.ListApiKeysResponse
+	(*DeleteApiKeyRequest)(nil),    // 19: budget.v1.DeleteApiKeyRequest
+	(*DeleteApiKeyResponse)(nil),   // 20: budget.v1.DeleteApiKeyResponse
+	(*timestamppb.Timestamp)(nil),  // 21: google.protobuf.Timestamp
 }
 var file_budget_v1_user_proto_depIdxs = []int32{
-	15, // 0: budget.v1.User.created_at:type_name -> google.protobuf.Timestamp
+	21, // 0: budget.v1.User.created_at:type_name -> google.protobuf.Timestamp
 	0,  // 1: budget.v1.RegisterResponse.user:type_name -> budget.v1.User
 	0,  // 2: budget.v1.LoginResponse.user:type_name -> budget.v1.User
 	0,  // 3: budget.v1.GetProfileResponse.user:type_name -> budget.v1.User
 	0,  // 4: budget.v1.UpdateProfileResponse.user:type_name -> budget.v1.User
-	1,  // 5: budget.v1.UserService.Register:input_type -> budget.v1.RegisterRequest
-	3,  // 6: budget.v1.UserService.Login:input_type -> budget.v1.LoginRequest
-	5,  // 7: budget.v1.UserService.RefreshToken:input_type -> budget.v1.RefreshTokenRequest
-	7,  // 8: budget.v1.UserService.GetProfile:input_type -> budget.v1.GetProfileRequest
-	9,  // 9: budget.v1.UserService.UpdateProfile:input_type -> budget.v1.UpdateProfileRequest
-	11, // 10: budget.v1.UserService.ChangePassword:input_type -> budget.v1.ChangePasswordRequest
-	13, // 11: budget.v1.UserService.Logout:input_type -> budget.v1.LogoutRequest
-	2,  // 12: budget.v1.UserService.Register:output_type -> budget.v1.RegisterResponse
-	4,  // 13: budget.v1.UserService.Login:output_type -> budget.v1.LoginResponse
-	6,  // 14: budget.v1.UserService.RefreshToken:output_type -> budget.v1.RefreshTokenResponse
-	8,  // 15: budget.v1.UserService.GetProfile:output_type -> budget.v1.GetProfileResponse
-	10, // 16: budget.v1.UserService.UpdateProfile:output_type -> budget.v1.UpdateProfileResponse
-	12, // 17: budget.v1.UserService.ChangePassword:output_type -> budget.v1.ChangePasswordResponse
-	14, // 18: budget.v1.UserService.Logout:output_type -> budget.v1.LogoutResponse
-	12, // [12:19] is the sub-list for method output_type
-	5,  // [5:12] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	21, // 5: budget.v1.ApiKey.created_at:type_name -> google.protobuf.Timestamp
+	21, // 6: budget.v1.ApiKey.last_used_at:type_name -> google.protobuf.Timestamp
+	15, // 7: budget.v1.CreateApiKeyResponse.api_key:type_name -> budget.v1.ApiKey
+	15, // 8: budget.v1.ListApiKeysResponse.api_keys:type_name -> budget.v1.ApiKey
+	1,  // 9: budget.v1.UserService.Register:input_type -> budget.v1.RegisterRequest
+	3,  // 10: budget.v1.UserService.Login:input_type -> budget.v1.LoginRequest
+	5,  // 11: budget.v1.UserService.RefreshToken:input_type -> budget.v1.RefreshTokenRequest
+	7,  // 12: budget.v1.UserService.GetProfile:input_type -> budget.v1.GetProfileRequest
+	9,  // 13: budget.v1.UserService.UpdateProfile:input_type -> budget.v1.UpdateProfileRequest
+	11, // 14: budget.v1.UserService.ChangePassword:input_type -> budget.v1.ChangePasswordRequest
+	13, // 15: budget.v1.UserService.Logout:input_type -> budget.v1.LogoutRequest
+	16, // 16: budget.v1.UserService.CreateApiKey:input_type -> budget.v1.CreateApiKeyRequest
+	7,  // 17: budget.v1.UserService.ListApiKeys:input_type -> budget.v1.GetProfileRequest
+	19, // 18: budget.v1.UserService.DeleteApiKey:input_type -> budget.v1.DeleteApiKeyRequest
+	2,  // 19: budget.v1.UserService.Register:output_type -> budget.v1.RegisterResponse
+	4,  // 20: budget.v1.UserService.Login:output_type -> budget.v1.LoginResponse
+	6,  // 21: budget.v1.UserService.RefreshToken:output_type -> budget.v1.RefreshTokenResponse
+	8,  // 22: budget.v1.UserService.GetProfile:output_type -> budget.v1.GetProfileResponse
+	10, // 23: budget.v1.UserService.UpdateProfile:output_type -> budget.v1.UpdateProfileResponse
+	12, // 24: budget.v1.UserService.ChangePassword:output_type -> budget.v1.ChangePasswordResponse
+	14, // 25: budget.v1.UserService.Logout:output_type -> budget.v1.LogoutResponse
+	17, // 26: budget.v1.UserService.CreateApiKey:output_type -> budget.v1.CreateApiKeyResponse
+	18, // 27: budget.v1.UserService.ListApiKeys:output_type -> budget.v1.ListApiKeysResponse
+	20, // 28: budget.v1.UserService.DeleteApiKey:output_type -> budget.v1.DeleteApiKeyResponse
+	19, // [19:29] is the sub-list for method output_type
+	9,  // [9:19] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_budget_v1_user_proto_init() }
@@ -916,7 +1241,7 @@ func file_budget_v1_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_budget_v1_user_proto_rawDesc), len(file_budget_v1_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
