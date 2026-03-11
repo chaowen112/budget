@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './store/AuthContext'
 import { CurrencyProvider } from './store/CurrencyContext'
+import { ToastProvider, ConfirmProvider } from './components/ui'
 import App from './App'
 import './index.css'
 
@@ -25,7 +26,11 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <AuthProvider>
           <CurrencyProvider>
-            <App />
+            <ToastProvider>
+              <ConfirmProvider>
+                <App />
+              </ConfirmProvider>
+            </ToastProvider>
           </CurrencyProvider>
         </AuthProvider>
       </BrowserRouter>

@@ -7,7 +7,7 @@ import { useAuth } from '../store/AuthContext'
 import { DISPLAY_CURRENCIES } from '../store/CurrencyContext'
 import type { Transaction, Category, CategoryType, Transfer, AssistantSuggestion } from '../types'
 import { Plus, Pencil, Trash2, Search, ArrowDownLeft, ArrowUpRight, ArrowRightLeft } from 'lucide-react'
-import { Button, Modal, FormField, Input, Select } from '../components/ui'
+import { Button, Modal, FormField, Input, Select, useConfirm } from '../components/ui'
 
 const CREATE_CATEGORY_OPTION = '__create_new_category__'
 type ModalMode = 'transaction' | 'transfer'
@@ -51,6 +51,7 @@ function buildPaginationItems(currentPage: number, totalPages: number): Paginati
 
 export default function Transactions() {
   const { user } = useAuth()
+  const { confirm } = useConfirm()
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<ModalMode>('transaction')
@@ -252,6 +253,34 @@ export default function Transactions() {
     return null
   })()
 
+  const getCategoryType = (categoryId: string): CategoryType | undefined => {
+    return categories?.find((c) => c.id === categoryId)?.type
+  }
+
+  const selectedSourceAsset = assets?.find((a) => a.id === transactionSourceAssetId)
+  const sourceAssetBalance = selectedSourceAsset ? parseFloat(selectedSourceAsset.currentValue) : null
+  const transactionAmount = parseFloat(transactionAmountInput || '0')
+  const isExpenseCategory = getCategoryType(transactionCategoryId) === 'TRANSACTION_TYPE_EXPENSE'
+  const sourceAssetBalanceAfter =
+    sourceAssetBalance !== null && transactionAmount > 0
+      ? isExpenseCategory
+        ? sourceAssetBalance - transactionAmount
+        : sourceAssetBalance + transactionAmount
+      : null
+
+  const fromAssetBalance = selectedFromAsset ? parseFloat(selectedFromAsset.currentValue) : null
+  const toAssetBalance = selectedToAsset ? parseFloat(selectedToAsset.currentValue) : null
+  const parsedTransferFromAmount = parseFloat(transferFromAmount || '0')
+  const parsedTransferToAmount = parseFloat(transferToAmount || '0')
+  const fromAssetBalanceAfter =
+    fromAssetBalance !== null && parsedTransferFromAmount > 0
+      ? fromAssetBalance - parsedTransferFromAmount
+      : null
+  const toAssetBalanceAfter =
+    toAssetBalance !== null
+      ? toAssetBalance + (parsedTransferToAmount > 0 ? parsedTransferToAmount : parsedTransferFromAmount > 0 ? parsedTransferFromAmount : 0)
+      : null
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
@@ -318,10 +347,6 @@ export default function Transactions() {
     } else {
       createMutation.mutate(data)
     }
-  }
-
-  const getCategoryType = (categoryId: string): CategoryType | undefined => {
-    return categories?.find((c) => c.id === categoryId)?.type
   }
 
   const closeModal = () => {
@@ -754,8 +779,8 @@ export default function Transactions() {
                           <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm('Delete this transfer?')) {
+                          onClick={async () => {
+                            const ok = await confirm({ message: 'Delete this transfer?', variant: 'danger', confirmLabel: 'Delete' }); if (ok) {
                               deleteTransferMutation.mutate(transfer.id)
                             }
                           }}
@@ -838,8 +863,8 @@ export default function Transactions() {
                         <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm('Delete this transaction?')) {
+                        onClick={async () => {
+                          const ok = await confirm({ message: 'Delete this transaction?', variant: 'danger', confirmLabel: 'Delete' }); if (ok) {
                             deleteMutation.mutate(transaction.id)
                           }
                         }}
@@ -992,6 +1017,47 @@ export default function Transactions() {
                 </Select>
               </FormField>
 
+              {(selectedFromAsset || selectedToAsset) && (
+                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-1.5 bg-zinc-50/60 dark:bg-zinc-800/30">
+                  {selectedFromAsset && fromAssetBalance !== null && (
+                    <>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-zinc-500 dark:text-zinc-400">{selectedFromAsset.name} balance</span>
+                        <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+                          {formatMoney({ amount: String(fromAssetBalance), currency: selectedFromAsset.currency })}
+                        </span>
+                      </div>
+                      {fromAssetBalanceAfter !== null && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-zinc-500 dark:text-zinc-400">{selectedFromAsset.name} after</span>
+                          <span className={`font-medium tabular-nums ${fromAssetBalanceAfter < 0 ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            {formatMoney({ amount: fromAssetBalanceAfter.toFixed(2), currency: selectedFromAsset.currency })}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {selectedToAsset && toAssetBalance !== null && (
+                    <>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-zinc-500 dark:text-zinc-400">{selectedToAsset.name} balance</span>
+                        <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+                          {formatMoney({ amount: String(toAssetBalance), currency: selectedToAsset.currency })}
+                        </span>
+                      </div>
+                      {toAssetBalanceAfter !== null && toAssetBalanceAfter !== toAssetBalance && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-zinc-500 dark:text-zinc-400">{selectedToAsset.name} after</span>
+                          <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+                            {formatMoney({ amount: toAssetBalanceAfter.toFixed(2), currency: selectedToAsset.currency })}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <FormField label="From Amount">
                   <Input
@@ -1110,6 +1176,25 @@ export default function Transactions() {
                   ))}
                 </Select>
               </FormField>
+
+              {selectedSourceAsset && sourceAssetBalance !== null && (
+                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-1.5 bg-zinc-50/60 dark:bg-zinc-800/30">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500 dark:text-zinc-400">Current balance</span>
+                    <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+                      {formatMoney({ amount: String(sourceAssetBalance), currency: selectedSourceAsset.currency })}
+                    </span>
+                  </div>
+                  {sourceAssetBalanceAfter !== null && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-500 dark:text-zinc-400">Balance after</span>
+                      <span className={`font-medium tabular-nums ${sourceAssetBalanceAfter < 0 ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {formatMoney({ amount: sourceAssetBalanceAfter.toFixed(2), currency: selectedSourceAsset.currency })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {showQuickCategoryForm && (
                 <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
