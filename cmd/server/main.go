@@ -142,7 +142,7 @@ func run() error {
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			metricsCollector.GRPCUnaryInterceptor(),
-			middleware.AuthInterceptor(jwtManager, apiKeyRepo, middleware.PublicMethods()),
+			middleware.AuthInterceptor(jwtManager, apiKeyRepo, metricsCollector, middleware.PublicMethods()),
 		),
 	)
 

@@ -22,6 +22,7 @@ type Collector struct {
 	httpRequestDuration  *prometheus.HistogramVec
 	grpcRequestsTotal    *prometheus.CounterVec
 	grpcRequestDuration  *prometheus.HistogramVec
+	AuthFailuresTotal    *prometheus.CounterVec
 	userCount            prometheus.Gauge
 	transactionCount     prometheus.Gauge
 	healthyNodes         *prometheus.GaugeVec
@@ -92,6 +93,13 @@ func NewCollector(reg prometheus.Registerer) *Collector {
 				Help: "Total number of business metrics update errors.",
 			},
 			[]string{"metric"},
+		),
+		AuthFailuresTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "budget_auth_failures_total",
+				Help: "Total number of authentication failures.",
+			},
+			[]string{"reason", "method"},
 		),
 		metricsLastUpdatedAt: factory.NewGauge(
 			prometheus.GaugeOpts{

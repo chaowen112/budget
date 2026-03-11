@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/chaowen/budget/internal/metrics"
 	"github.com/chaowen/budget/internal/pkg/jwt"
 	"github.com/chaowen/budget/internal/repository"
 )
@@ -25,7 +26,13 @@ const (
 )
 
 // AuthInterceptor creates a gRPC interceptor for JWT authentication
-func AuthInterceptor(jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepository, publicMethods map[string]bool) grpc.UnaryServerInterceptor {
+func AuthInterceptor(jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepository, mc *metrics.Collector, publicMethods map[string]bool) grpc.UnaryServerInterceptor {
+	authFail := func(method, reason string) {
+		if mc != nil {
+			mc.AuthFailuresTotal.WithLabelValues(reason, method).Inc()
+		}
+	}
+
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		start := time.Now()
 
@@ -40,12 +47,14 @@ func AuthInterceptor(jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepos
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
 			log.WithField("method", info.FullMethod).Warn("Auth failed: missing metadata")
+			authFail(info.FullMethod, "missing_metadata")
 			return nil, status.Error(codes.Unauthenticated, "missing metadata")
 		}
 
 		authHeader := md.Get("authorization")
 		if len(authHeader) == 0 {
 			log.WithField("method", info.FullMethod).Warn("Auth failed: missing authorization header")
+			authFail(info.FullMethod, "missing_header")
 			return nil, status.Error(codes.Unauthenticated, "missing authorization header")
 		}
 
@@ -53,6 +62,7 @@ func AuthInterceptor(jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepos
 		token := strings.TrimPrefix(authHeader[0], "Bearer ")
 		if token == authHeader[0] {
 			log.WithField("method", info.FullMethod).Warn("Auth failed: invalid authorization format")
+			authFail(info.FullMethod, "invalid_format")
 			return nil, status.Error(codes.Unauthenticated, "invalid authorization format")
 		}
 
@@ -60,11 +70,13 @@ func AuthInterceptor(jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepos
 		if strings.HasPrefix(token, "api_") {
 			if apiKeyRepo == nil {
 				log.WithField("method", info.FullMethod).Warn("Auth failed: api key verification disabled")
+				authFail(info.FullMethod, "api_key_disabled")
 				return nil, status.Error(codes.Unauthenticated, "api key verification disabled")
 			}
 			apiKey, err := apiKeyRepo.GetByKey(ctx, token)
 			if err != nil {
 				log.WithField("method", info.FullMethod).Warn("Auth failed: invalid api key")
+				authFail(info.FullMethod, "invalid_api_key")
 				return nil, status.Error(codes.Unauthenticated, "invalid api key")
 			}
 			// Update last used asynchronously
@@ -83,9 +95,11 @@ func AuthInterceptor(jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepos
 		if err != nil {
 			if err == jwt.ErrExpiredToken {
 				log.WithField("method", info.FullMethod).Warn("Auth failed: token expired")
+				authFail(info.FullMethod, "token_expired")
 				return nil, status.Error(codes.Unauthenticated, "token expired")
 			}
 			log.WithField("method", info.FullMethod).Warn("Auth failed: invalid token")
+			authFail(info.FullMethod, "invalid_token")
 			return nil, status.Error(codes.Unauthenticated, "invalid token")
 		}
 
