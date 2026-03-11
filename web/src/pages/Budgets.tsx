@@ -7,7 +7,7 @@ import { useAuth } from '../store/AuthContext'
 import { useCurrency } from '../store/CurrencyContext'
 import type { Budget, Category, PeriodType, Transaction } from '../types'
 import { Plus, Pencil, Trash2, List } from 'lucide-react'
-import { Button, Modal, FormField, Input, Select, ProgressBar, Badge } from '../components/ui'
+import { Button, Modal, FormField, Input, Select, ProgressBar, Badge, useConfirm } from '../components/ui'
 
 const CREATE_CATEGORY_OPTION = '__create_new_category__'
 
@@ -120,6 +120,7 @@ export default function Budgets() {
   const [budgetCategoryId, setBudgetCategoryId] = useState('')
   const [showQuickCategoryForm, setShowQuickCategoryForm] = useState(false)
   const [quickCategoryName, setQuickCategoryName] = useState('')
+  const { confirm } = useConfirm()
 
   const { data: budgetStatuses, isLoading } = useQuery({
     queryKey: ['budgetStatuses'],
@@ -381,10 +382,9 @@ export default function Budgets() {
                       <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm('Delete this budget?')) {
-                          deleteMutation.mutate(status.budget.id)
-                        }
+                      onClick={async () => {
+                        const ok = await confirm({ message: 'Delete this budget?', variant: 'danger', confirmLabel: 'Delete' })
+                        if (ok) deleteMutation.mutate(status.budget.id)
                       }}
                       className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors duration-150"
                     >

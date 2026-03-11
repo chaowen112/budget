@@ -1,3 +1,10 @@
+# Proto / Swagger generation stage
+FROM bufbuild/buf:latest AS proto-builder
+WORKDIR /app
+COPY buf.gen.yaml ./
+COPY api/proto/ ./api/proto/
+RUN buf generate api/proto
+
 # Frontend build stage
 FROM node:22-alpine AS frontend-builder
 
@@ -30,6 +37,9 @@ COPY . .
 
 # Copy frontend build from previous stage
 COPY --from=frontend-builder /app/cmd/server/static ./cmd/server/static
+
+# Copy generated swagger spec from proto stage
+COPY --from=proto-builder /app/api/openapi/budget.swagger.json ./cmd/server/openapi/budget.swagger.json
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server ./cmd/server

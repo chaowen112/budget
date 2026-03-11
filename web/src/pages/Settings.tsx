@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../store/AuthContext'
 import { authApi, categoryApi } from '../api'
 import { User, Globe, Key, Info, CheckCircle2, AlertCircle, ExternalLink, FolderTree, Plus, Pencil, Trash2, X } from 'lucide-react'
-import { Button, FormField, Input, Select } from '../components/ui'
+import { Button, FormField, Input, Select, useConfirm } from '../components/ui'
 
 export default function Settings() {
   const { user, refreshUser } = useAuth()
@@ -19,6 +19,8 @@ export default function Settings() {
   const [editingCategoryName, setEditingCategoryName] = useState('')
   const [newApiKeyName, setNewApiKeyName] = useState('')
   const [newApiKeyValue, setNewApiKeyValue] = useState<string | null>(null)
+
+  const { confirm } = useConfirm()
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
@@ -339,8 +341,8 @@ export default function Settings() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                if (confirm('Delete this category? This fails if linked data exists.')) {
+                              onClick={async () => {
+                                const ok = await confirm({ message: 'Delete this category? This fails if linked data exists.', variant: 'danger', confirmLabel: 'Delete' }); if (ok) {
                                   deleteCategoryMutation.mutate(cat.id)
                                 }
                               }}
@@ -435,8 +437,8 @@ export default function Settings() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (confirm(`Delete API Key "${key.name}"? Applications using this key will lose access immediately.`)) {
+                    onClick={async () => {
+                      const ok = await confirm({ message: `Delete API Key "${key.name}"? Applications using this key will lose access immediately.`, variant: 'danger', confirmLabel: 'Delete' }); if (ok) {
                         deleteApiKeyMutation.mutate(key.id)
                       }
                     }}

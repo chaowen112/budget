@@ -6,7 +6,7 @@ import { useAuth } from '../store/AuthContext'
 import { useCurrency, DISPLAY_CURRENCIES } from '../store/CurrencyContext'
 import type { GoalProgress, SavingGoal } from '../types'
 import { Plus, Pencil, Trash2, Target, TrendingUp, CheckCircle2, Clock } from 'lucide-react'
-import { Button, Modal, FormField, Input, Textarea, ProgressBar, Badge, Select } from '../components/ui'
+import { Button, Modal, FormField, Input, Textarea, ProgressBar, Badge, Select, useConfirm, useToast } from '../components/ui'
 import {
   ResponsiveContainer,
   LineChart,
@@ -47,6 +47,9 @@ export default function Goals() {
   const [autoAllocateAmount, setAutoAllocateAmount] = useState('')
   const [autoAllocateCadence, setAutoAllocateCadence] = useState<AllocationCadence>('monthly')
   const [historyGoalId, setHistoryGoalId] = useState('')
+
+  const { confirm } = useConfirm()
+  const { toast } = useToast()
 
   const { data: goalsProgress, isLoading } = useQuery({
     queryKey: ['goalsProgress'],
@@ -362,7 +365,7 @@ export default function Goals() {
     const currentAmount = moneyToNumber(selectedGoal.currentAmount)
     const nextTotal = currentAmount + delta
     if (nextTotal < 0) {
-      alert('Amount cannot make goal balance below 0')
+      toast('Amount cannot make goal balance below 0', 'error')
       return
     }
 
@@ -505,8 +508,9 @@ export default function Goals() {
                       <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm('Delete this goal?')) {
+                      onClick={async () => {
+                        const ok = await confirm({ message: 'Delete this goal?', variant: 'danger', confirmLabel: 'Delete' })
+                        if (ok) {
                           deleteMutation.mutate(goal.id)
                         }
                       }}

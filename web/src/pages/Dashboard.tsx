@@ -24,7 +24,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
-import { MetricCard, BentoCard, Modal, ProgressBar, Button, Input, FormField, PageSpinner } from '../components/ui'
+import { MetricCard, BentoCard, Modal, ProgressBar, Button, Input, FormField, PageSpinner, useConfirm } from '../components/ui'
 
 const CHART_COLORS = [
   '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b',
@@ -108,6 +108,7 @@ export default function Dashboard() {
     mutationFn: () => goalApi.deleteNetWorthGoal(),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['netWorthGoalProgress'] }),
   })
+  const { confirm } = useConfirm()
 
   const isLoading = isLoadingReport || isLoadingNetWorth || isLoadingBudgets || isLoadingGoals || isLoadingNetWorthGoal || isLoadingAssets
 
@@ -639,8 +640,9 @@ export default function Dashboard() {
                 variant="danger"
                 size="sm"
                 loading={deleteNetWorthGoalMutation.isPending}
-                onClick={() => {
-                  if (confirm('Delete this net worth goal?')) deleteNetWorthGoalMutation.mutate()
+                onClick={async () => {
+                  const ok = await confirm({ message: 'Delete this net worth goal?', variant: 'danger', confirmLabel: 'Delete' })
+                  if (ok) deleteNetWorthGoalMutation.mutate()
                 }}
               >
                 Delete

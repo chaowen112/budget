@@ -6,7 +6,7 @@ import { useCurrency, DISPLAY_CURRENCIES } from '../store/CurrencyContext'
 import { formatDate, formatMoney } from '../lib/utils'
 import type { Asset, AssetCategory, AssetSnapshot, AssetType } from '../types'
 import { Plus, Pencil, Trash2, Building, Car, Coins, CreditCard, Landmark, Wallet, Bitcoin, TrendingDown, TrendingUp, Scale, LineChart as LineChartIcon } from 'lucide-react'
-import { Button, Modal, FormField, Input, Select } from '../components/ui'
+import { Button, Modal, FormField, Input, Select, useConfirm } from '../components/ui'
 import {
   LineChart,
   Line,
@@ -55,6 +55,7 @@ export default function Assets() {
   const [selectedCategories, setSelectedCategories] = useState<AssetCategory[]>([])
   const [sortBy, setSortBy] = useState<'name' | 'amount' | 'currency' | 'category'>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const { confirm } = useConfirm()
 
   const { data: assets, isLoading } = useQuery({
     queryKey: ['assets', showLiabilities],
@@ -286,7 +287,7 @@ export default function Assets() {
             <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
           </button>
           <button
-            onClick={() => { if (confirm('Delete this asset?')) deleteMutation.mutate(asset.id) }}
+            onClick={async () => { if (await confirm({ message: 'Delete this asset?', variant: 'danger', confirmLabel: 'Delete' })) deleteMutation.mutate(asset.id) }}
             className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors duration-150"
           >
             <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />

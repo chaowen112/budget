@@ -251,19 +251,19 @@ func run() error {
 	httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// API routes go to gRPC gateway
 		if strings.HasPrefix(r.URL.Path, "/api/") {
-			if serveGoalHistory(w, r, jwtManager, goalHandler) {
+			if serveGoalHistory(w, r, jwtManager, apiKeyRepo, goalHandler) {
 				return
 			}
-			if serveAccounting(w, r, jwtManager, accountingRepo) {
+			if serveAccounting(w, r, jwtManager, apiKeyRepo, accountingRepo) {
 				return
 			}
-			if serveTransfers(w, r, jwtManager, transferRepo, assetRepo, accountingRepo) {
+			if serveTransfers(w, r, jwtManager, apiKeyRepo, transferRepo, assetRepo, accountingRepo) {
 				return
 			}
-			if serveTransactionAssistant(w, r, jwtManager, transactionAssistantService) {
+			if serveTransactionAssistant(w, r, jwtManager, apiKeyRepo, transactionAssistantService) {
 				return
 			}
-			if serveTransactionSourceLinks(w, r, jwtManager, transactionRepo) {
+			if serveTransactionSourceLinks(w, r, jwtManager, apiKeyRepo, transactionRepo) {
 				return
 			}
 			withCORS(gwMux).ServeHTTP(w, r)
@@ -328,7 +328,7 @@ func run() error {
 	return nil
 }
 
-func serveGoalHistory(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Manager, goalHandler *handler.GoalHandler) bool {
+func serveGoalHistory(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepository, goalHandler *handler.GoalHandler) bool {
 	if r.Method != http.MethodGet || !strings.HasSuffix(r.URL.Path, "/history") {
 		return false
 	}
@@ -344,19 +344,13 @@ func serveGoalHistory(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Ma
 		return true
 	}
 
-	authz := r.Header.Get("Authorization")
-	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return true
-	}
-
-	claims, err := jwtManager.ValidateAccessToken(strings.TrimPrefix(authz, "Bearer "))
+	auth, err := authenticateHTTP(r, jwtManager, apiKeyRepo)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return true
 	}
 
-	goal, snapshots, contributions, err := goalHandler.GetProgressHistory(r.Context(), claims.UserID, goalID)
+	goal, snapshots, contributions, err := goalHandler.GetProgressHistory(r.Context(), auth.UserID, goalID)
 	if err != nil {
 		if errors.Is(err, repository.ErrGoalNotFound) {
 			http.Error(w, "goal not found", http.StatusNotFound)
@@ -423,7 +417,7 @@ func serveGoalHistory(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Ma
 	return true
 }
 
-func serveAccounting(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Manager, accountingRepo *repository.AccountingRepository) bool {
+func serveAccounting(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepository, accountingRepo *repository.AccountingRepository) bool {
 	if r.Method != http.MethodGet {
 		return false
 	}
@@ -432,13 +426,7 @@ func serveAccounting(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Man
 		return false
 	}
 
-	authz := r.Header.Get("Authorization")
-	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return true
-	}
-
-	claims, err := jwtManager.ValidateAccessToken(strings.TrimPrefix(authz, "Bearer "))
+	auth, err := authenticateHTTP(r, jwtManager, apiKeyRepo)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return true
@@ -447,7 +435,7 @@ func serveAccounting(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Man
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.URL.Path == "/api/v1/accounting/accounts" {
-		accounts, err := accountingRepo.ListAccountsWithBalances(r.Context(), claims.UserID)
+		accounts, err := accountingRepo.ListAccountsWithBalances(r.Context(), auth.UserID)
 		if err != nil {
 			http.Error(w, "failed to fetch accounts", http.StatusInternalServerError)
 			return true
@@ -487,7 +475,7 @@ func serveAccounting(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Man
 		}
 	}
 
-	entries, err := accountingRepo.ListJournalEntries(r.Context(), claims.UserID, limit)
+	entries, err := accountingRepo.ListJournalEntries(r.Context(), auth.UserID, limit)
 	if err != nil {
 		http.Error(w, "failed to fetch journal", http.StatusInternalServerError)
 		return true
@@ -534,6 +522,7 @@ func serveTransfers(
 	w http.ResponseWriter,
 	r *http.Request,
 	jwtManager *jwt.Manager,
+	apiKeyRepo *repository.ApiKeyRepository,
 	transferRepo *repository.TransferRepository,
 	assetRepo *repository.AssetRepository,
 	accountingRepo *repository.AccountingRepository,
@@ -542,13 +531,7 @@ func serveTransfers(
 		return false
 	}
 
-	authz := r.Header.Get("Authorization")
-	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return true
-	}
-
-	claims, err := jwtManager.ValidateAccessToken(strings.TrimPrefix(authz, "Bearer "))
+	auth, err := authenticateHTTP(r, jwtManager, apiKeyRepo)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return true
@@ -578,7 +561,7 @@ func serveTransfers(
 	}
 
 	if r.Method == http.MethodGet && r.URL.Path == "/api/v1/transfers" {
-		items, err := transferRepo.List(r.Context(), claims.UserID, 200)
+		items, err := transferRepo.List(r.Context(), auth.UserID, 200)
 		if err != nil {
 			http.Error(w, "failed to fetch transfers", http.StatusInternalServerError)
 			return true
@@ -613,17 +596,17 @@ func serveTransfers(
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return true
 		}
-		t, err := parseTransferPayload(payload, claims.UserID)
+		t, err := parseTransferPayload(payload, auth.UserID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return true
 		}
-		fromAsset, err := assetRepo.GetByID(r.Context(), t.FromAssetID, claims.UserID)
+		fromAsset, err := assetRepo.GetByID(r.Context(), t.FromAssetID, auth.UserID)
 		if err != nil {
 			http.Error(w, "from asset not found", http.StatusBadRequest)
 			return true
 		}
-		toAsset, err := assetRepo.GetByID(r.Context(), t.ToAssetID, claims.UserID)
+		toAsset, err := assetRepo.GetByID(r.Context(), t.ToAssetID, auth.UserID)
 		if err != nil {
 			http.Error(w, "to asset not found", http.StatusBadRequest)
 			return true
@@ -646,7 +629,7 @@ func serveTransfers(
 			http.Error(w, "failed to ensure destination account", http.StatusInternalServerError)
 			return true
 		}
-		if err := accountingRepo.UpsertTransferEntry(r.Context(), claims.UserID, t, fromAcc, toAcc); err != nil {
+		if err := accountingRepo.UpsertTransferEntry(r.Context(), auth.UserID, t, fromAcc, toAcc); err != nil {
 			http.Error(w, "failed to post transfer journal", http.StatusInternalServerError)
 			return true
 		}
@@ -666,7 +649,7 @@ func serveTransfers(
 
 		switch r.Method {
 		case http.MethodPatch:
-			transfer, err := transferRepo.GetByID(r.Context(), id, claims.UserID)
+			transfer, err := transferRepo.GetByID(r.Context(), id, auth.UserID)
 			if err != nil {
 				http.Error(w, "transfer not found", http.StatusNotFound)
 				return true
@@ -678,19 +661,19 @@ func serveTransfers(
 				return true
 			}
 
-			next, err := parseTransferPayload(payload, claims.UserID)
+			next, err := parseTransferPayload(payload, auth.UserID)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return true
 			}
 			next.ID = transfer.ID
 
-			fromAsset, err := assetRepo.GetByID(r.Context(), next.FromAssetID, claims.UserID)
+			fromAsset, err := assetRepo.GetByID(r.Context(), next.FromAssetID, auth.UserID)
 			if err != nil {
 				http.Error(w, "from asset not found", http.StatusBadRequest)
 				return true
 			}
-			toAsset, err := assetRepo.GetByID(r.Context(), next.ToAssetID, claims.UserID)
+			toAsset, err := assetRepo.GetByID(r.Context(), next.ToAssetID, auth.UserID)
 			if err != nil {
 				http.Error(w, "to asset not found", http.StatusBadRequest)
 				return true
@@ -714,7 +697,7 @@ func serveTransfers(
 				http.Error(w, "failed to ensure destination account", http.StatusInternalServerError)
 				return true
 			}
-			if err := accountingRepo.UpsertTransferEntry(r.Context(), claims.UserID, next, fromAcc, toAcc); err != nil {
+			if err := accountingRepo.UpsertTransferEntry(r.Context(), auth.UserID, next, fromAcc, toAcc); err != nil {
 				http.Error(w, "failed to post transfer journal", http.StatusInternalServerError)
 				return true
 			}
@@ -724,11 +707,11 @@ func serveTransfers(
 			return true
 
 		case http.MethodDelete:
-			if err := transferRepo.Delete(r.Context(), id, claims.UserID); err != nil {
+			if err := transferRepo.Delete(r.Context(), id, auth.UserID); err != nil {
 				http.Error(w, "transfer not found", http.StatusNotFound)
 				return true
 			}
-			if err := accountingRepo.DeleteTransferEntry(r.Context(), claims.UserID, id); err != nil {
+			if err := accountingRepo.DeleteTransferEntry(r.Context(), auth.UserID, id); err != nil {
 				http.Error(w, "failed to delete transfer journal", http.StatusInternalServerError)
 				return true
 			}
@@ -744,6 +727,7 @@ func serveTransactionAssistant(
 	w http.ResponseWriter,
 	r *http.Request,
 	jwtManager *jwt.Manager,
+	apiKeyRepo *repository.ApiKeyRepository,
 	assistantService *service.TransactionAssistantService,
 ) bool {
 	if r.URL.Path != "/api/v1/transactions/assistant/parse" {
@@ -754,12 +738,7 @@ func serveTransactionAssistant(
 		return true
 	}
 
-	authz := r.Header.Get("Authorization")
-	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return true
-	}
-	if _, err := jwtManager.ValidateAccessToken(strings.TrimPrefix(authz, "Bearer ")); err != nil {
+	if _, err := authenticateHTTP(r, jwtManager, apiKeyRepo); err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return true
 	}
@@ -785,6 +764,7 @@ func serveTransactionSourceLinks(
 	w http.ResponseWriter,
 	r *http.Request,
 	jwtManager *jwt.Manager,
+	apiKeyRepo *repository.ApiKeyRepository,
 	transactionRepo *repository.TransactionRepository,
 ) bool {
 	if r.URL.Path != "/api/v1/transactions/source-links" {
@@ -795,19 +775,13 @@ func serveTransactionSourceLinks(
 		return true
 	}
 
-	authz := r.Header.Get("Authorization")
-	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return true
-	}
-
-	claims, err := jwtManager.ValidateAccessToken(strings.TrimPrefix(authz, "Bearer "))
+	auth, err := authenticateHTTP(r, jwtManager, apiKeyRepo)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return true
 	}
 
-	links, err := transactionRepo.ListSourceAssetLinks(r.Context(), claims.UserID)
+	links, err := transactionRepo.ListSourceAssetLinks(r.Context(), auth.UserID)
 	if err != nil {
 		http.Error(w, "failed to fetch transaction source links", http.StatusInternalServerError)
 		return true
@@ -918,6 +892,36 @@ func finalizeTransferPayload(t *model.Transfer, payload transferPayload, fromAss
 	}
 	t.ExchangeRate = t.ToAmount.Div(t.FromAmount)
 	return nil
+}
+
+type httpAuthResult struct {
+	UserID uuid.UUID
+}
+
+func authenticateHTTP(r *http.Request, jwtManager *jwt.Manager, apiKeyRepo *repository.ApiKeyRepository) (*httpAuthResult, error) {
+	authz := r.Header.Get("Authorization")
+	if authz == "" || !strings.HasPrefix(authz, "Bearer ") {
+		return nil, errors.New("unauthorized")
+	}
+
+	token := strings.TrimPrefix(authz, "Bearer ")
+
+	if strings.HasPrefix(token, "api_") {
+		apiKey, err := apiKeyRepo.GetByKey(r.Context(), token)
+		if err != nil {
+			return nil, errors.New("unauthorized")
+		}
+		go func() {
+			_ = apiKeyRepo.UpdateLastUsed(context.Background(), apiKey.ID)
+		}()
+		return &httpAuthResult{UserID: apiKey.UserID}, nil
+	}
+
+	claims, err := jwtManager.ValidateAccessToken(token)
+	if err != nil {
+		return nil, errors.New("unauthorized")
+	}
+	return &httpAuthResult{UserID: claims.UserID}, nil
 }
 
 // withCORS adds CORS headers for development
