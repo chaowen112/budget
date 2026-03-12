@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -242,10 +241,8 @@ func (h *GoalHandler) UpdateGoalProgress(ctx context.Context, req *pb.UpdateGoal
 	}
 
 	changeSource := "manual"
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if sources := md.Get("x-goal-change-source"); len(sources) > 0 && sources[0] != "" {
-			changeSource = sources[0]
-		}
+	if req.ChangeSource != "" {
+		changeSource = req.ChangeSource
 	}
 	delta := currentAmount.Sub(previousAmount)
 	if !delta.IsZero() {

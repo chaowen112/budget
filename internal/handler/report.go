@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"math"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -395,7 +393,7 @@ func (h *ReportHandler) GetBudgetTrackingReport(ctx context.Context, req *pb.Get
 
 	now := time.Now()
 
-	selectedYear, selectedMonth, err := budgetTrackingContextFromMetadata(ctx)
+	selectedYear, selectedMonth, err := budgetTrackingContextFromRequest(req)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -662,7 +660,7 @@ func (h *ReportHandler) GetNetWorthTrend(ctx context.Context, req *pb.GetNetWort
 		return nil, status.Error(codes.Internal, "failed to load user profile")
 	}
 
-	interval, selectedYear, selectedMonth, err := netWorthTrendOptionsFromMetadata(ctx)
+	interval, selectedYear, selectedMonth, err := netWorthTrendOptionsFromRequest(req)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -868,59 +866,37 @@ const (
 	netWorthTrendIntervalDaily   = "daily"
 )
 
-func netWorthTrendOptionsFromMetadata(ctx context.Context) (string, int, string, error) {
+func netWorthTrendOptionsFromRequest(req *pb.GetNetWorthTrendRequest) (string, int, string, error) {
 	interval := netWorthTrendIntervalMonthly
 	selectedYear := 0
 	selectedMonth := ""
 
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return interval, selectedYear, selectedMonth, nil
-	}
-
-	if value := firstMetadataValue(md, "trend-interval", "x-trend-interval", "grpcgateway-trend-interval"); value != "" {
-		normalized := strings.ToLower(strings.TrimSpace(value))
+	if req.Interval != "" {
+		normalized := strings.ToLower(strings.TrimSpace(req.Interval))
 		switch normalized {
 		case netWorthTrendIntervalMonthly, netWorthTrendIntervalDaily:
 			interval = normalized
 		default:
-			return "", 0, "", errors.New("trend-interval must be monthly or daily")
+			return "", 0, "", errors.New("interval must be monthly or daily")
 		}
 	}
 
-	if value := firstMetadataValue(md, "trend-year", "x-trend-year", "grpcgateway-trend-year"); value != "" {
-		parsedYear, err := strconv.Atoi(strings.TrimSpace(value))
-		if err != nil {
-			return "", 0, "", errors.New("trend-year must be a valid year")
+	if req.Year != 0 {
+		if req.Year < 1970 || req.Year > 9999 {
+			return "", 0, "", errors.New("year must be between 1970 and 9999")
 		}
-		if parsedYear < 1970 || parsedYear > 9999 {
-			return "", 0, "", errors.New("trend-year must be between 1970 and 9999")
-		}
-		selectedYear = parsedYear
+		selectedYear = int(req.Year)
 	}
 
-	if value := firstMetadataValue(md, "trend-month", "x-trend-month", "grpcgateway-trend-month"); value != "" {
-		month := strings.TrimSpace(value)
+	if req.Month != "" {
+		month := strings.TrimSpace(req.Month)
 		if _, err := time.Parse("2006-01", month); err != nil {
-			return "", 0, "", errors.New("trend-month must use YYYY-MM format")
+			return "", 0, "", errors.New("month must use YYYY-MM format")
 		}
 		selectedMonth = month
 	}
 
 	return interval, selectedYear, selectedMonth, nil
-}
-
-func firstMetadataValue(md metadata.MD, keys ...string) string {
-	for _, key := range keys {
-		values := md.Get(key)
-		if len(values) == 0 {
-			continue
-		}
-		if strings.TrimSpace(values[0]) != "" {
-			return values[0]
-		}
-	}
-	return ""
 }
 
 type budgetSummaryAggregation struct {
@@ -1133,34 +1109,19 @@ func addYearsPreserveDay(d time.Time, years int) time.Time {
 	return time.Date(base.Year(), base.Month(), day, d.Hour(), d.Minute(), d.Second(), d.Nanosecond(), d.Location())
 }
 
-func budgetTrackingContextFromMetadata(ctx context.Context) (int, int, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return 0, 0, nil
+func budgetTrackingContextFromRequest(req *pb.GetBudgetTrackingReportRequest) (int, int, error) {
+	selectedYear := int(req.Year)
+	if selectedYear != 0 {
+		if selectedYear < 1970 || selectedYear > 9999 {
+			return 0, 0, errors.New("year must be between 1970 and 9999")
+		}
 	}
 
-	selectedYear := 0
-	if value := firstMetadataValue(md, "report-year", "x-report-year", "grpcgateway-report-year"); value != "" {
-		parsedYear, err := strconv.Atoi(strings.TrimSpace(value))
-		if err != nil {
-			return 0, 0, errors.New("report-year must be a valid year")
+	selectedMonth := int(req.Month)
+	if selectedMonth != 0 {
+		if selectedMonth < 1 || selectedMonth > 12 {
+			return 0, 0, errors.New("month must be between 1 and 12")
 		}
-		if parsedYear < 1970 || parsedYear > 9999 {
-			return 0, 0, errors.New("report-year must be between 1970 and 9999")
-		}
-		selectedYear = parsedYear
-	}
-
-	selectedMonth := 0
-	if value := firstMetadataValue(md, "report-month", "x-report-month", "grpcgateway-report-month"); value != "" {
-		parsedMonth, err := strconv.Atoi(strings.TrimSpace(value))
-		if err != nil {
-			return 0, 0, errors.New("report-month must be between 1 and 12")
-		}
-		if parsedMonth < 1 || parsedMonth > 12 {
-			return 0, 0, errors.New("report-month must be between 1 and 12")
-		}
-		selectedMonth = parsedMonth
 	}
 
 	return selectedYear, selectedMonth, nil

@@ -19,6 +19,7 @@ message Transaction {
   string description = 7;
   repeated string tags = 8;
   google.protobuf.Timestamp created_at = 9;
+  string budget_amount = 10;  // Optional: portion that counts toward budget (decimal string, defaults to full amount)
 }
 
 // CreateTransactionRequest
@@ -29,6 +30,8 @@ message CreateTransactionRequest {
   google.protobuf.Timestamp transaction_date = 4;
   string description = 5;
   repeated string tags = 6;
+  string source_asset_id = 7;
+  string budget_amount = 8;  // Optional: portion that counts toward budget (decimal string, defaults to full amount)
 }
 
 message CreateTransactionResponse {
@@ -52,6 +55,7 @@ message ListTransactionsRequest {
   TransactionType type = 4;
   repeated string tags = 5;
   string currency = 6;
+  string keyword = 7;
 }
 
 message ListTransactionsResponse {
@@ -67,6 +71,8 @@ message UpdateTransactionRequest {
   google.protobuf.Timestamp transaction_date = 4;
   string description = 5;
   repeated string tags = 6;
+  string source_asset_id = 7;
+  string budget_amount = 8;  // Optional: portion that counts toward budget (decimal string, defaults to full amount)
 }
 
 message UpdateTransactionResponse {

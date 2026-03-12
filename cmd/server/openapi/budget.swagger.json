@@ -122,12 +122,6 @@
             "default": "ASSET_CATEGORY_UNSPECIFIED"
           },
           {
-            "name": "includeLiabilities",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
-          },
-          {
             "name": "currency",
             "in": "query",
             "required": false,
@@ -1616,6 +1610,22 @@
               "PERIOD_TYPE_YEARLY"
             ],
             "default": "PERIOD_TYPE_UNSPECIFIED"
+          },
+          {
+            "name": "year",
+            "description": "Optional: specific year",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "month",
+            "description": "Optional: specific month (1-12)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
           }
         ],
         "tags": [
@@ -1745,6 +1755,28 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "interval",
+            "description": "\"monthly\" or \"daily\" (default: \"monthly\")",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "year",
+            "description": "Optional: filter to a specific year",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "month",
+            "description": "Optional: filter to a specific month (YYYY-MM format)",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -1902,6 +1934,12 @@
           },
           {
             "name": "currency",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "keyword",
             "in": "query",
             "required": false,
             "type": "string"
@@ -2239,6 +2277,12 @@
         },
         "cost": {
           "type": "string"
+        },
+        "assetTypeId": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
         }
       },
       "title": "UpdateAssetRequest"
@@ -2276,6 +2320,10 @@
       "properties": {
         "currentAmount": {
           "$ref": "#/definitions/v1Money"
+        },
+        "changeSource": {
+          "type": "string",
+          "title": "e.g. \"manual\", \"auto\""
         }
       },
       "title": "UpdateGoalProgressRequest - manually update current amount"
@@ -2326,6 +2374,13 @@
           "items": {
             "type": "string"
           }
+        },
+        "sourceAssetId": {
+          "type": "string"
+        },
+        "budgetAmount": {
+          "type": "string",
+          "title": "Optional: portion that counts toward budget (decimal string, defaults to full amount)"
         }
       },
       "title": "UpdateTransactionRequest"
@@ -2960,6 +3015,13 @@
           "items": {
             "type": "string"
           }
+        },
+        "sourceAssetId": {
+          "type": "string"
+        },
+        "budgetAmount": {
+          "type": "string",
+          "title": "Optional: portion that counts toward budget (decimal string, defaults to full amount)"
         }
       },
       "title": "CreateTransactionRequest"
@@ -4008,6 +4070,10 @@
         "createdAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "budgetAmount": {
+          "type": "string",
+          "title": "Optional: portion that counts toward budget (decimal string, defaults to full amount)"
         }
       },
       "title": "Transaction represents a spending or income record"

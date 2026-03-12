@@ -58,8 +58,8 @@ export default function Assets() {
   const { confirm } = useConfirm()
 
   const { data: assets, isLoading } = useQuery({
-    queryKey: ['assets', showLiabilities],
-    queryFn: () => assetApi.list({ includeLiabilities: showLiabilities }),
+    queryKey: ['assets'],
+    queryFn: () => assetApi.list(),
   })
 
   const { data: assetTypes } = useQuery({

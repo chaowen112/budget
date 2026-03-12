@@ -67,6 +67,7 @@ export interface Transaction {
   transactionDate: string  // ISO timestamp from API
   description?: string
   tags?: string[]
+  budgetAmount?: string  // Decimal string; portion that counts toward budget (omitted = full amount)
   createdAt: string
 }
 
@@ -77,6 +78,7 @@ export interface CreateTransactionRequest {
   transactionDate: string  // ISO timestamp
   description?: string
   tags?: string[]
+  budgetAmount?: string  // Decimal string; omit or "" for full amount
 }
 
 export interface TransactionSourceLink {

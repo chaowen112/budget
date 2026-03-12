@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -178,7 +177,7 @@ func (h *AssetHandler) ListAssets(ctx context.Context, req *pb.ListAssetsRequest
 		category = &c
 	}
 
-	assets, err := h.assetRepo.List(ctx, userID, category, req.IncludeLiabilities)
+	assets, err := h.assetRepo.List(ctx, userID, category, true)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to list assets")
 	}
@@ -249,17 +248,16 @@ func (h *AssetHandler) UpdateAsset(ctx context.Context, req *pb.UpdateAssetReque
 		asset.Name = req.Name
 	}
 
-	assetTypeID, err := assetTypeIDFromMetadataOptional(ctx)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-	if assetTypeID != nil {
-		asset.AssetTypeID = *assetTypeID
+	if req.AssetTypeId != "" {
+		parsed, err := uuid.Parse(req.AssetTypeId)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid asset_type_id")
+		}
+		asset.AssetTypeID = parsed
 	}
 
-	assetCurrency := assetCurrencyFromMetadataOptional(ctx)
-	if assetCurrency != "" {
-		asset.Currency = assetCurrency
+	if req.Currency != "" {
+		asset.Currency = strings.ToUpper(req.Currency)
 	}
 
 	if req.CurrentValue != "" {
@@ -496,42 +494,3 @@ func protoToAssetCategory(c pb.AssetCategory) model.AssetCategory {
 	}
 }
 
-func assetTypeIDFromMetadataOptional(ctx context.Context) (*uuid.UUID, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, nil
-	}
-
-	keys := []string{"asset-type-id", "x-asset-type-id", "grpcgateway-asset-type-id"}
-	for _, key := range keys {
-		values := md.Get(key)
-		if len(values) == 0 || strings.TrimSpace(values[0]) == "" {
-			continue
-		}
-		id, err := uuid.Parse(strings.TrimSpace(values[0]))
-		if err != nil {
-			return nil, errors.New("invalid asset_type_id")
-		}
-		return &id, nil
-	}
-
-	return nil, nil
-}
-
-func assetCurrencyFromMetadataOptional(ctx context.Context) string {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return ""
-	}
-
-	keys := []string{"asset-currency", "x-asset-currency", "grpcgateway-asset-currency"}
-	for _, key := range keys {
-		values := md.Get(key)
-		if len(values) == 0 || strings.TrimSpace(values[0]) == "" {
-			continue
-		}
-		return strings.ToUpper(strings.TrimSpace(values[0]))
-	}
-
-	return ""
-}

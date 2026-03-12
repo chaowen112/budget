@@ -80,6 +80,7 @@ message UpdateSavingGoalResponse {
 message UpdateGoalProgressRequest {
   string id = 1;
   Money current_amount = 2;
+  string change_source = 3;  // e.g. "manual", "auto"
 }
 
 message UpdateGoalProgressResponse {

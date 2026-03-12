@@ -88,8 +88,7 @@ message GetAssetResponse {
 // ListAssetsRequest
 message ListAssetsRequest {
   AssetCategory category = 1;
-  bool include_liabilities = 2;
-  string currency = 3;
+  string currency = 2;
 }
 
 message ListAssetsResponse {
@@ -107,6 +106,8 @@ message UpdateAssetRequest {
   string current_value = 3;
   google.protobuf.Struct custom_fields = 4;
   string cost = 5;
+  string asset_type_id = 6;
+  string currency = 7;
 }
 
 message UpdateAssetResponse {

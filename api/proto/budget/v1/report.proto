@@ -159,6 +159,8 @@ message GetSavingGoalsReportResponse {
 // GetBudgetTrackingReportRequest
 message GetBudgetTrackingReportRequest {
   PeriodType period_type = 1;  // defaults to monthly
+  int32 year = 2;  // Optional: specific year
+  int32 month = 3;  // Optional: specific month (1-12)
 }
 
 message GetBudgetTrackingReportResponse {
@@ -187,6 +189,9 @@ message GetSpendingTrendResponse {
 // GetNetWorthTrendRequest
 message GetNetWorthTrendRequest {
   int32 months = 1;  // Number of months (default: 12)
+  string interval = 2;  // "monthly" or "daily" (default: "monthly")
+  int32 year = 3;  // Optional: filter to a specific year
+  string month = 4;  // Optional: filter to a specific month (YYYY-MM format)
 }
 
 message NetWorthTrendPoint {

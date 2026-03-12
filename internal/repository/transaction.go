@@ -120,7 +120,7 @@ func (r *TransactionRepository) List(ctx context.Context, filter TransactionFilt
 	// Main query
 	query := `
 		SELECT t.id, t.user_id, t.category_id, c.name, t.amount, t.currency, t.type,
-		       t.transaction_date, t.description, t.tags, t.created_at, t.updated_at
+		       t.transaction_date, t.description, t.tags, t.budget_amount, t.created_at, t.updated_at
 		FROM transactions t
 		JOIN categories c ON t.category_id = c.id
 		LEFT JOIN transaction_asset_links tal ON tal.transaction_id = t.id
@@ -199,7 +199,7 @@ func (r *TransactionRepository) List(ctx context.Context, filter TransactionFilt
 		var t model.Transaction
 		err := rows.Scan(
 			&t.ID, &t.UserID, &t.CategoryID, &t.CategoryName, &t.Amount, &t.Currency,
-			&t.Type, &t.TransactionDate, &t.Description, &t.Tags, &t.CreatedAt, &t.UpdatedAt,
+			&t.Type, &t.TransactionDate, &t.Description, &t.Tags, &t.BudgetAmount, &t.CreatedAt, &t.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -221,7 +221,7 @@ func placeholder(index int) string {
 func (r *TransactionRepository) GetByID(ctx context.Context, id, userID uuid.UUID) (*model.Transaction, error) {
 	query := `
 		SELECT t.id, t.user_id, t.category_id, c.name, t.amount, t.currency, t.type,
-		       t.transaction_date, t.description, t.tags, t.created_at, t.updated_at
+		       t.transaction_date, t.description, t.tags, t.budget_amount, t.created_at, t.updated_at
 		FROM transactions t
 		JOIN categories c ON t.category_id = c.id
 		WHERE t.id = $1 AND t.user_id = $2
@@ -230,7 +230,7 @@ func (r *TransactionRepository) GetByID(ctx context.Context, id, userID uuid.UUI
 	var t model.Transaction
 	err := r.db.Pool.QueryRow(ctx, query, id, userID).Scan(
 		&t.ID, &t.UserID, &t.CategoryID, &t.CategoryName, &t.Amount, &t.Currency,
-		&t.Type, &t.TransactionDate, &t.Description, &t.Tags, &t.CreatedAt, &t.UpdatedAt,
+		&t.Type, &t.TransactionDate, &t.Description, &t.Tags, &t.BudgetAmount, &t.CreatedAt, &t.UpdatedAt,
 	)
 
 	if err != nil {
@@ -246,14 +246,14 @@ func (r *TransactionRepository) GetByID(ctx context.Context, id, userID uuid.UUI
 // Create creates a new transaction
 func (r *TransactionRepository) Create(ctx context.Context, t *model.Transaction) error {
 	query := `
-		INSERT INTO transactions (user_id, category_id, amount, currency, type, transaction_date, description, tags)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO transactions (user_id, category_id, amount, currency, type, transaction_date, description, tags, budget_amount)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at, updated_at
 	`
 
 	return r.db.Pool.QueryRow(ctx, query,
 		t.UserID, t.CategoryID, t.Amount, t.Currency, t.Type,
-		t.TransactionDate, t.Description, t.Tags,
+		t.TransactionDate, t.Description, t.Tags, t.BudgetAmount,
 	).Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt)
 }
 
@@ -261,13 +261,13 @@ func (r *TransactionRepository) Create(ctx context.Context, t *model.Transaction
 func (r *TransactionRepository) Update(ctx context.Context, t *model.Transaction) error {
 	query := `
 		UPDATE transactions
-		SET category_id = $3, amount = $4, transaction_date = $5, description = $6, tags = $7, updated_at = NOW()
+		SET category_id = $3, amount = $4, transaction_date = $5, description = $6, tags = $7, budget_amount = $8, updated_at = NOW()
 		WHERE id = $1 AND user_id = $2
 		RETURNING updated_at
 	`
 
 	err := r.db.Pool.QueryRow(ctx, query,
-		t.ID, t.UserID, t.CategoryID, t.Amount, t.TransactionDate, t.Description, t.Tags,
+		t.ID, t.UserID, t.CategoryID, t.Amount, t.TransactionDate, t.Description, t.Tags, t.BudgetAmount,
 	).Scan(&t.UpdatedAt)
 
 	if err != nil {
@@ -357,10 +357,11 @@ func (r *TransactionRepository) ListSourceAssetLinks(ctx context.Context, userID
 	return links, rows.Err()
 }
 
-// GetSpendingByCategory gets spending grouped by category and currency for a date range
+// GetSpendingByCategory gets spending grouped by category and currency for a date range.
+// Uses budget_amount when set, falling back to amount for budget calculations.
 func (r *TransactionRepository) GetSpendingByCategory(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time, transactionType model.CategoryType) ([]CategorySpending, error) {
 	query := `
-		SELECT c.id, c.name, t.currency, SUM(t.amount) as total, COUNT(*) as count
+		SELECT c.id, c.name, t.currency, SUM(COALESCE(t.budget_amount, t.amount)) as total, COUNT(*) as count
 		FROM transactions t
 		JOIN categories c ON t.category_id = c.id
 		WHERE t.user_id = $1 AND t.type = $2

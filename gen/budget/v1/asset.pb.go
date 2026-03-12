@@ -669,12 +669,11 @@ func (x *GetAssetResponse) GetAsset() *Asset {
 
 // ListAssetsRequest
 type ListAssetsRequest struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Category           AssetCategory          `protobuf:"varint,1,opt,name=category,proto3,enum=budget.v1.AssetCategory" json:"category,omitempty"`
-	IncludeLiabilities bool                   `protobuf:"varint,2,opt,name=include_liabilities,json=includeLiabilities,proto3" json:"include_liabilities,omitempty"`
-	Currency           string                 `protobuf:"bytes,3,opt,name=currency,proto3" json:"currency,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Category      AssetCategory          `protobuf:"varint,1,opt,name=category,proto3,enum=budget.v1.AssetCategory" json:"category,omitempty"`
+	Currency      string                 `protobuf:"bytes,2,opt,name=currency,proto3" json:"currency,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListAssetsRequest) Reset() {
@@ -712,13 +711,6 @@ func (x *ListAssetsRequest) GetCategory() AssetCategory {
 		return x.Category
 	}
 	return AssetCategory_ASSET_CATEGORY_UNSPECIFIED
-}
-
-func (x *ListAssetsRequest) GetIncludeLiabilities() bool {
-	if x != nil {
-		return x.IncludeLiabilities
-	}
-	return false
 }
 
 func (x *ListAssetsRequest) GetCurrency() string {
@@ -812,6 +804,8 @@ type UpdateAssetRequest struct {
 	CurrentValue  string                 `protobuf:"bytes,3,opt,name=current_value,json=currentValue,proto3" json:"current_value,omitempty"`
 	CustomFields  *structpb.Struct       `protobuf:"bytes,4,opt,name=custom_fields,json=customFields,proto3" json:"custom_fields,omitempty"`
 	Cost          string                 `protobuf:"bytes,5,opt,name=cost,proto3" json:"cost,omitempty"`
+	AssetTypeId   string                 `protobuf:"bytes,6,opt,name=asset_type_id,json=assetTypeId,proto3" json:"asset_type_id,omitempty"`
+	Currency      string                 `protobuf:"bytes,7,opt,name=currency,proto3" json:"currency,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -877,6 +871,20 @@ func (x *UpdateAssetRequest) GetCustomFields() *structpb.Struct {
 func (x *UpdateAssetRequest) GetCost() string {
 	if x != nil {
 		return x.Cost
+	}
+	return ""
+}
+
+func (x *UpdateAssetRequest) GetAssetTypeId() string {
+	if x != nil {
+		return x.AssetTypeId
+	}
+	return ""
+}
+
+func (x *UpdateAssetRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
 	}
 	return ""
 }
@@ -1257,23 +1265,24 @@ const file_budget_v1_asset_proto_rawDesc = "" +
 	"\x0fGetAssetRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\":\n" +
 	"\x10GetAssetResponse\x12&\n" +
-	"\x05asset\x18\x01 \x01(\v2\x10.budget.v1.AssetR\x05asset\"\x96\x01\n" +
+	"\x05asset\x18\x01 \x01(\v2\x10.budget.v1.AssetR\x05asset\"e\n" +
 	"\x11ListAssetsRequest\x124\n" +
-	"\bcategory\x18\x01 \x01(\x0e2\x18.budget.v1.AssetCategoryR\bcategory\x12/\n" +
-	"\x13include_liabilities\x18\x02 \x01(\bR\x12includeLiabilities\x12\x1a\n" +
-	"\bcurrency\x18\x03 \x01(\tR\bcurrency\"\xe6\x01\n" +
+	"\bcategory\x18\x01 \x01(\x0e2\x18.budget.v1.AssetCategoryR\bcategory\x12\x1a\n" +
+	"\bcurrency\x18\x02 \x01(\tR\bcurrency\"\xe6\x01\n" +
 	"\x12ListAssetsResponse\x12(\n" +
 	"\x06assets\x18\x01 \x03(\v2\x10.budget.v1.AssetR\x06assets\x12,\n" +
 	"\x12total_assets_value\x18\x02 \x01(\tR\x10totalAssetsValue\x126\n" +
 	"\x17total_liabilities_value\x18\x03 \x01(\tR\x15totalLiabilitiesValue\x12\x1b\n" +
 	"\tnet_worth\x18\x04 \x01(\tR\bnetWorth\x12#\n" +
-	"\rbase_currency\x18\x05 \x01(\tR\fbaseCurrency\"\xaf\x01\n" +
+	"\rbase_currency\x18\x05 \x01(\tR\fbaseCurrency\"\xef\x01\n" +
 	"\x12UpdateAssetRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12#\n" +
 	"\rcurrent_value\x18\x03 \x01(\tR\fcurrentValue\x12<\n" +
 	"\rcustom_fields\x18\x04 \x01(\v2\x17.google.protobuf.StructR\fcustomFields\x12\x12\n" +
-	"\x04cost\x18\x05 \x01(\tR\x04cost\"=\n" +
+	"\x04cost\x18\x05 \x01(\tR\x04cost\x12\"\n" +
+	"\rasset_type_id\x18\x06 \x01(\tR\vassetTypeId\x12\x1a\n" +
+	"\bcurrency\x18\a \x01(\tR\bcurrency\"=\n" +
 	"\x13UpdateAssetResponse\x12&\n" +
 	"\x05asset\x18\x01 \x01(\v2\x10.budget.v1.AssetR\x05asset\"$\n" +
 	"\x12DeleteAssetRequest\x12\x0e\n" +

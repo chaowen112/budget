@@ -35,6 +35,7 @@ type Transaction struct {
 	Description     string                 `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`
 	Tags            []string               `protobuf:"bytes,8,rep,name=tags,proto3" json:"tags,omitempty"`
 	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	BudgetAmount    string                 `protobuf:"bytes,10,opt,name=budget_amount,json=budgetAmount,proto3" json:"budget_amount,omitempty"` // Optional: portion that counts toward budget (decimal string, defaults to full amount)
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -132,6 +133,13 @@ func (x *Transaction) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Transaction) GetBudgetAmount() string {
+	if x != nil {
+		return x.BudgetAmount
+	}
+	return ""
+}
+
 // CreateTransactionRequest
 type CreateTransactionRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
@@ -141,6 +149,8 @@ type CreateTransactionRequest struct {
 	TransactionDate *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=transaction_date,json=transactionDate,proto3" json:"transaction_date,omitempty"`
 	Description     string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
 	Tags            []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
+	SourceAssetId   string                 `protobuf:"bytes,7,opt,name=source_asset_id,json=sourceAssetId,proto3" json:"source_asset_id,omitempty"`
+	BudgetAmount    string                 `protobuf:"bytes,8,opt,name=budget_amount,json=budgetAmount,proto3" json:"budget_amount,omitempty"` // Optional: portion that counts toward budget (decimal string, defaults to full amount)
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -215,6 +225,20 @@ func (x *CreateTransactionRequest) GetTags() []string {
 		return x.Tags
 	}
 	return nil
+}
+
+func (x *CreateTransactionRequest) GetSourceAssetId() string {
+	if x != nil {
+		return x.SourceAssetId
+	}
+	return ""
+}
+
+func (x *CreateTransactionRequest) GetBudgetAmount() string {
+	if x != nil {
+		return x.BudgetAmount
+	}
+	return ""
 }
 
 type CreateTransactionResponse struct {
@@ -359,6 +383,7 @@ type ListTransactionsRequest struct {
 	Type          TransactionType        `protobuf:"varint,4,opt,name=type,proto3,enum=budget.v1.TransactionType" json:"type,omitempty"`
 	Tags          []string               `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`
 	Currency      string                 `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
+	Keyword       string                 `protobuf:"bytes,7,opt,name=keyword,proto3" json:"keyword,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -435,6 +460,13 @@ func (x *ListTransactionsRequest) GetCurrency() string {
 	return ""
 }
 
+func (x *ListTransactionsRequest) GetKeyword() string {
+	if x != nil {
+		return x.Keyword
+	}
+	return ""
+}
+
 type ListTransactionsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Transactions  []*Transaction         `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"`
@@ -496,6 +528,8 @@ type UpdateTransactionRequest struct {
 	TransactionDate *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=transaction_date,json=transactionDate,proto3" json:"transaction_date,omitempty"`
 	Description     string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
 	Tags            []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
+	SourceAssetId   string                 `protobuf:"bytes,7,opt,name=source_asset_id,json=sourceAssetId,proto3" json:"source_asset_id,omitempty"`
+	BudgetAmount    string                 `protobuf:"bytes,8,opt,name=budget_amount,json=budgetAmount,proto3" json:"budget_amount,omitempty"` // Optional: portion that counts toward budget (decimal string, defaults to full amount)
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -570,6 +604,20 @@ func (x *UpdateTransactionRequest) GetTags() []string {
 		return x.Tags
 	}
 	return nil
+}
+
+func (x *UpdateTransactionRequest) GetSourceAssetId() string {
+	if x != nil {
+		return x.SourceAssetId
+	}
+	return ""
+}
+
+func (x *UpdateTransactionRequest) GetBudgetAmount() string {
+	if x != nil {
+		return x.BudgetAmount
+	}
+	return ""
 }
 
 type UpdateTransactionResponse struct {
@@ -701,7 +749,7 @@ var File_budget_v1_transaction_proto protoreflect.FileDescriptor
 
 const file_budget_v1_transaction_proto_rawDesc = "" +
 	"\n" +
-	"\x1bbudget/v1/transaction.proto\x12\tbudget.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x16budget/v1/common.proto\"\xf5\x02\n" +
+	"\x1bbudget/v1/transaction.proto\x12\tbudget.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x16budget/v1/common.proto\"\x9a\x03\n" +
 	"\vTransaction\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vcategory_id\x18\x02 \x01(\tR\n" +
@@ -713,7 +761,9 @@ const file_budget_v1_transaction_proto_rawDesc = "" +
 	"\vdescription\x18\a \x01(\tR\vdescription\x12\x12\n" +
 	"\x04tags\x18\b \x03(\tR\x04tags\x129\n" +
 	"\n" +
-	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x92\x02\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12#\n" +
+	"\rbudget_amount\x18\n" +
+	" \x01(\tR\fbudgetAmount\"\xdf\x02\n" +
 	"\x18CreateTransactionRequest\x12\x1f\n" +
 	"\vcategory_id\x18\x01 \x01(\tR\n" +
 	"categoryId\x12(\n" +
@@ -721,13 +771,15 @@ const file_budget_v1_transaction_proto_rawDesc = "" +
 	"\x04type\x18\x03 \x01(\x0e2\x1a.budget.v1.TransactionTypeR\x04type\x12E\n" +
 	"\x10transaction_date\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x0ftransactionDate\x12 \n" +
 	"\vdescription\x18\x05 \x01(\tR\vdescription\x12\x12\n" +
-	"\x04tags\x18\x06 \x03(\tR\x04tags\"U\n" +
+	"\x04tags\x18\x06 \x03(\tR\x04tags\x12&\n" +
+	"\x0fsource_asset_id\x18\a \x01(\tR\rsourceAssetId\x12#\n" +
+	"\rbudget_amount\x18\b \x01(\tR\fbudgetAmount\"U\n" +
 	"\x19CreateTransactionResponse\x128\n" +
 	"\vtransaction\x18\x01 \x01(\v2\x16.budget.v1.TransactionR\vtransaction\"'\n" +
 	"\x15GetTransactionRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"R\n" +
 	"\x16GetTransactionResponse\x128\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x16.budget.v1.TransactionR\vtransaction\"\x8d\x02\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x16.budget.v1.TransactionR\vtransaction\"\xa7\x02\n" +
 	"\x17ListTransactionsRequest\x12<\n" +
 	"\n" +
 	"pagination\x18\x01 \x01(\v2\x1c.budget.v1.PaginationRequestR\n" +
@@ -738,12 +790,13 @@ const file_budget_v1_transaction_proto_rawDesc = "" +
 	"categoryId\x12.\n" +
 	"\x04type\x18\x04 \x01(\x0e2\x1a.budget.v1.TransactionTypeR\x04type\x12\x12\n" +
 	"\x04tags\x18\x05 \x03(\tR\x04tags\x12\x1a\n" +
-	"\bcurrency\x18\x06 \x01(\tR\bcurrency\"\x95\x01\n" +
+	"\bcurrency\x18\x06 \x01(\tR\bcurrency\x12\x18\n" +
+	"\akeyword\x18\a \x01(\tR\akeyword\"\x95\x01\n" +
 	"\x18ListTransactionsResponse\x12:\n" +
 	"\ftransactions\x18\x01 \x03(\v2\x16.budget.v1.TransactionR\ftransactions\x12=\n" +
 	"\n" +
 	"pagination\x18\x02 \x01(\v2\x1d.budget.v1.PaginationResponseR\n" +
-	"pagination\"\xf2\x01\n" +
+	"pagination\"\xbf\x02\n" +
 	"\x18UpdateTransactionRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vcategory_id\x18\x02 \x01(\tR\n" +
@@ -751,7 +804,9 @@ const file_budget_v1_transaction_proto_rawDesc = "" +
 	"\x06amount\x18\x03 \x01(\v2\x10.budget.v1.MoneyR\x06amount\x12E\n" +
 	"\x10transaction_date\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x0ftransactionDate\x12 \n" +
 	"\vdescription\x18\x05 \x01(\tR\vdescription\x12\x12\n" +
-	"\x04tags\x18\x06 \x03(\tR\x04tags\"U\n" +
+	"\x04tags\x18\x06 \x03(\tR\x04tags\x12&\n" +
+	"\x0fsource_asset_id\x18\a \x01(\tR\rsourceAssetId\x12#\n" +
+	"\rbudget_amount\x18\b \x01(\tR\fbudgetAmount\"U\n" +
 	"\x19UpdateTransactionResponse\x128\n" +
 	"\vtransaction\x18\x01 \x01(\v2\x16.budget.v1.TransactionR\vtransaction\"*\n" +
 	"\x18DeleteTransactionRequest\x12\x0e\n" +

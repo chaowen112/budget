@@ -136,11 +136,10 @@ export const transactionApi = {
     if (params?.type) queryParams.type = params.type
     if (params?.currency) queryParams.currency = params.currency
 
+    if (params?.keyword) queryParams.keyword = params.keyword
+
     const response = await api.get('/transactions', {
       params: queryParams,
-      headers: params?.keyword
-        ? { 'Grpc-Metadata-search-keyword': params.keyword }
-        : undefined,
     })
     return {
       transactions: response.data.transactions || [],
@@ -154,18 +153,12 @@ export const transactionApi = {
   },
 
   create: async (data: CreateTransactionRequest): Promise<Transaction> => {
-    const { sourceAssetId, ...payload } = data
-    const response = await api.post('/transactions', payload, {
-      headers: { 'Grpc-Metadata-source-asset-id': sourceAssetId },
-    })
+    const response = await api.post('/transactions', data)
     return response.data.transaction
   },
 
   update: async (id: string, data: Partial<CreateTransactionRequest>): Promise<Transaction> => {
-    const { sourceAssetId, ...payload } = data
-    const response = await api.patch(`/transactions/${id}`, payload, {
-      headers: sourceAssetId ? { 'Grpc-Metadata-source-asset-id': sourceAssetId } : undefined,
-    })
+    const response = await api.patch(`/transactions/${id}`, data)
     return response.data.transaction
   },
 
@@ -274,11 +267,10 @@ export const goalApi = {
   },
 
   updateProgress: async (id: string, currentAmount: Money, source = 'manual'): Promise<SavingGoal> => {
-    const response = await api.put(
-      `/goals/${id}/progress`,
-      { currentAmount },
-      { headers: { 'x-goal-change-source': source } },
-    )
+    const response = await api.put(`/goals/${id}/progress`, {
+      currentAmount,
+      changeSource: source,
+    })
     return response.data.goal
   },
 
@@ -326,12 +318,10 @@ export const goalApi = {
 export const assetApi = {
   list: async (params?: {
     category?: AssetCategory
-    includeLiabilities?: boolean
   }): Promise<Asset[]> => {
     const response = await api.get('/assets', {
       params: {
         category: params?.category,
-        include_liabilities: params?.includeLiabilities
       }
     })
     return response.data.assets || []
@@ -379,13 +369,10 @@ export const assetApi = {
     if (data.currentValue) payload.current_value = data.currentValue
     if (data.cost !== undefined) payload.cost = data.cost
     if (data.notes) payload.notes = data.notes
-    const headers: Record<string, string> = {}
-    if (data.assetTypeId) headers['Grpc-Metadata-asset-type-id'] = data.assetTypeId
-    if (data.currency) headers['Grpc-Metadata-asset-currency'] = data.currency
+    if (data.assetTypeId) payload.asset_type_id = data.assetTypeId
+    if (data.currency) payload.currency = data.currency
 
-    const response = await api.patch(`/assets/${id}`, payload, {
-      headers: Object.keys(headers).length > 0 ? headers : undefined,
-    })
+    const response = await api.patch(`/assets/${id}`, payload)
     return response.data.asset
   },
 
@@ -432,18 +419,15 @@ export const reportApi = {
     year?: number
     month?: string
   }): Promise<NetWorthTrendReport> => {
-    const queryParams = {
+    const queryParams: Record<string, unknown> = {
       months: params?.months ?? 12,
     }
-
-    const metadataHeaders: Record<string, string> = {}
-    if (params?.interval) metadataHeaders['Grpc-Metadata-trend-interval'] = params.interval
-    if (typeof params?.year === 'number') metadataHeaders['Grpc-Metadata-trend-year'] = String(params.year)
-    if (params?.month) metadataHeaders['Grpc-Metadata-trend-month'] = params.month
+    if (params?.interval) queryParams.interval = params.interval
+    if (typeof params?.year === 'number') queryParams.year = params.year
+    if (params?.month) queryParams.month = params.month
 
     const response = await api.get('/reports/net-worth-trend', {
       params: queryParams,
-      headers: Object.keys(metadataHeaders).length > 0 ? metadataHeaders : undefined,
     })
     return response.data
   },
@@ -453,13 +437,13 @@ export const reportApi = {
     year?: number
     month?: number
   }): Promise<BudgetTrackingReport> => {
-    const metadataHeaders: Record<string, string> = {}
-    if (typeof params?.year === 'number') metadataHeaders['Grpc-Metadata-report-year'] = String(params.year)
-    if (typeof params?.month === 'number') metadataHeaders['Grpc-Metadata-report-month'] = String(params.month)
+    const queryParams: Record<string, unknown> = {}
+    if (params?.periodType) queryParams.periodType = params.periodType
+    if (typeof params?.year === 'number') queryParams.year = params.year
+    if (typeof params?.month === 'number') queryParams.month = params.month
 
     const response = await api.get('/reports/budget-tracking', {
-      params: params?.periodType ? { periodType: params.periodType } : undefined,
-      headers: Object.keys(metadataHeaders).length > 0 ? metadataHeaders : undefined,
+      params: queryParams,
     })
     return response.data.report
   },

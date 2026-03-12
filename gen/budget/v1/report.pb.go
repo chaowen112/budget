@@ -1257,6 +1257,8 @@ func (x *GetSavingGoalsReportResponse) GetBehindScheduleCount() int32 {
 type GetBudgetTrackingReportRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PeriodType    PeriodType             `protobuf:"varint,1,opt,name=period_type,json=periodType,proto3,enum=budget.v1.PeriodType" json:"period_type,omitempty"` // defaults to monthly
+	Year          int32                  `protobuf:"varint,2,opt,name=year,proto3" json:"year,omitempty"`                                                         // Optional: specific year
+	Month         int32                  `protobuf:"varint,3,opt,name=month,proto3" json:"month,omitempty"`                                                       // Optional: specific month (1-12)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1296,6 +1298,20 @@ func (x *GetBudgetTrackingReportRequest) GetPeriodType() PeriodType {
 		return x.PeriodType
 	}
 	return PeriodType_PERIOD_TYPE_UNSPECIFIED
+}
+
+func (x *GetBudgetTrackingReportRequest) GetYear() int32 {
+	if x != nil {
+		return x.Year
+	}
+	return 0
+}
+
+func (x *GetBudgetTrackingReportRequest) GetMonth() int32 {
+	if x != nil {
+		return x.Month
+	}
+	return 0
 }
 
 type GetBudgetTrackingReportResponse struct {
@@ -1526,7 +1542,10 @@ func (x *GetSpendingTrendResponse) GetTrendDirection() string {
 // GetNetWorthTrendRequest
 type GetNetWorthTrendRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Months        int32                  `protobuf:"varint,1,opt,name=months,proto3" json:"months,omitempty"` // Number of months (default: 12)
+	Months        int32                  `protobuf:"varint,1,opt,name=months,proto3" json:"months,omitempty"`    // Number of months (default: 12)
+	Interval      string                 `protobuf:"bytes,2,opt,name=interval,proto3" json:"interval,omitempty"` // "monthly" or "daily" (default: "monthly")
+	Year          int32                  `protobuf:"varint,3,opt,name=year,proto3" json:"year,omitempty"`        // Optional: filter to a specific year
+	Month         string                 `protobuf:"bytes,4,opt,name=month,proto3" json:"month,omitempty"`       // Optional: filter to a specific month (YYYY-MM format)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1566,6 +1585,27 @@ func (x *GetNetWorthTrendRequest) GetMonths() int32 {
 		return x.Months
 	}
 	return 0
+}
+
+func (x *GetNetWorthTrendRequest) GetInterval() string {
+	if x != nil {
+		return x.Interval
+	}
+	return ""
+}
+
+func (x *GetNetWorthTrendRequest) GetYear() int32 {
+	if x != nil {
+		return x.Year
+	}
+	return 0
+}
+
+func (x *GetNetWorthTrendRequest) GetMonth() string {
+	if x != nil {
+		return x.Month
+	}
+	return ""
 }
 
 type NetWorthTrendPoint struct {
@@ -1812,10 +1852,12 @@ const file_budget_v1_report_proto_rawDesc = "" +
 	"\vtotal_goals\x18\x02 \x01(\x05R\n" +
 	"totalGoals\x12$\n" +
 	"\x0eon_track_count\x18\x03 \x01(\x05R\fonTrackCount\x122\n" +
-	"\x15behind_schedule_count\x18\x04 \x01(\x05R\x13behindScheduleCount\"X\n" +
+	"\x15behind_schedule_count\x18\x04 \x01(\x05R\x13behindScheduleCount\"\x82\x01\n" +
 	"\x1eGetBudgetTrackingReportRequest\x126\n" +
 	"\vperiod_type\x18\x01 \x01(\x0e2\x15.budget.v1.PeriodTypeR\n" +
-	"periodType\"Z\n" +
+	"periodType\x12\x12\n" +
+	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +
+	"\x05month\x18\x03 \x01(\x05R\x05month\"Z\n" +
 	"\x1fGetBudgetTrackingReportResponse\x127\n" +
 	"\x06report\x18\x01 \x01(\v2\x1f.budget.v1.BudgetTrackingReportR\x06report\"R\n" +
 	"\x17GetSpendingTrendRequest\x12\x16\n" +
@@ -1830,9 +1872,12 @@ const file_budget_v1_report_proto_rawDesc = "" +
 	"\aaverage\x18\x02 \x01(\v2\x10.budget.v1.MoneyR\aaverage\x12\"\n" +
 	"\x03min\x18\x03 \x01(\v2\x10.budget.v1.MoneyR\x03min\x12\"\n" +
 	"\x03max\x18\x04 \x01(\v2\x10.budget.v1.MoneyR\x03max\x12'\n" +
-	"\x0ftrend_direction\x18\x05 \x01(\tR\x0etrendDirection\"1\n" +
+	"\x0ftrend_direction\x18\x05 \x01(\tR\x0etrendDirection\"w\n" +
 	"\x17GetNetWorthTrendRequest\x12\x16\n" +
-	"\x06months\x18\x01 \x01(\x05R\x06months\"\xb7\x01\n" +
+	"\x06months\x18\x01 \x01(\x05R\x06months\x12\x1a\n" +
+	"\binterval\x18\x02 \x01(\tR\binterval\x12\x12\n" +
+	"\x04year\x18\x03 \x01(\x05R\x04year\x12\x14\n" +
+	"\x05month\x18\x04 \x01(\tR\x05month\"\xb7\x01\n" +
 	"\x12NetWorthTrendPoint\x12\x14\n" +
 	"\x05month\x18\x01 \x01(\tR\x05month\x12-\n" +
 	"\tnet_worth\x18\x02 \x01(\v2\x10.budget.v1.MoneyR\bnetWorth\x12(\n" +

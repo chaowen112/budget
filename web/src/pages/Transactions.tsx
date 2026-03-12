@@ -79,6 +79,8 @@ export default function Transactions() {
   const [transferToAmount, setTransferToAmount] = useState('')
   const [transferDescriptionInput, setTransferDescriptionInput] = useState('')
   const [transferDateInput, setTransferDateInput] = useState(new Date().toISOString().split('T')[0])
+  const [transactionTagsInput, setTransactionTagsInput] = useState('')
+  const [transactionBudgetAmountInput, setTransactionBudgetAmountInput] = useState('')
   const [assistantMessage, setAssistantMessage] = useState('')
   const [assistantImageDataUrl, setAssistantImageDataUrl] = useState('')
   const [assistantImageName, setAssistantImageName] = useState('')
@@ -105,7 +107,7 @@ export default function Transactions() {
 
   const { data: assets } = useQuery({
     queryKey: ['assets', 'transaction-source'],
-    queryFn: () => assetApi.list({ includeLiabilities: true }),
+    queryFn: () => assetApi.list(),
   })
 
   const { data: transfers } = useQuery({
@@ -328,11 +330,18 @@ export default function Transactions() {
     const currency = transactionCurrencyInput || user?.baseCurrency || 'SGD'
     const dateStr = transactionDateInput
     const transactionDate = new Date(dateStr).toISOString()
+    const parsedTags = transactionTagsInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+    const budgetAmt = transactionBudgetAmountInput.trim()
     const data = {
       categoryId: (formData.get('categoryId') as string) || transactionCategoryId,
       amount: numberToMoney(amount, currency),
       description: transactionDescriptionInput,
       transactionDate,
+      ...(parsedTags.length > 0 ? { tags: parsedTags } : {}),
+      ...(budgetAmt !== '' ? { budgetAmount: budgetAmt } : {}),
     } as Parameters<typeof transactionApi.create>[0]
 
     const selectedSourceAssetId = (formData.get('sourceAssetId') as string) || transactionSourceAssetId
@@ -359,6 +368,8 @@ export default function Transactions() {
     setTransactionAmountInput('')
     setTransactionCurrencyInput(user?.baseCurrency || 'SGD')
     setTransactionDescriptionInput('')
+    setTransactionTagsInput('')
+    setTransactionBudgetAmountInput('')
     setTransactionDateInput(new Date().toISOString().split('T')[0])
     setTransferFromAssetId('')
     setTransferToAssetId('')
@@ -591,6 +602,8 @@ export default function Transactions() {
             setTransactionAmountInput('')
             setTransactionCurrencyInput(user?.baseCurrency || 'SGD')
             setTransactionDescriptionInput('')
+            setTransactionTagsInput('')
+            setTransactionBudgetAmountInput('')
             setTransactionDateInput(new Date().toISOString().split('T')[0])
             setTransferFromAssetId('')
             setTransferToAssetId('')
@@ -826,6 +839,23 @@ export default function Transactions() {
                       {' · '}
                       {formatDate(transaction.transactionDate)}
                     </p>
+                    {(transaction.budgetAmount || (transaction.tags && transaction.tags.length > 0)) && (
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {transaction.budgetAmount && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                            Budget: {formatMoney({ amount: transaction.budgetAmount, currency: transaction.amount.currency })}
+                          </span>
+                        )}
+                        {transaction.tags?.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Amount + Actions */}
@@ -853,6 +883,8 @@ export default function Transactions() {
                           setTransactionAmountInput(String(moneyToNumber(transaction.amount)))
                           setTransactionCurrencyInput(transaction.amount.currency)
                           setTransactionDescriptionInput(transaction.description || '')
+                          setTransactionTagsInput((transaction.tags || []).join(', '))
+                          setTransactionBudgetAmountInput(transaction.budgetAmount || '')
                           setTransactionDateInput(transaction.transactionDate?.split('T')[0] || new Date().toISOString().split('T')[0])
                           setAssistantCompletionNote('')
                           setIsModalOpen(true)
@@ -1277,6 +1309,31 @@ export default function Transactions() {
                   onChange={(e) => setTransactionDescriptionInput(e.target.value)}
                   placeholder="What was this for?"
                 />
+              </FormField>
+
+              <FormField label="Tags">
+                <Input
+                  type="text"
+                  name="tags"
+                  value={transactionTagsInput}
+                  onChange={(e) => setTransactionTagsInput(e.target.value)}
+                  placeholder="e.g. food, work, travel (comma-separated)"
+                />
+              </FormField>
+
+              <FormField label="Budget Amount (optional)">
+                <Input
+                  type="number"
+                  name="budgetAmount"
+                  step="0.01"
+                  min="0"
+                  value={transactionBudgetAmountInput}
+                  onChange={(e) => setTransactionBudgetAmountInput(e.target.value)}
+                  placeholder={`Leave blank to use full amount toward budget`}
+                />
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                  How much of this expense counts toward your budget. Leave blank for 100%.
+                </p>
               </FormField>
 
               <FormField label="Date">

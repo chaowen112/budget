@@ -84,8 +84,8 @@ export default function Dashboard() {
     queryFn: () => budgetApi.getAllStatuses(),
   })
   const { data: assets, isLoading: isLoadingAssets } = useQuery({
-    queryKey: ['assets', true],
-    queryFn: () => assetApi.list({ includeLiabilities: true }),
+    queryKey: ['assets'],
+    queryFn: () => assetApi.list(),
   })
   const { data: goalProgress, isLoading: isLoadingGoals } = useQuery({
     queryKey: ['goalProgress'],

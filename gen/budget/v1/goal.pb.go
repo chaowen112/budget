@@ -650,6 +650,7 @@ type UpdateGoalProgressRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	CurrentAmount *Money                 `protobuf:"bytes,2,opt,name=current_amount,json=currentAmount,proto3" json:"current_amount,omitempty"`
+	ChangeSource  string                 `protobuf:"bytes,3,opt,name=change_source,json=changeSource,proto3" json:"change_source,omitempty"` // e.g. "manual", "auto"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -696,6 +697,13 @@ func (x *UpdateGoalProgressRequest) GetCurrentAmount() *Money {
 		return x.CurrentAmount
 	}
 	return nil
+}
+
+func (x *UpdateGoalProgressRequest) GetChangeSource() string {
+	if x != nil {
+		return x.ChangeSource
+	}
+	return ""
 }
 
 type UpdateGoalProgressResponse struct {
@@ -1551,10 +1559,11 @@ const file_budget_v1_goal_proto_rawDesc = "" +
 	"\x10linked_asset_ids\x18\x05 \x03(\tR\x0elinkedAssetIds\x12\x14\n" +
 	"\x05notes\x18\x06 \x01(\tR\x05notes\"E\n" +
 	"\x18UpdateSavingGoalResponse\x12)\n" +
-	"\x04goal\x18\x01 \x01(\v2\x15.budget.v1.SavingGoalR\x04goal\"d\n" +
+	"\x04goal\x18\x01 \x01(\v2\x15.budget.v1.SavingGoalR\x04goal\"\x89\x01\n" +
 	"\x19UpdateGoalProgressRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x127\n" +
-	"\x0ecurrent_amount\x18\x02 \x01(\v2\x10.budget.v1.MoneyR\rcurrentAmount\"G\n" +
+	"\x0ecurrent_amount\x18\x02 \x01(\v2\x10.budget.v1.MoneyR\rcurrentAmount\x12#\n" +
+	"\rchange_source\x18\x03 \x01(\tR\fchangeSource\"G\n" +
 	"\x1aUpdateGoalProgressResponse\x12)\n" +
 	"\x04goal\x18\x01 \x01(\v2\x15.budget.v1.SavingGoalR\x04goal\")\n" +
 	"\x17DeleteSavingGoalRequest\x12\x0e\n" +

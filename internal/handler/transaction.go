@@ -3,11 +3,9 @@ package handler
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -89,9 +87,12 @@ func (h *TransactionHandler) CreateTransaction(ctx context.Context, req *pb.Crea
 		return nil, status.Error(codes.InvalidArgument, "transaction_date is required")
 	}
 
-	sourceAssetID, err := sourceAssetIDFromMetadata(ctx)
+	if req.SourceAssetId == "" {
+		return nil, status.Error(codes.InvalidArgument, "source_asset_id is required")
+	}
+	sourceAssetID, err := uuid.Parse(req.SourceAssetId)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, status.Error(codes.InvalidArgument, "invalid source_asset_id")
 	}
 	if _, err := h.assetRepo.GetByID(ctx, sourceAssetID, userID); err != nil {
 		if errors.Is(err, repository.ErrAssetNotFound) {
@@ -109,6 +110,14 @@ func (h *TransactionHandler) CreateTransaction(ctx context.Context, req *pb.Crea
 		TransactionDate: transactionDate,
 		Description:     req.Description,
 		Tags:            req.Tags,
+	}
+
+	if req.BudgetAmount != "" {
+		ba, err := decimal.NewFromString(req.BudgetAmount)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid budget_amount")
+		}
+		transaction.BudgetAmount = &ba
 	}
 
 	if err := h.transactionRepo.Create(ctx, transaction); err != nil {
@@ -224,9 +233,8 @@ func (h *TransactionHandler) ListTransactions(ctx context.Context, req *pb.ListT
 		filter.Tags = req.Tags
 	}
 
-	searchKeyword := searchKeywordFromMetadata(ctx)
-	if searchKeyword != "" {
-		filter.Search = searchKeyword
+	if req.Keyword != "" {
+		filter.Search = req.Keyword
 	}
 
 	result, err := h.transactionRepo.List(ctx, filter)
@@ -284,18 +292,18 @@ func (h *TransactionHandler) UpdateTransaction(ctx context.Context, req *pb.Upda
 	}
 
 	newAssetID := oldAssetID
-	sourceAssetID, mdErr := sourceAssetIDFromMetadataOptional(ctx)
-	if mdErr != nil {
-		return nil, status.Error(codes.InvalidArgument, mdErr.Error())
-	}
-	if sourceAssetID != nil {
-		if _, err := h.assetRepo.GetByID(ctx, *sourceAssetID, userID); err != nil {
+	if req.SourceAssetId != "" {
+		parsed, err := uuid.Parse(req.SourceAssetId)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid source_asset_id")
+		}
+		if _, err := h.assetRepo.GetByID(ctx, parsed, userID); err != nil {
 			if errors.Is(err, repository.ErrAssetNotFound) {
 				return nil, status.Error(codes.InvalidArgument, "source asset not found")
 			}
 			return nil, status.Error(codes.Internal, "failed to validate source asset")
 		}
-		newAssetID = *sourceAssetID
+		newAssetID = parsed
 	}
 
 	// Update fields if provided
@@ -325,6 +333,14 @@ func (h *TransactionHandler) UpdateTransaction(ctx context.Context, req *pb.Upda
 
 	if len(req.Tags) > 0 {
 		transaction.Tags = req.Tags
+	}
+
+	if req.BudgetAmount != "" {
+		ba, err := decimal.NewFromString(req.BudgetAmount)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid budget_amount")
+		}
+		transaction.BudgetAmount = &ba
 	}
 
 	if err := h.transactionRepo.Update(ctx, transaction); err != nil {
@@ -402,7 +418,7 @@ func (h *TransactionHandler) DeleteTransaction(ctx context.Context, req *pb.Dele
 }
 
 func transactionToProto(t *model.Transaction) *pb.Transaction {
-	return &pb.Transaction{
+	proto := &pb.Transaction{
 		Id:           t.ID.String(),
 		CategoryId:   t.CategoryID.String(),
 		CategoryName: t.CategoryName,
@@ -416,62 +432,12 @@ func transactionToProto(t *model.Transaction) *pb.Transaction {
 		Tags:            t.Tags,
 		CreatedAt:       timestamppb.New(t.CreatedAt),
 	}
+	if t.BudgetAmount != nil {
+		proto.BudgetAmount = t.BudgetAmount.String()
+	}
+	return proto
 }
 
-func sourceAssetIDFromMetadata(ctx context.Context) (uuid.UUID, error) {
-	sourceAssetID, err := sourceAssetIDFromMetadataOptional(ctx)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	if sourceAssetID == nil {
-		return uuid.Nil, errors.New("source_asset_id is required")
-	}
-	return *sourceAssetID, nil
-}
-
-func sourceAssetIDFromMetadataOptional(ctx context.Context) (*uuid.UUID, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, nil
-	}
-
-	keys := []string{"source-asset-id", "x-source-asset-id", "grpcgateway-source-asset-id"}
-	for _, key := range keys {
-		values := md.Get(key)
-		if len(values) == 0 || values[0] == "" {
-			continue
-		}
-		id, err := uuid.Parse(values[0])
-		if err != nil {
-			return nil, errors.New("invalid source_asset_id")
-		}
-		return &id, nil
-	}
-
-	return nil, nil
-}
-
-func searchKeywordFromMetadata(ctx context.Context) string {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return ""
-	}
-
-	keys := []string{"search-keyword", "x-search-keyword", "grpcgateway-search-keyword"}
-	for _, key := range keys {
-		values := md.Get(key)
-		if len(values) == 0 {
-			continue
-		}
-		keyword := strings.TrimSpace(values[0])
-		if keyword == "" {
-			continue
-		}
-		return keyword
-	}
-
-	return ""
-}
 
 func isUndefinedTableError(err error) bool {
 	var pgErr *pgconn.PgError
