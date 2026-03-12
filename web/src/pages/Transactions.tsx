@@ -263,9 +263,10 @@ export default function Transactions() {
   const sourceAssetBalance = selectedSourceAsset ? parseFloat(selectedSourceAsset.currentValue) : null
   const transactionAmount = parseFloat(transactionAmountInput || '0')
   const isExpenseCategory = getCategoryType(transactionCategoryId) === 'TRANSACTION_TYPE_EXPENSE'
+  const isSourceLiability = selectedSourceAsset?.isLiability ?? false
   const sourceAssetBalanceAfter =
     sourceAssetBalance !== null && transactionAmount > 0
-      ? isExpenseCategory
+      ? isExpenseCategory !== isSourceLiability
         ? sourceAssetBalance - transactionAmount
         : sourceAssetBalance + transactionAmount
       : null
@@ -1198,12 +1199,17 @@ export default function Transactions() {
                   name="sourceAssetId"
                   required={!editingTransaction}
                   value={transactionSourceAssetId}
-                  onChange={(e) => setTransactionSourceAssetId(e.target.value)}
+                  onChange={(e) => {
+                    const assetId = e.target.value
+                    setTransactionSourceAssetId(assetId)
+                    const asset = assets?.find((a) => a.id === assetId)
+                    if (asset) setTransactionCurrencyInput(asset.currency)
+                  }}
                 >
                   <option value="">{editingTransaction ? 'Keep existing asset link' : 'Select asset'}</option>
                   {assets?.map((asset) => (
                     <option key={asset.id} value={asset.id}>
-                      {asset.name}
+                      {asset.name} ({asset.currency})
                     </option>
                   ))}
                 </Select>

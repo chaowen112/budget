@@ -147,7 +147,7 @@ func (r *BudgetRepository) GetSpentAmount(ctx context.Context, userID, categoryI
 	periodStart, periodEnd := GetPeriodBounds(periodType, time.Now(), startDate)
 
 	query := `
-		SELECT COALESCE(SUM(amount), 0)
+		SELECT COALESCE(SUM(COALESCE(budget_amount, amount)), 0)
 		FROM transactions
 		WHERE user_id = $1 AND category_id = $2 AND type = 'expense'
 		  AND transaction_date >= $3 AND transaction_date <= $4
