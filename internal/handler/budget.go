@@ -22,12 +22,14 @@ type BudgetHandler struct {
 	pb.UnimplementedBudgetServiceServer
 	budgetRepo   *repository.BudgetRepository
 	currencyRepo *repository.CurrencyRepository
+	userRepo     *repository.UserRepository
 }
 
-func NewBudgetHandler(budgetRepo *repository.BudgetRepository, currencyRepo *repository.CurrencyRepository) *BudgetHandler {
+func NewBudgetHandler(budgetRepo *repository.BudgetRepository, currencyRepo *repository.CurrencyRepository, userRepo *repository.UserRepository) *BudgetHandler {
 	return &BudgetHandler{
 		budgetRepo:   budgetRepo,
 		currencyRepo: currencyRepo,
+		userRepo:     userRepo,
 	}
 }
 
@@ -270,6 +272,12 @@ func (h *BudgetHandler) GetAllBudgetStatuses(ctx context.Context, req *pb.GetAll
 		return nil, err
 	}
 
+	user, err := h.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to load user profile")
+	}
+	baseCurrency := user.BaseCurrency
+
 	var periodType *model.PeriodType
 	if req.PeriodType != pb.PeriodType_PERIOD_TYPE_UNSPECIFIED {
 		pt := protoToPeriodType(req.PeriodType)
@@ -291,24 +299,28 @@ func (h *BudgetHandler) GetAllBudgetStatuses(ctx context.Context, req *pb.GetAll
 			continue
 		}
 		statuses = append(statuses, budgetStatusToProto(budgetStatus))
-		totalBudgeted = totalBudgeted.Add(b.Amount)
-		totalSpent = totalSpent.Add(budgetStatus.Spent)
-	}
 
-	currency := "SGD"
-	if len(budgets) > 0 {
-		currency = budgets[0].Currency
+		budgetedInBase, err := h.currencyRepo.ConvertAmount(ctx, b.Amount, b.Currency, baseCurrency)
+		if err != nil {
+			budgetedInBase = b.Amount
+		}
+		spentInBase, err := h.currencyRepo.ConvertAmount(ctx, budgetStatus.Spent, b.Currency, baseCurrency)
+		if err != nil {
+			spentInBase = budgetStatus.Spent
+		}
+		totalBudgeted = totalBudgeted.Add(budgetedInBase)
+		totalSpent = totalSpent.Add(spentInBase)
 	}
 
 	return &pb.GetAllBudgetStatusesResponse{
 		Statuses: statuses,
 		TotalBudgeted: &pb.Money{
 			Amount:   totalBudgeted.String(),
-			Currency: currency,
+			Currency: baseCurrency,
 		},
 		TotalSpent: &pb.Money{
 			Amount:   totalSpent.String(),
-			Currency: currency,
+			Currency: baseCurrency,
 		},
 	}, nil
 }
