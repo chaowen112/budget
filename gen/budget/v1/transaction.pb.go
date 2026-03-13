@@ -35,7 +35,7 @@ type Transaction struct {
 	Description     string                 `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`
 	Tags            []string               `protobuf:"bytes,8,rep,name=tags,proto3" json:"tags,omitempty"`
 	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	BudgetAmount    string                 `protobuf:"bytes,10,opt,name=budget_amount,json=budgetAmount,proto3" json:"budget_amount,omitempty"` // Optional: portion that counts toward budget (decimal string, defaults to full amount)
+	BudgetAmount    *Money                 `protobuf:"bytes,10,opt,name=budget_amount,json=budgetAmount,proto3" json:"budget_amount,omitempty"` // Optional: portion that counts toward budget, in the transaction's original currency
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -133,11 +133,11 @@ func (x *Transaction) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *Transaction) GetBudgetAmount() string {
+func (x *Transaction) GetBudgetAmount() *Money {
 	if x != nil {
 		return x.BudgetAmount
 	}
-	return ""
+	return nil
 }
 
 // CreateTransactionRequest
@@ -749,7 +749,7 @@ var File_budget_v1_transaction_proto protoreflect.FileDescriptor
 
 const file_budget_v1_transaction_proto_rawDesc = "" +
 	"\n" +
-	"\x1bbudget/v1/transaction.proto\x12\tbudget.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x16budget/v1/common.proto\"\x9a\x03\n" +
+	"\x1bbudget/v1/transaction.proto\x12\tbudget.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x16budget/v1/common.proto\"\xac\x03\n" +
 	"\vTransaction\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vcategory_id\x18\x02 \x01(\tR\n" +
@@ -761,9 +761,9 @@ const file_budget_v1_transaction_proto_rawDesc = "" +
 	"\vdescription\x18\a \x01(\tR\vdescription\x12\x12\n" +
 	"\x04tags\x18\b \x03(\tR\x04tags\x129\n" +
 	"\n" +
-	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12#\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x125\n" +
 	"\rbudget_amount\x18\n" +
-	" \x01(\tR\fbudgetAmount\"\xdf\x02\n" +
+	" \x01(\v2\x10.budget.v1.MoneyR\fbudgetAmount\"\xdf\x02\n" +
 	"\x18CreateTransactionRequest\x12\x1f\n" +
 	"\vcategory_id\x18\x01 \x01(\tR\n" +
 	"categoryId\x12(\n" +
@@ -858,34 +858,35 @@ var file_budget_v1_transaction_proto_depIdxs = []int32{
 	12, // 1: budget.v1.Transaction.type:type_name -> budget.v1.TransactionType
 	13, // 2: budget.v1.Transaction.transaction_date:type_name -> google.protobuf.Timestamp
 	13, // 3: budget.v1.Transaction.created_at:type_name -> google.protobuf.Timestamp
-	11, // 4: budget.v1.CreateTransactionRequest.amount:type_name -> budget.v1.Money
-	12, // 5: budget.v1.CreateTransactionRequest.type:type_name -> budget.v1.TransactionType
-	13, // 6: budget.v1.CreateTransactionRequest.transaction_date:type_name -> google.protobuf.Timestamp
-	0,  // 7: budget.v1.CreateTransactionResponse.transaction:type_name -> budget.v1.Transaction
-	0,  // 8: budget.v1.GetTransactionResponse.transaction:type_name -> budget.v1.Transaction
-	14, // 9: budget.v1.ListTransactionsRequest.pagination:type_name -> budget.v1.PaginationRequest
-	15, // 10: budget.v1.ListTransactionsRequest.date_range:type_name -> budget.v1.DateRange
-	12, // 11: budget.v1.ListTransactionsRequest.type:type_name -> budget.v1.TransactionType
-	0,  // 12: budget.v1.ListTransactionsResponse.transactions:type_name -> budget.v1.Transaction
-	16, // 13: budget.v1.ListTransactionsResponse.pagination:type_name -> budget.v1.PaginationResponse
-	11, // 14: budget.v1.UpdateTransactionRequest.amount:type_name -> budget.v1.Money
-	13, // 15: budget.v1.UpdateTransactionRequest.transaction_date:type_name -> google.protobuf.Timestamp
-	0,  // 16: budget.v1.UpdateTransactionResponse.transaction:type_name -> budget.v1.Transaction
-	1,  // 17: budget.v1.TransactionService.CreateTransaction:input_type -> budget.v1.CreateTransactionRequest
-	3,  // 18: budget.v1.TransactionService.GetTransaction:input_type -> budget.v1.GetTransactionRequest
-	5,  // 19: budget.v1.TransactionService.ListTransactions:input_type -> budget.v1.ListTransactionsRequest
-	7,  // 20: budget.v1.TransactionService.UpdateTransaction:input_type -> budget.v1.UpdateTransactionRequest
-	9,  // 21: budget.v1.TransactionService.DeleteTransaction:input_type -> budget.v1.DeleteTransactionRequest
-	2,  // 22: budget.v1.TransactionService.CreateTransaction:output_type -> budget.v1.CreateTransactionResponse
-	4,  // 23: budget.v1.TransactionService.GetTransaction:output_type -> budget.v1.GetTransactionResponse
-	6,  // 24: budget.v1.TransactionService.ListTransactions:output_type -> budget.v1.ListTransactionsResponse
-	8,  // 25: budget.v1.TransactionService.UpdateTransaction:output_type -> budget.v1.UpdateTransactionResponse
-	10, // 26: budget.v1.TransactionService.DeleteTransaction:output_type -> budget.v1.DeleteTransactionResponse
-	22, // [22:27] is the sub-list for method output_type
-	17, // [17:22] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	11, // 4: budget.v1.Transaction.budget_amount:type_name -> budget.v1.Money
+	11, // 5: budget.v1.CreateTransactionRequest.amount:type_name -> budget.v1.Money
+	12, // 6: budget.v1.CreateTransactionRequest.type:type_name -> budget.v1.TransactionType
+	13, // 7: budget.v1.CreateTransactionRequest.transaction_date:type_name -> google.protobuf.Timestamp
+	0,  // 8: budget.v1.CreateTransactionResponse.transaction:type_name -> budget.v1.Transaction
+	0,  // 9: budget.v1.GetTransactionResponse.transaction:type_name -> budget.v1.Transaction
+	14, // 10: budget.v1.ListTransactionsRequest.pagination:type_name -> budget.v1.PaginationRequest
+	15, // 11: budget.v1.ListTransactionsRequest.date_range:type_name -> budget.v1.DateRange
+	12, // 12: budget.v1.ListTransactionsRequest.type:type_name -> budget.v1.TransactionType
+	0,  // 13: budget.v1.ListTransactionsResponse.transactions:type_name -> budget.v1.Transaction
+	16, // 14: budget.v1.ListTransactionsResponse.pagination:type_name -> budget.v1.PaginationResponse
+	11, // 15: budget.v1.UpdateTransactionRequest.amount:type_name -> budget.v1.Money
+	13, // 16: budget.v1.UpdateTransactionRequest.transaction_date:type_name -> google.protobuf.Timestamp
+	0,  // 17: budget.v1.UpdateTransactionResponse.transaction:type_name -> budget.v1.Transaction
+	1,  // 18: budget.v1.TransactionService.CreateTransaction:input_type -> budget.v1.CreateTransactionRequest
+	3,  // 19: budget.v1.TransactionService.GetTransaction:input_type -> budget.v1.GetTransactionRequest
+	5,  // 20: budget.v1.TransactionService.ListTransactions:input_type -> budget.v1.ListTransactionsRequest
+	7,  // 21: budget.v1.TransactionService.UpdateTransaction:input_type -> budget.v1.UpdateTransactionRequest
+	9,  // 22: budget.v1.TransactionService.DeleteTransaction:input_type -> budget.v1.DeleteTransactionRequest
+	2,  // 23: budget.v1.TransactionService.CreateTransaction:output_type -> budget.v1.CreateTransactionResponse
+	4,  // 24: budget.v1.TransactionService.GetTransaction:output_type -> budget.v1.GetTransactionResponse
+	6,  // 25: budget.v1.TransactionService.ListTransactions:output_type -> budget.v1.ListTransactionsResponse
+	8,  // 26: budget.v1.TransactionService.UpdateTransaction:output_type -> budget.v1.UpdateTransactionResponse
+	10, // 27: budget.v1.TransactionService.DeleteTransaction:output_type -> budget.v1.DeleteTransactionResponse
+	23, // [23:28] is the sub-list for method output_type
+	18, // [18:23] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_budget_v1_transaction_proto_init() }

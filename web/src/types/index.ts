@@ -67,7 +67,7 @@ export interface Transaction {
   transactionDate: string  // ISO timestamp from API
   description?: string
   tags?: string[]
-  budgetAmount?: string  // Decimal string; portion that counts toward budget (omitted = full amount)
+  budgetAmount?: Money  // Portion that counts toward budget, in original currency (omitted = full amount)
   createdAt: string
 }
 

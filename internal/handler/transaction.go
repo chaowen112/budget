@@ -433,7 +433,10 @@ func transactionToProto(t *model.Transaction) *pb.Transaction {
 		CreatedAt:       timestamppb.New(t.CreatedAt),
 	}
 	if t.BudgetAmount != nil {
-		proto.BudgetAmount = t.BudgetAmount.String()
+		proto.BudgetAmount = &pb.Money{
+			Amount:   t.BudgetAmount.String(),
+			Currency: t.Currency,
+		}
 	}
 	return proto
 }

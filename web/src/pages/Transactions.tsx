@@ -844,7 +844,7 @@ export default function Transactions() {
                       <div className="flex flex-wrap items-center gap-1 mt-1">
                         {transaction.budgetAmount && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                            Budget: {formatMoney({ amount: transaction.budgetAmount, currency: transaction.amount.currency })}
+                            Budget: {formatMoney(transaction.budgetAmount)}
                           </span>
                         )}
                         {transaction.tags?.map((tag) => (
@@ -885,7 +885,7 @@ export default function Transactions() {
                           setTransactionCurrencyInput(transaction.amount.currency)
                           setTransactionDescriptionInput(transaction.description || '')
                           setTransactionTagsInput((transaction.tags || []).join(', '))
-                          setTransactionBudgetAmountInput(transaction.budgetAmount || '')
+                          setTransactionBudgetAmountInput(transaction.budgetAmount?.amount || '')
                           setTransactionDateInput(transaction.transactionDate?.split('T')[0] || new Date().toISOString().split('T')[0])
                           setAssistantCompletionNote('')
                           setIsModalOpen(true)

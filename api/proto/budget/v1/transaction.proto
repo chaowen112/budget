@@ -19,7 +19,7 @@ message Transaction {
   string description = 7;
   repeated string tags = 8;
   google.protobuf.Timestamp created_at = 9;
-  string budget_amount = 10;  // Optional: portion that counts toward budget (decimal string, defaults to full amount)
+  Money budget_amount = 10;  // Optional: portion that counts toward budget, in the transaction's original currency
 }
 
 // CreateTransactionRequest

@@ -4072,8 +4072,8 @@
           "format": "date-time"
         },
         "budgetAmount": {
-          "type": "string",
-          "title": "Optional: portion that counts toward budget (decimal string, defaults to full amount)"
+          "$ref": "#/definitions/v1Money",
+          "title": "Optional: portion that counts toward budget, in the transaction's original currency"
         }
       },
       "title": "Transaction represents a spending or income record"
