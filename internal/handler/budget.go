@@ -20,13 +20,49 @@ import (
 
 type BudgetHandler struct {
 	pb.UnimplementedBudgetServiceServer
-	budgetRepo *repository.BudgetRepository
+	budgetRepo   *repository.BudgetRepository
+	currencyRepo *repository.CurrencyRepository
 }
 
-func NewBudgetHandler(budgetRepo *repository.BudgetRepository) *BudgetHandler {
+func NewBudgetHandler(budgetRepo *repository.BudgetRepository, currencyRepo *repository.CurrencyRepository) *BudgetHandler {
 	return &BudgetHandler{
-		budgetRepo: budgetRepo,
+		budgetRepo:   budgetRepo,
+		currencyRepo: currencyRepo,
 	}
+}
+
+func (h *BudgetHandler) computeBudgetStatus(ctx context.Context, budget *model.Budget) (*model.BudgetStatus, error) {
+	spentByCurrency, err := h.budgetRepo.GetSpentAmountByCurrency(ctx, budget.UserID, budget.CategoryID, budget.PeriodType, budget.StartDate)
+	if err != nil {
+		return nil, err
+	}
+
+	spent := decimal.Zero
+	for _, ca := range spentByCurrency {
+		if ca.Currency == budget.Currency {
+			spent = spent.Add(ca.Amount)
+		} else {
+			converted, err := h.currencyRepo.ConvertAmount(ctx, ca.Amount, ca.Currency, budget.Currency)
+			if err != nil {
+				return nil, err
+			}
+			spent = spent.Add(converted)
+		}
+	}
+
+	remaining := budget.Amount.Sub(spent)
+	percentUsed := float64(0)
+	if !budget.Amount.IsZero() {
+		percentUsed = spent.Div(budget.Amount).InexactFloat64() * 100
+	}
+
+	return &model.BudgetStatus{
+		Budget:       *budget,
+		Spent:        spent,
+		Remaining:    remaining,
+		PercentUsed:  percentUsed,
+		IsOverBudget: remaining.IsNegative(),
+	}, nil
 }
 
 func (h *BudgetHandler) CreateBudget(ctx context.Context, req *pb.CreateBudgetRequest) (*pb.CreateBudgetResponse, error) {
@@ -218,7 +254,7 @@ func (h *BudgetHandler) GetBudgetStatus(ctx context.Context, req *pb.GetBudgetSt
 		return nil, status.Error(codes.Internal, "failed to get budget")
 	}
 
-	budgetStatus, err := h.budgetRepo.GetBudgetStatus(ctx, budget)
+	budgetStatus, err := h.computeBudgetStatus(ctx, budget)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get budget status")
 	}
@@ -250,7 +286,7 @@ func (h *BudgetHandler) GetAllBudgetStatuses(ctx context.Context, req *pb.GetAll
 	statuses := make([]*pb.BudgetStatus, 0, len(budgets))
 
 	for _, b := range budgets {
-		budgetStatus, err := h.budgetRepo.GetBudgetStatus(ctx, &b)
+		budgetStatus, err := h.computeBudgetStatus(ctx, &b)
 		if err != nil {
 			continue
 		}

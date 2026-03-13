@@ -131,7 +131,7 @@ func run() error {
 	userHandler := handler.NewUserHandler(userService)
 	categoryHandler := handler.NewCategoryHandler(categoryRepo)
 	transactionHandler := handler.NewTransactionHandler(transactionRepo, categoryRepo, assetRepo, accountingRepo)
-	budgetHandler := handler.NewBudgetHandler(budgetRepo)
+	budgetHandler := handler.NewBudgetHandler(budgetRepo, currencyRepo)
 	assetHandler := handler.NewAssetHandler(assetRepo, accountingRepo, userRepo, currencyRepo)
 	goalHandler := handler.NewGoalHandler(goalRepo, assetRepo, transactionRepo, currencyRepo)
 	currencyHandler := handler.NewCurrencyHandler(currencyRepo, currencyClient)

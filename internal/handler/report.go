@@ -110,7 +110,7 @@ func (h *ReportHandler) GetWeeklyReport(ctx context.Context, req *pb.GetWeeklyRe
 	var budgetSummaries []*pb.BudgetSummary
 	for _, budget := range budgets {
 		if budget.PeriodType == model.PeriodTypeWeekly {
-			budgetStatus, err := h.budgetRepo.GetBudgetStatus(ctx, &budget)
+			budgetStatus, err := h.computeBudgetStatus(ctx, &budget)
 			if err != nil {
 				continue
 			}
@@ -1268,6 +1268,40 @@ func reportProtoToPeriodType(pt pb.PeriodType) model.PeriodType {
 	default:
 		return model.PeriodTypeMonthly
 	}
+}
+
+func (h *ReportHandler) computeBudgetStatus(ctx context.Context, budget *model.Budget) (*model.BudgetStatus, error) {
+	spentByCurrency, err := h.budgetRepo.GetSpentAmountByCurrency(ctx, budget.UserID, budget.CategoryID, budget.PeriodType, budget.StartDate)
+	if err != nil {
+		return nil, err
+	}
+
+	spent := decimal.Zero
+	for _, ca := range spentByCurrency {
+		if ca.Currency == budget.Currency {
+			spent = spent.Add(ca.Amount)
+		} else {
+			converted, err := h.currencyRepo.ConvertAmount(ctx, ca.Amount, ca.Currency, budget.Currency)
+			if err != nil {
+				return nil, err
+			}
+			spent = spent.Add(converted)
+		}
+	}
+
+	remaining := budget.Amount.Sub(spent)
+	percentUsed := float64(0)
+	if !budget.Amount.IsZero() {
+		percentUsed = spent.Div(budget.Amount).InexactFloat64() * 100
+	}
+
+	return &model.BudgetStatus{
+		Budget:       *budget,
+		Spent:        spent,
+		Remaining:    remaining,
+		PercentUsed:  percentUsed,
+		IsOverBudget: remaining.IsNegative(),
+	}, nil
 }
 
 func (h *ReportHandler) sumCurrencyAmounts(ctx context.Context, amounts []repository.CurrencyAmount, targetCurrency string) (decimal.Decimal, error) {

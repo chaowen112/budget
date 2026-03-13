@@ -3,13 +3,11 @@ package repository
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/shopspring/decimal"
 
 	"github.com/chaowen/budget/internal/model"
 )
@@ -142,20 +140,34 @@ func (r *BudgetRepository) Delete(ctx context.Context, id, userID uuid.UUID) err
 	return nil
 }
 
-// GetSpentAmount calculates spent amount for a budget in current period
-func (r *BudgetRepository) GetSpentAmount(ctx context.Context, userID, categoryID uuid.UUID, periodType model.PeriodType, startDate time.Time) (decimal.Decimal, error) {
+// GetSpentAmountByCurrency returns spent amounts grouped by currency for a budget's current period.
+// Uses budget_amount when set, falling back to amount.
+func (r *BudgetRepository) GetSpentAmountByCurrency(ctx context.Context, userID, categoryID uuid.UUID, periodType model.PeriodType, startDate time.Time) ([]CurrencyAmount, error) {
 	periodStart, periodEnd := GetPeriodBounds(periodType, time.Now(), startDate)
 
 	query := `
-		SELECT COALESCE(SUM(COALESCE(budget_amount, amount)), 0)
+		SELECT currency, COALESCE(SUM(COALESCE(budget_amount, amount)), 0)
 		FROM transactions
 		WHERE user_id = $1 AND category_id = $2 AND type = 'expense'
 		  AND transaction_date >= $3 AND transaction_date <= $4
+		GROUP BY currency
 	`
 
-	var spent decimal.Decimal
-	err := r.db.Pool.QueryRow(ctx, query, userID, categoryID, periodStart, periodEnd).Scan(&spent)
-	return spent, err
+	rows, err := r.db.Pool.Query(ctx, query, userID, categoryID, periodStart, periodEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []CurrencyAmount
+	for rows.Next() {
+		var ca CurrencyAmount
+		if err := rows.Scan(&ca.Currency, &ca.Amount); err != nil {
+			return nil, err
+		}
+		results = append(results, ca)
+	}
+	return results, rows.Err()
 }
 
 // GetPeriodBounds calculates the start and end of a budget period
@@ -237,24 +249,3 @@ func addYears(d time.Time, years int) time.Time {
 	return time.Date(base.Year(), base.Month(), day, d.Hour(), d.Minute(), d.Second(), d.Nanosecond(), d.Location())
 }
 
-// GetBudgetStatus calculates the status of a budget
-func (r *BudgetRepository) GetBudgetStatus(ctx context.Context, budget *model.Budget) (*model.BudgetStatus, error) {
-	spent, err := r.GetSpentAmount(ctx, budget.UserID, budget.CategoryID, budget.PeriodType, budget.StartDate)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get spent amount: %w", err)
-	}
-
-	remaining := budget.Amount.Sub(spent)
-	percentUsed := float64(0)
-	if !budget.Amount.IsZero() {
-		percentUsed = spent.Div(budget.Amount).InexactFloat64() * 100
-	}
-
-	return &model.BudgetStatus{
-		Budget:       *budget,
-		Spent:        spent,
-		Remaining:    remaining,
-		PercentUsed:  percentUsed,
-		IsOverBudget: remaining.IsNegative(),
-	}, nil
-}
