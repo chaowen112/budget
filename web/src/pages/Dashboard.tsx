@@ -23,6 +23,13 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
 } from 'recharts'
 import { MetricCard, BentoCard, Modal, ProgressBar, Button, Input, FormField, PageSpinner, useConfirm } from '../components/ui'
 
@@ -95,6 +102,10 @@ export default function Dashboard() {
     queryKey: ['netWorthGoalProgress'],
     queryFn: () => goalApi.getNetWorthGoalProgress(),
   })
+  const { data: cashflowTrend } = useQuery({
+    queryKey: ['cashflowTrend'],
+    queryFn: () => reportApi.getCashflowTrend(12),
+  })
 
   const setNetWorthGoalMutation = useMutation({
     mutationFn: (data: { name: string; targetAmount: Money; notes?: string }) =>
@@ -156,6 +167,16 @@ export default function Dashboard() {
     ...item,
     color: CHART_COLORS[i % CHART_COLORS.length],
   }))
+
+  const cashflowChartData = (cashflowTrend?.trend || []).map((p) => {
+    const date = new Date(p.month + '-01')
+    return {
+      month: date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      income: moneyToNumber(p.income),
+      expenses: moneyToNumber(p.expenses),
+      net: moneyToNumber(p.net),
+    }
+  })
 
   const assetBreakdownData = (() => {
     if (assetCompositionMode === 'liquidity') {
@@ -281,6 +302,48 @@ export default function Dashboard() {
               subtextPositive={totalInvestmentPL >= 0}
             />
           </div>
+
+          {/* Monthly Cashflow Trend */}
+          {cashflowChartData.length > 0 && (
+            <BentoCard colSpan={1} className="col-span-full" hover={false}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Monthly Cashflow</h3>
+                <div className="flex items-center gap-4 text-[11px] text-zinc-500 dark:text-zinc-400">
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" /> Income</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-400 inline-block" /> Expenses</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500 inline-block" /> Net</span>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <ComposedChart data={cashflowChartData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-zinc-200 dark:text-zinc-700" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="currentColor" className="text-zinc-400 dark:text-zinc-500" />
+                  <YAxis tick={{ fontSize: 11 }} stroke="currentColor" className="text-zinc-400 dark:text-zinc-500" tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
+                  <Tooltip content={<ChartTooltip formatter={(v: number) => formatConverted({ amount: v.toFixed(2), currency })} />} />
+                  <Legend content={() => null} />
+                  <Bar dataKey="income" name="Income" fill="#10b981" radius={[3, 3, 0, 0]} barSize={18} />
+                  <Bar dataKey="expenses" name="Expenses" fill="#f87171" radius={[3, 3, 0, 0]} barSize={18} />
+                  <Line type="monotone" dataKey="net" name="Net" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+              {cashflowTrend && (
+                <div className="grid grid-cols-3 gap-4 mt-4 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                  <div className="text-center">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Avg Income</p>
+                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatConverted(cashflowTrend.averageIncome)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Avg Expenses</p>
+                    <p className="text-sm font-semibold text-red-500 dark:text-red-400">{formatConverted(cashflowTrend.averageExpenses)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Avg Net</p>
+                    <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">{formatConverted(cashflowTrend.averageNet)}</p>
+                  </div>
+                </div>
+              )}
+            </BentoCard>
+          )}
 
           {/* Row 2: Net Worth Goal (wide) + Spending Donut */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

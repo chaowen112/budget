@@ -13,6 +13,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	pb "github.com/chaowen/budget/gen/budget/v1"
+	"github.com/chaowen/budget/internal/metrics"
 	"github.com/chaowen/budget/internal/middleware"
 	"github.com/chaowen/budget/internal/model"
 	"github.com/chaowen/budget/internal/repository"
@@ -24,6 +25,7 @@ type TransactionHandler struct {
 	categoryRepo    *repository.CategoryRepository
 	assetRepo       *repository.AssetRepository
 	accountingRepo  *repository.AccountingRepository
+	metrics         *metrics.Collector
 }
 
 func NewTransactionHandler(
@@ -31,12 +33,28 @@ func NewTransactionHandler(
 	categoryRepo *repository.CategoryRepository,
 	assetRepo *repository.AssetRepository,
 	accountingRepo *repository.AccountingRepository,
+	metricsCollector *metrics.Collector,
 ) *TransactionHandler {
 	return &TransactionHandler{
 		transactionRepo: transactionRepo,
 		categoryRepo:    categoryRepo,
 		assetRepo:       assetRepo,
 		accountingRepo:  accountingRepo,
+		metrics:         metricsCollector,
+	}
+}
+
+func (h *TransactionHandler) recordAssetSnapshot(ctx context.Context, assetID uuid.UUID, userID uuid.UUID, trigger string) {
+	asset, err := h.assetRepo.GetByID(ctx, assetID, userID)
+	if err != nil {
+		return
+	}
+	_ = h.assetRepo.RecordSnapshot(ctx, &model.AssetSnapshot{
+		AssetID: asset.ID,
+		Value:   asset.CurrentValue,
+	})
+	if h.metrics != nil {
+		h.metrics.RecordSnapshot(trigger)
 	}
 }
 
@@ -150,6 +168,8 @@ func (h *TransactionHandler) CreateTransaction(ctx context.Context, req *pb.Crea
 		_ = h.transactionRepo.Delete(ctx, transaction.ID, userID)
 		return nil, status.Error(codes.Internal, "failed to post transaction journal")
 	}
+
+	h.recordAssetSnapshot(ctx, sourceAssetID, userID, "transaction_create")
 
 	// Set category name from the category we already fetched
 	transaction.CategoryName = category.Name
@@ -376,6 +396,11 @@ func (h *TransactionHandler) UpdateTransaction(ctx context.Context, req *pb.Upda
 		return nil, status.Error(codes.Internal, "failed to post updated transaction journal")
 	}
 
+	h.recordAssetSnapshot(ctx, newAssetID, userID, "transaction_update")
+	if newAssetID != oldAssetID {
+		h.recordAssetSnapshot(ctx, oldAssetID, userID, "transaction_update")
+	}
+
 	// Refetch to get category name
 	transaction, _ = h.transactionRepo.GetByID(ctx, id, userID)
 
@@ -403,6 +428,8 @@ func (h *TransactionHandler) DeleteTransaction(ctx context.Context, req *pb.Dele
 		return nil, status.Error(codes.Internal, "failed to get transaction")
 	}
 
+	sourceAssetID, _ := h.transactionRepo.GetSourceAssetLink(ctx, id)
+
 	if err := h.transactionRepo.Delete(ctx, id, userID); err != nil {
 		if errors.Is(err, repository.ErrTransactionNotFound) {
 			return nil, status.Error(codes.NotFound, "transaction not found")
@@ -412,6 +439,10 @@ func (h *TransactionHandler) DeleteTransaction(ctx context.Context, req *pb.Dele
 
 	if err := h.accountingRepo.DeleteTransactionEntry(ctx, userID, transaction.ID); err != nil {
 		return nil, status.Error(codes.Internal, "failed to delete transaction journal")
+	}
+
+	if sourceAssetID != uuid.Nil {
+		h.recordAssetSnapshot(ctx, sourceAssetID, userID, "transaction_delete")
 	}
 
 	return &pb.DeleteTransactionResponse{}, nil

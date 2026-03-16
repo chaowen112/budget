@@ -28,6 +28,10 @@ type Collector struct {
 	healthyNodes         *prometheus.GaugeVec
 	metricsUpdateErrors  *prometheus.CounterVec
 	metricsLastUpdatedAt prometheus.Gauge
+	DBQueriesTotal       *prometheus.CounterVec
+	DBQueryDuration      *prometheus.HistogramVec
+	DBQueryErrors        *prometheus.CounterVec
+	SnapshotsRecorded    *prometheus.CounterVec
 }
 
 func NewCollector(reg prometheus.Registerer) *Collector {
@@ -107,7 +111,49 @@ func NewCollector(reg prometheus.Registerer) *Collector {
 				Help: "Unix timestamp of the latest successful business metrics refresh.",
 			},
 		),
+		DBQueriesTotal: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "budget_db_queries_total",
+				Help: "Total number of database queries executed.",
+			},
+			[]string{"operation", "table"},
+		),
+		DBQueryDuration: factory.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    "budget_db_query_duration_seconds",
+				Help:    "Database query duration in seconds.",
+				Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+			},
+			[]string{"operation", "table"},
+		),
+		DBQueryErrors: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "budget_db_query_errors_total",
+				Help: "Total number of database query errors.",
+			},
+			[]string{"operation", "table"},
+		),
+		SnapshotsRecorded: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "budget_asset_snapshots_recorded_total",
+				Help: "Total number of asset snapshots recorded.",
+			},
+			[]string{"trigger"},
+		),
 	}
+}
+
+func (c *Collector) ObserveDBQuery(operation, table string, duration time.Duration, err error) {
+	labels := prometheus.Labels{"operation": operation, "table": table}
+	c.DBQueriesTotal.With(labels).Inc()
+	c.DBQueryDuration.With(labels).Observe(duration.Seconds())
+	if err != nil {
+		c.DBQueryErrors.With(labels).Inc()
+	}
+}
+
+func (c *Collector) RecordSnapshot(trigger string) {
+	c.SnapshotsRecorded.WithLabelValues(trigger).Inc()
 }
 
 func (c *Collector) HTTPMiddleware(next http.Handler) http.Handler {

@@ -1539,6 +1539,187 @@ func (x *GetSpendingTrendResponse) GetTrendDirection() string {
 	return ""
 }
 
+// GetCashflowTrendRequest
+type GetCashflowTrendRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Months        int32                  `protobuf:"varint,1,opt,name=months,proto3" json:"months,omitempty"` // Number of months (default: 12)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCashflowTrendRequest) Reset() {
+	*x = GetCashflowTrendRequest{}
+	mi := &file_budget_v1_report_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCashflowTrendRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCashflowTrendRequest) ProtoMessage() {}
+
+func (x *GetCashflowTrendRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_budget_v1_report_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCashflowTrendRequest.ProtoReflect.Descriptor instead.
+func (*GetCashflowTrendRequest) Descriptor() ([]byte, []int) {
+	return file_budget_v1_report_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetCashflowTrendRequest) GetMonths() int32 {
+	if x != nil {
+		return x.Months
+	}
+	return 0
+}
+
+type CashflowTrendPoint struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Month         string                 `protobuf:"bytes,1,opt,name=month,proto3" json:"month,omitempty"`
+	Income        *Money                 `protobuf:"bytes,2,opt,name=income,proto3" json:"income,omitempty"`
+	Expenses      *Money                 `protobuf:"bytes,3,opt,name=expenses,proto3" json:"expenses,omitempty"`
+	Net           *Money                 `protobuf:"bytes,4,opt,name=net,proto3" json:"net,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CashflowTrendPoint) Reset() {
+	*x = CashflowTrendPoint{}
+	mi := &file_budget_v1_report_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CashflowTrendPoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CashflowTrendPoint) ProtoMessage() {}
+
+func (x *CashflowTrendPoint) ProtoReflect() protoreflect.Message {
+	mi := &file_budget_v1_report_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CashflowTrendPoint.ProtoReflect.Descriptor instead.
+func (*CashflowTrendPoint) Descriptor() ([]byte, []int) {
+	return file_budget_v1_report_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *CashflowTrendPoint) GetMonth() string {
+	if x != nil {
+		return x.Month
+	}
+	return ""
+}
+
+func (x *CashflowTrendPoint) GetIncome() *Money {
+	if x != nil {
+		return x.Income
+	}
+	return nil
+}
+
+func (x *CashflowTrendPoint) GetExpenses() *Money {
+	if x != nil {
+		return x.Expenses
+	}
+	return nil
+}
+
+func (x *CashflowTrendPoint) GetNet() *Money {
+	if x != nil {
+		return x.Net
+	}
+	return nil
+}
+
+type GetCashflowTrendResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Trend           []*CashflowTrendPoint  `protobuf:"bytes,1,rep,name=trend,proto3" json:"trend,omitempty"`
+	AverageIncome   *Money                 `protobuf:"bytes,2,opt,name=average_income,json=averageIncome,proto3" json:"average_income,omitempty"`
+	AverageExpenses *Money                 `protobuf:"bytes,3,opt,name=average_expenses,json=averageExpenses,proto3" json:"average_expenses,omitempty"`
+	AverageNet      *Money                 `protobuf:"bytes,4,opt,name=average_net,json=averageNet,proto3" json:"average_net,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *GetCashflowTrendResponse) Reset() {
+	*x = GetCashflowTrendResponse{}
+	mi := &file_budget_v1_report_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCashflowTrendResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCashflowTrendResponse) ProtoMessage() {}
+
+func (x *GetCashflowTrendResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_budget_v1_report_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCashflowTrendResponse.ProtoReflect.Descriptor instead.
+func (*GetCashflowTrendResponse) Descriptor() ([]byte, []int) {
+	return file_budget_v1_report_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *GetCashflowTrendResponse) GetTrend() []*CashflowTrendPoint {
+	if x != nil {
+		return x.Trend
+	}
+	return nil
+}
+
+func (x *GetCashflowTrendResponse) GetAverageIncome() *Money {
+	if x != nil {
+		return x.AverageIncome
+	}
+	return nil
+}
+
+func (x *GetCashflowTrendResponse) GetAverageExpenses() *Money {
+	if x != nil {
+		return x.AverageExpenses
+	}
+	return nil
+}
+
+func (x *GetCashflowTrendResponse) GetAverageNet() *Money {
+	if x != nil {
+		return x.AverageNet
+	}
+	return nil
+}
+
 // GetNetWorthTrendRequest
 type GetNetWorthTrendRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1552,7 +1733,7 @@ type GetNetWorthTrendRequest struct {
 
 func (x *GetNetWorthTrendRequest) Reset() {
 	*x = GetNetWorthTrendRequest{}
-	mi := &file_budget_v1_report_proto_msgTypes[21]
+	mi := &file_budget_v1_report_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1564,7 +1745,7 @@ func (x *GetNetWorthTrendRequest) String() string {
 func (*GetNetWorthTrendRequest) ProtoMessage() {}
 
 func (x *GetNetWorthTrendRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_budget_v1_report_proto_msgTypes[21]
+	mi := &file_budget_v1_report_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1577,7 +1758,7 @@ func (x *GetNetWorthTrendRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNetWorthTrendRequest.ProtoReflect.Descriptor instead.
 func (*GetNetWorthTrendRequest) Descriptor() ([]byte, []int) {
-	return file_budget_v1_report_proto_rawDescGZIP(), []int{21}
+	return file_budget_v1_report_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *GetNetWorthTrendRequest) GetMonths() int32 {
@@ -1620,7 +1801,7 @@ type NetWorthTrendPoint struct {
 
 func (x *NetWorthTrendPoint) Reset() {
 	*x = NetWorthTrendPoint{}
-	mi := &file_budget_v1_report_proto_msgTypes[22]
+	mi := &file_budget_v1_report_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1632,7 +1813,7 @@ func (x *NetWorthTrendPoint) String() string {
 func (*NetWorthTrendPoint) ProtoMessage() {}
 
 func (x *NetWorthTrendPoint) ProtoReflect() protoreflect.Message {
-	mi := &file_budget_v1_report_proto_msgTypes[22]
+	mi := &file_budget_v1_report_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1645,7 +1826,7 @@ func (x *NetWorthTrendPoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetWorthTrendPoint.ProtoReflect.Descriptor instead.
 func (*NetWorthTrendPoint) Descriptor() ([]byte, []int) {
-	return file_budget_v1_report_proto_rawDescGZIP(), []int{22}
+	return file_budget_v1_report_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *NetWorthTrendPoint) GetMonth() string {
@@ -1687,7 +1868,7 @@ type GetNetWorthTrendResponse struct {
 
 func (x *GetNetWorthTrendResponse) Reset() {
 	*x = GetNetWorthTrendResponse{}
-	mi := &file_budget_v1_report_proto_msgTypes[23]
+	mi := &file_budget_v1_report_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1699,7 +1880,7 @@ func (x *GetNetWorthTrendResponse) String() string {
 func (*GetNetWorthTrendResponse) ProtoMessage() {}
 
 func (x *GetNetWorthTrendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_budget_v1_report_proto_msgTypes[23]
+	mi := &file_budget_v1_report_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1712,7 +1893,7 @@ func (x *GetNetWorthTrendResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNetWorthTrendResponse.ProtoReflect.Descriptor instead.
 func (*GetNetWorthTrendResponse) Descriptor() ([]byte, []int) {
-	return file_budget_v1_report_proto_rawDescGZIP(), []int{23}
+	return file_budget_v1_report_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetNetWorthTrendResponse) GetTrend() []*NetWorthTrendPoint {
@@ -1872,7 +2053,20 @@ const file_budget_v1_report_proto_rawDesc = "" +
 	"\aaverage\x18\x02 \x01(\v2\x10.budget.v1.MoneyR\aaverage\x12\"\n" +
 	"\x03min\x18\x03 \x01(\v2\x10.budget.v1.MoneyR\x03min\x12\"\n" +
 	"\x03max\x18\x04 \x01(\v2\x10.budget.v1.MoneyR\x03max\x12'\n" +
-	"\x0ftrend_direction\x18\x05 \x01(\tR\x0etrendDirection\"w\n" +
+	"\x0ftrend_direction\x18\x05 \x01(\tR\x0etrendDirection\"1\n" +
+	"\x17GetCashflowTrendRequest\x12\x16\n" +
+	"\x06months\x18\x01 \x01(\x05R\x06months\"\xa6\x01\n" +
+	"\x12CashflowTrendPoint\x12\x14\n" +
+	"\x05month\x18\x01 \x01(\tR\x05month\x12(\n" +
+	"\x06income\x18\x02 \x01(\v2\x10.budget.v1.MoneyR\x06income\x12,\n" +
+	"\bexpenses\x18\x03 \x01(\v2\x10.budget.v1.MoneyR\bexpenses\x12\"\n" +
+	"\x03net\x18\x04 \x01(\v2\x10.budget.v1.MoneyR\x03net\"\xf8\x01\n" +
+	"\x18GetCashflowTrendResponse\x123\n" +
+	"\x05trend\x18\x01 \x03(\v2\x1d.budget.v1.CashflowTrendPointR\x05trend\x127\n" +
+	"\x0eaverage_income\x18\x02 \x01(\v2\x10.budget.v1.MoneyR\raverageIncome\x12;\n" +
+	"\x10average_expenses\x18\x03 \x01(\v2\x10.budget.v1.MoneyR\x0faverageExpenses\x121\n" +
+	"\vaverage_net\x18\x04 \x01(\v2\x10.budget.v1.MoneyR\n" +
+	"averageNet\"w\n" +
 	"\x17GetNetWorthTrendRequest\x12\x16\n" +
 	"\x06months\x18\x01 \x01(\x05R\x06months\x12\x1a\n" +
 	"\binterval\x18\x02 \x01(\tR\binterval\x12\x12\n" +
@@ -1886,14 +2080,15 @@ const file_budget_v1_report_proto_rawDesc = "" +
 	"\x18GetNetWorthTrendResponse\x123\n" +
 	"\x05trend\x18\x01 \x03(\v2\x1d.budget.v1.NetWorthTrendPointR\x05trend\x123\n" +
 	"\ftotal_change\x18\x02 \x01(\v2\x10.budget.v1.MoneyR\vtotalChange\x126\n" +
-	"\x17total_change_percentage\x18\x03 \x01(\x01R\x15totalChangePercentage2\xbd\a\n" +
+	"\x17total_change_percentage\x18\x03 \x01(\x01R\x15totalChangePercentage2\xc3\b\n" +
 	"\rReportService\x12x\n" +
 	"\x0fGetWeeklyReport\x12!.budget.v1.GetWeeklyReportRequest\x1a\".budget.v1.GetWeeklyReportResponse\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/api/v1/reports/weekly\x12|\n" +
 	"\x10GetMonthlyReport\x12\".budget.v1.GetMonthlyReportRequest\x1a#.budget.v1.GetMonthlyReportResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/reports/monthly\x12\x81\x01\n" +
 	"\x11GetNetWorthReport\x12#.budget.v1.GetNetWorthReportRequest\x1a$.budget.v1.GetNetWorthReportResponse\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/reports/net-worth\x12\x86\x01\n" +
 	"\x14GetSavingGoalsReport\x12&.budget.v1.GetSavingGoalsReportRequest\x1a'.budget.v1.GetSavingGoalsReportResponse\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/api/v1/reports/goals\x12\x99\x01\n" +
 	"\x17GetBudgetTrackingReport\x12).budget.v1.GetBudgetTrackingReportRequest\x1a*.budget.v1.GetBudgetTrackingReportResponse\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/reports/budget-tracking\x12\x83\x01\n" +
-	"\x10GetSpendingTrend\x12\".budget.v1.GetSpendingTrendRequest\x1a#.budget.v1.GetSpendingTrendResponse\"&\x82\xd3\xe4\x93\x02 \x12\x1e/api/v1/reports/spending-trend\x12\x84\x01\n" +
+	"\x10GetSpendingTrend\x12\".budget.v1.GetSpendingTrendRequest\x1a#.budget.v1.GetSpendingTrendResponse\"&\x82\xd3\xe4\x93\x02 \x12\x1e/api/v1/reports/spending-trend\x12\x83\x01\n" +
+	"\x10GetCashflowTrend\x12\".budget.v1.GetCashflowTrendRequest\x1a#.budget.v1.GetCashflowTrendResponse\"&\x82\xd3\xe4\x93\x02 \x12\x1e/api/v1/reports/cashflow-trend\x12\x84\x01\n" +
 	"\x10GetNetWorthTrend\x12\".budget.v1.GetNetWorthTrendRequest\x1a#.budget.v1.GetNetWorthTrendResponse\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/reports/net-worth-trendB\x93\x01\n" +
 	"\rcom.budget.v1B\vReportProtoP\x01Z0github.com/chaowen/budget/gen/budget/v1;budgetv1\xa2\x02\x03BXX\xaa\x02\tBudget.V1\xca\x02\tBudget\\V1\xe2\x02\x15Budget\\V1\\GPBMetadata\xea\x02\n" +
 	"Budget::V1b\x06proto3"
@@ -1910,7 +2105,7 @@ func file_budget_v1_report_proto_rawDescGZIP() []byte {
 	return file_budget_v1_report_proto_rawDescData
 }
 
-var file_budget_v1_report_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_budget_v1_report_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_budget_v1_report_proto_goTypes = []any{
 	(*SpendingByCategory)(nil),              // 0: budget.v1.SpendingByCategory
 	(*BudgetSummary)(nil),                   // 1: budget.v1.BudgetSummary
@@ -1933,92 +2128,104 @@ var file_budget_v1_report_proto_goTypes = []any{
 	(*GetSpendingTrendRequest)(nil),         // 18: budget.v1.GetSpendingTrendRequest
 	(*SpendingTrendPoint)(nil),              // 19: budget.v1.SpendingTrendPoint
 	(*GetSpendingTrendResponse)(nil),        // 20: budget.v1.GetSpendingTrendResponse
-	(*GetNetWorthTrendRequest)(nil),         // 21: budget.v1.GetNetWorthTrendRequest
-	(*NetWorthTrendPoint)(nil),              // 22: budget.v1.NetWorthTrendPoint
-	(*GetNetWorthTrendResponse)(nil),        // 23: budget.v1.GetNetWorthTrendResponse
-	(*Money)(nil),                           // 24: budget.v1.Money
-	(*timestamppb.Timestamp)(nil),           // 25: google.protobuf.Timestamp
-	(PeriodType)(0),                         // 26: budget.v1.PeriodType
+	(*GetCashflowTrendRequest)(nil),         // 21: budget.v1.GetCashflowTrendRequest
+	(*CashflowTrendPoint)(nil),              // 22: budget.v1.CashflowTrendPoint
+	(*GetCashflowTrendResponse)(nil),        // 23: budget.v1.GetCashflowTrendResponse
+	(*GetNetWorthTrendRequest)(nil),         // 24: budget.v1.GetNetWorthTrendRequest
+	(*NetWorthTrendPoint)(nil),              // 25: budget.v1.NetWorthTrendPoint
+	(*GetNetWorthTrendResponse)(nil),        // 26: budget.v1.GetNetWorthTrendResponse
+	(*Money)(nil),                           // 27: budget.v1.Money
+	(*timestamppb.Timestamp)(nil),           // 28: google.protobuf.Timestamp
+	(PeriodType)(0),                         // 29: budget.v1.PeriodType
 }
 var file_budget_v1_report_proto_depIdxs = []int32{
-	24, // 0: budget.v1.SpendingByCategory.amount:type_name -> budget.v1.Money
-	24, // 1: budget.v1.BudgetSummary.budgeted:type_name -> budget.v1.Money
-	24, // 2: budget.v1.BudgetSummary.spent:type_name -> budget.v1.Money
-	24, // 3: budget.v1.BudgetSummary.remaining:type_name -> budget.v1.Money
-	25, // 4: budget.v1.WeeklyReport.week_start:type_name -> google.protobuf.Timestamp
-	25, // 5: budget.v1.WeeklyReport.week_end:type_name -> google.protobuf.Timestamp
-	24, // 6: budget.v1.WeeklyReport.total_income:type_name -> budget.v1.Money
-	24, // 7: budget.v1.WeeklyReport.total_expenses:type_name -> budget.v1.Money
-	24, // 8: budget.v1.WeeklyReport.net_savings:type_name -> budget.v1.Money
+	27, // 0: budget.v1.SpendingByCategory.amount:type_name -> budget.v1.Money
+	27, // 1: budget.v1.BudgetSummary.budgeted:type_name -> budget.v1.Money
+	27, // 2: budget.v1.BudgetSummary.spent:type_name -> budget.v1.Money
+	27, // 3: budget.v1.BudgetSummary.remaining:type_name -> budget.v1.Money
+	28, // 4: budget.v1.WeeklyReport.week_start:type_name -> google.protobuf.Timestamp
+	28, // 5: budget.v1.WeeklyReport.week_end:type_name -> google.protobuf.Timestamp
+	27, // 6: budget.v1.WeeklyReport.total_income:type_name -> budget.v1.Money
+	27, // 7: budget.v1.WeeklyReport.total_expenses:type_name -> budget.v1.Money
+	27, // 8: budget.v1.WeeklyReport.net_savings:type_name -> budget.v1.Money
 	0,  // 9: budget.v1.WeeklyReport.spending_by_category:type_name -> budget.v1.SpendingByCategory
 	1,  // 10: budget.v1.WeeklyReport.budget_summaries:type_name -> budget.v1.BudgetSummary
-	24, // 11: budget.v1.WeeklyReport.daily_average_spending:type_name -> budget.v1.Money
-	24, // 12: budget.v1.MonthlyReport.total_income:type_name -> budget.v1.Money
-	24, // 13: budget.v1.MonthlyReport.total_expenses:type_name -> budget.v1.Money
-	24, // 14: budget.v1.MonthlyReport.net_savings:type_name -> budget.v1.Money
+	27, // 11: budget.v1.WeeklyReport.daily_average_spending:type_name -> budget.v1.Money
+	27, // 12: budget.v1.MonthlyReport.total_income:type_name -> budget.v1.Money
+	27, // 13: budget.v1.MonthlyReport.total_expenses:type_name -> budget.v1.Money
+	27, // 14: budget.v1.MonthlyReport.net_savings:type_name -> budget.v1.Money
 	0,  // 15: budget.v1.MonthlyReport.spending_by_category:type_name -> budget.v1.SpendingByCategory
 	1,  // 16: budget.v1.MonthlyReport.budget_summaries:type_name -> budget.v1.BudgetSummary
-	24, // 17: budget.v1.MonthlyReport.daily_average_spending:type_name -> budget.v1.Money
-	24, // 18: budget.v1.MonthlyReport.income_change:type_name -> budget.v1.Money
-	24, // 19: budget.v1.MonthlyReport.expense_change:type_name -> budget.v1.Money
-	25, // 20: budget.v1.NetWorthReport.as_of:type_name -> google.protobuf.Timestamp
-	24, // 21: budget.v1.NetWorthReport.total_assets:type_name -> budget.v1.Money
-	24, // 22: budget.v1.NetWorthReport.total_liabilities:type_name -> budget.v1.Money
-	24, // 23: budget.v1.NetWorthReport.net_worth:type_name -> budget.v1.Money
+	27, // 17: budget.v1.MonthlyReport.daily_average_spending:type_name -> budget.v1.Money
+	27, // 18: budget.v1.MonthlyReport.income_change:type_name -> budget.v1.Money
+	27, // 19: budget.v1.MonthlyReport.expense_change:type_name -> budget.v1.Money
+	28, // 20: budget.v1.NetWorthReport.as_of:type_name -> google.protobuf.Timestamp
+	27, // 21: budget.v1.NetWorthReport.total_assets:type_name -> budget.v1.Money
+	27, // 22: budget.v1.NetWorthReport.total_liabilities:type_name -> budget.v1.Money
+	27, // 23: budget.v1.NetWorthReport.net_worth:type_name -> budget.v1.Money
 	5,  // 24: budget.v1.NetWorthReport.asset_breakdown:type_name -> budget.v1.AssetCategorySummary
-	24, // 25: budget.v1.NetWorthReport.net_worth_change:type_name -> budget.v1.Money
-	24, // 26: budget.v1.AssetCategorySummary.total_value:type_name -> budget.v1.Money
-	24, // 27: budget.v1.SavingGoalReport.target_amount:type_name -> budget.v1.Money
-	24, // 28: budget.v1.SavingGoalReport.current_amount:type_name -> budget.v1.Money
-	25, // 29: budget.v1.SavingGoalReport.deadline:type_name -> google.protobuf.Timestamp
-	24, // 30: budget.v1.SavingGoalReport.required_monthly_saving:type_name -> budget.v1.Money
-	24, // 31: budget.v1.SavingGoalReport.current_monthly_saving:type_name -> budget.v1.Money
-	25, // 32: budget.v1.SavingGoalReport.projected_completion:type_name -> google.protobuf.Timestamp
-	26, // 33: budget.v1.BudgetTrackingReport.period_type:type_name -> budget.v1.PeriodType
-	25, // 34: budget.v1.BudgetTrackingReport.period_start:type_name -> google.protobuf.Timestamp
-	25, // 35: budget.v1.BudgetTrackingReport.period_end:type_name -> google.protobuf.Timestamp
-	24, // 36: budget.v1.BudgetTrackingReport.total_budgeted:type_name -> budget.v1.Money
-	24, // 37: budget.v1.BudgetTrackingReport.total_spent:type_name -> budget.v1.Money
-	24, // 38: budget.v1.BudgetTrackingReport.expected_spent:type_name -> budget.v1.Money
-	24, // 39: budget.v1.BudgetTrackingReport.projected_end_of_period_spending:type_name -> budget.v1.Money
+	27, // 25: budget.v1.NetWorthReport.net_worth_change:type_name -> budget.v1.Money
+	27, // 26: budget.v1.AssetCategorySummary.total_value:type_name -> budget.v1.Money
+	27, // 27: budget.v1.SavingGoalReport.target_amount:type_name -> budget.v1.Money
+	27, // 28: budget.v1.SavingGoalReport.current_amount:type_name -> budget.v1.Money
+	28, // 29: budget.v1.SavingGoalReport.deadline:type_name -> google.protobuf.Timestamp
+	27, // 30: budget.v1.SavingGoalReport.required_monthly_saving:type_name -> budget.v1.Money
+	27, // 31: budget.v1.SavingGoalReport.current_monthly_saving:type_name -> budget.v1.Money
+	28, // 32: budget.v1.SavingGoalReport.projected_completion:type_name -> google.protobuf.Timestamp
+	29, // 33: budget.v1.BudgetTrackingReport.period_type:type_name -> budget.v1.PeriodType
+	28, // 34: budget.v1.BudgetTrackingReport.period_start:type_name -> google.protobuf.Timestamp
+	28, // 35: budget.v1.BudgetTrackingReport.period_end:type_name -> google.protobuf.Timestamp
+	27, // 36: budget.v1.BudgetTrackingReport.total_budgeted:type_name -> budget.v1.Money
+	27, // 37: budget.v1.BudgetTrackingReport.total_spent:type_name -> budget.v1.Money
+	27, // 38: budget.v1.BudgetTrackingReport.expected_spent:type_name -> budget.v1.Money
+	27, // 39: budget.v1.BudgetTrackingReport.projected_end_of_period_spending:type_name -> budget.v1.Money
 	1,  // 40: budget.v1.BudgetTrackingReport.category_details:type_name -> budget.v1.BudgetSummary
-	25, // 41: budget.v1.GetWeeklyReportRequest.week_of:type_name -> google.protobuf.Timestamp
+	28, // 41: budget.v1.GetWeeklyReportRequest.week_of:type_name -> google.protobuf.Timestamp
 	2,  // 42: budget.v1.GetWeeklyReportResponse.report:type_name -> budget.v1.WeeklyReport
 	3,  // 43: budget.v1.GetMonthlyReportResponse.report:type_name -> budget.v1.MonthlyReport
-	25, // 44: budget.v1.GetNetWorthReportRequest.as_of:type_name -> google.protobuf.Timestamp
+	28, // 44: budget.v1.GetNetWorthReportRequest.as_of:type_name -> google.protobuf.Timestamp
 	4,  // 45: budget.v1.GetNetWorthReportResponse.report:type_name -> budget.v1.NetWorthReport
 	6,  // 46: budget.v1.GetSavingGoalsReportResponse.goals:type_name -> budget.v1.SavingGoalReport
-	26, // 47: budget.v1.GetBudgetTrackingReportRequest.period_type:type_name -> budget.v1.PeriodType
+	29, // 47: budget.v1.GetBudgetTrackingReportRequest.period_type:type_name -> budget.v1.PeriodType
 	7,  // 48: budget.v1.GetBudgetTrackingReportResponse.report:type_name -> budget.v1.BudgetTrackingReport
-	24, // 49: budget.v1.SpendingTrendPoint.amount:type_name -> budget.v1.Money
+	27, // 49: budget.v1.SpendingTrendPoint.amount:type_name -> budget.v1.Money
 	19, // 50: budget.v1.GetSpendingTrendResponse.trend:type_name -> budget.v1.SpendingTrendPoint
-	24, // 51: budget.v1.GetSpendingTrendResponse.average:type_name -> budget.v1.Money
-	24, // 52: budget.v1.GetSpendingTrendResponse.min:type_name -> budget.v1.Money
-	24, // 53: budget.v1.GetSpendingTrendResponse.max:type_name -> budget.v1.Money
-	24, // 54: budget.v1.NetWorthTrendPoint.net_worth:type_name -> budget.v1.Money
-	24, // 55: budget.v1.NetWorthTrendPoint.assets:type_name -> budget.v1.Money
-	24, // 56: budget.v1.NetWorthTrendPoint.liabilities:type_name -> budget.v1.Money
-	22, // 57: budget.v1.GetNetWorthTrendResponse.trend:type_name -> budget.v1.NetWorthTrendPoint
-	24, // 58: budget.v1.GetNetWorthTrendResponse.total_change:type_name -> budget.v1.Money
-	8,  // 59: budget.v1.ReportService.GetWeeklyReport:input_type -> budget.v1.GetWeeklyReportRequest
-	10, // 60: budget.v1.ReportService.GetMonthlyReport:input_type -> budget.v1.GetMonthlyReportRequest
-	12, // 61: budget.v1.ReportService.GetNetWorthReport:input_type -> budget.v1.GetNetWorthReportRequest
-	14, // 62: budget.v1.ReportService.GetSavingGoalsReport:input_type -> budget.v1.GetSavingGoalsReportRequest
-	16, // 63: budget.v1.ReportService.GetBudgetTrackingReport:input_type -> budget.v1.GetBudgetTrackingReportRequest
-	18, // 64: budget.v1.ReportService.GetSpendingTrend:input_type -> budget.v1.GetSpendingTrendRequest
-	21, // 65: budget.v1.ReportService.GetNetWorthTrend:input_type -> budget.v1.GetNetWorthTrendRequest
-	9,  // 66: budget.v1.ReportService.GetWeeklyReport:output_type -> budget.v1.GetWeeklyReportResponse
-	11, // 67: budget.v1.ReportService.GetMonthlyReport:output_type -> budget.v1.GetMonthlyReportResponse
-	13, // 68: budget.v1.ReportService.GetNetWorthReport:output_type -> budget.v1.GetNetWorthReportResponse
-	15, // 69: budget.v1.ReportService.GetSavingGoalsReport:output_type -> budget.v1.GetSavingGoalsReportResponse
-	17, // 70: budget.v1.ReportService.GetBudgetTrackingReport:output_type -> budget.v1.GetBudgetTrackingReportResponse
-	20, // 71: budget.v1.ReportService.GetSpendingTrend:output_type -> budget.v1.GetSpendingTrendResponse
-	23, // 72: budget.v1.ReportService.GetNetWorthTrend:output_type -> budget.v1.GetNetWorthTrendResponse
-	66, // [66:73] is the sub-list for method output_type
-	59, // [59:66] is the sub-list for method input_type
-	59, // [59:59] is the sub-list for extension type_name
-	59, // [59:59] is the sub-list for extension extendee
-	0,  // [0:59] is the sub-list for field type_name
+	27, // 51: budget.v1.GetSpendingTrendResponse.average:type_name -> budget.v1.Money
+	27, // 52: budget.v1.GetSpendingTrendResponse.min:type_name -> budget.v1.Money
+	27, // 53: budget.v1.GetSpendingTrendResponse.max:type_name -> budget.v1.Money
+	27, // 54: budget.v1.CashflowTrendPoint.income:type_name -> budget.v1.Money
+	27, // 55: budget.v1.CashflowTrendPoint.expenses:type_name -> budget.v1.Money
+	27, // 56: budget.v1.CashflowTrendPoint.net:type_name -> budget.v1.Money
+	22, // 57: budget.v1.GetCashflowTrendResponse.trend:type_name -> budget.v1.CashflowTrendPoint
+	27, // 58: budget.v1.GetCashflowTrendResponse.average_income:type_name -> budget.v1.Money
+	27, // 59: budget.v1.GetCashflowTrendResponse.average_expenses:type_name -> budget.v1.Money
+	27, // 60: budget.v1.GetCashflowTrendResponse.average_net:type_name -> budget.v1.Money
+	27, // 61: budget.v1.NetWorthTrendPoint.net_worth:type_name -> budget.v1.Money
+	27, // 62: budget.v1.NetWorthTrendPoint.assets:type_name -> budget.v1.Money
+	27, // 63: budget.v1.NetWorthTrendPoint.liabilities:type_name -> budget.v1.Money
+	25, // 64: budget.v1.GetNetWorthTrendResponse.trend:type_name -> budget.v1.NetWorthTrendPoint
+	27, // 65: budget.v1.GetNetWorthTrendResponse.total_change:type_name -> budget.v1.Money
+	8,  // 66: budget.v1.ReportService.GetWeeklyReport:input_type -> budget.v1.GetWeeklyReportRequest
+	10, // 67: budget.v1.ReportService.GetMonthlyReport:input_type -> budget.v1.GetMonthlyReportRequest
+	12, // 68: budget.v1.ReportService.GetNetWorthReport:input_type -> budget.v1.GetNetWorthReportRequest
+	14, // 69: budget.v1.ReportService.GetSavingGoalsReport:input_type -> budget.v1.GetSavingGoalsReportRequest
+	16, // 70: budget.v1.ReportService.GetBudgetTrackingReport:input_type -> budget.v1.GetBudgetTrackingReportRequest
+	18, // 71: budget.v1.ReportService.GetSpendingTrend:input_type -> budget.v1.GetSpendingTrendRequest
+	21, // 72: budget.v1.ReportService.GetCashflowTrend:input_type -> budget.v1.GetCashflowTrendRequest
+	24, // 73: budget.v1.ReportService.GetNetWorthTrend:input_type -> budget.v1.GetNetWorthTrendRequest
+	9,  // 74: budget.v1.ReportService.GetWeeklyReport:output_type -> budget.v1.GetWeeklyReportResponse
+	11, // 75: budget.v1.ReportService.GetMonthlyReport:output_type -> budget.v1.GetMonthlyReportResponse
+	13, // 76: budget.v1.ReportService.GetNetWorthReport:output_type -> budget.v1.GetNetWorthReportResponse
+	15, // 77: budget.v1.ReportService.GetSavingGoalsReport:output_type -> budget.v1.GetSavingGoalsReportResponse
+	17, // 78: budget.v1.ReportService.GetBudgetTrackingReport:output_type -> budget.v1.GetBudgetTrackingReportResponse
+	20, // 79: budget.v1.ReportService.GetSpendingTrend:output_type -> budget.v1.GetSpendingTrendResponse
+	23, // 80: budget.v1.ReportService.GetCashflowTrend:output_type -> budget.v1.GetCashflowTrendResponse
+	26, // 81: budget.v1.ReportService.GetNetWorthTrend:output_type -> budget.v1.GetNetWorthTrendResponse
+	74, // [74:82] is the sub-list for method output_type
+	66, // [66:74] is the sub-list for method input_type
+	66, // [66:66] is the sub-list for extension type_name
+	66, // [66:66] is the sub-list for extension extendee
+	0,  // [0:66] is the sub-list for field type_name
 }
 
 func init() { file_budget_v1_report_proto_init() }
@@ -2033,7 +2240,7 @@ func file_budget_v1_report_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_budget_v1_report_proto_rawDesc), len(file_budget_v1_report_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   24,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

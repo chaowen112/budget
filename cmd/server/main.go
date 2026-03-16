@@ -130,9 +130,9 @@ func run() error {
 	// Initialize handlers
 	userHandler := handler.NewUserHandler(userService)
 	categoryHandler := handler.NewCategoryHandler(categoryRepo)
-	transactionHandler := handler.NewTransactionHandler(transactionRepo, categoryRepo, assetRepo, accountingRepo)
+	transactionHandler := handler.NewTransactionHandler(transactionRepo, categoryRepo, assetRepo, accountingRepo, metricsCollector)
 	budgetHandler := handler.NewBudgetHandler(budgetRepo, currencyRepo, userRepo)
-	assetHandler := handler.NewAssetHandler(assetRepo, accountingRepo, userRepo, currencyRepo)
+	assetHandler := handler.NewAssetHandler(assetRepo, accountingRepo, userRepo, currencyRepo, metricsCollector)
 	goalHandler := handler.NewGoalHandler(goalRepo, assetRepo, transactionRepo, currencyRepo)
 	currencyHandler := handler.NewCurrencyHandler(currencyRepo, currencyClient)
 	cpfHandler := handler.NewCPFHandler(cpfRepo)
@@ -257,7 +257,7 @@ func run() error {
 			if serveAccounting(w, r, jwtManager, apiKeyRepo, accountingRepo) {
 				return
 			}
-			if serveTransfers(w, r, jwtManager, apiKeyRepo, transferRepo, assetRepo, accountingRepo) {
+			if serveTransfers(w, r, jwtManager, apiKeyRepo, transferRepo, assetRepo, accountingRepo, metricsCollector) {
 				return
 			}
 			if serveTransactionAssistant(w, r, jwtManager, apiKeyRepo, transactionAssistantService) {
@@ -518,6 +518,22 @@ func serveAccounting(w http.ResponseWriter, r *http.Request, jwtManager *jwt.Man
 	return true
 }
 
+func recordTransferSnapshots(ctx context.Context, assetRepo *repository.AssetRepository, fromAssetID, toAssetID, userID uuid.UUID, metricsCollector *metrics.Collector, trigger string) {
+	for _, id := range []uuid.UUID{fromAssetID, toAssetID} {
+		asset, err := assetRepo.GetByID(ctx, id, userID)
+		if err != nil {
+			continue
+		}
+		_ = assetRepo.RecordSnapshot(ctx, &model.AssetSnapshot{
+			AssetID: asset.ID,
+			Value:   asset.CurrentValue,
+		})
+		if metricsCollector != nil {
+			metricsCollector.RecordSnapshot(trigger)
+		}
+	}
+}
+
 func serveTransfers(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -526,6 +542,7 @@ func serveTransfers(
 	transferRepo *repository.TransferRepository,
 	assetRepo *repository.AssetRepository,
 	accountingRepo *repository.AccountingRepository,
+	metricsCollector *metrics.Collector,
 ) bool {
 	if !strings.HasPrefix(r.URL.Path, "/api/v1/transfers") {
 		return false
@@ -633,6 +650,7 @@ func serveTransfers(
 			http.Error(w, "failed to post transfer journal", http.StatusInternalServerError)
 			return true
 		}
+		recordTransferSnapshots(r.Context(), assetRepo, t.FromAssetID, t.ToAssetID, auth.UserID, metricsCollector, "transfer_create")
 		t.FromAssetName = fromAsset.Name
 		t.ToAssetName = toAsset.Name
 		writeTransfer(http.StatusCreated, t)
@@ -701,12 +719,18 @@ func serveTransfers(
 				http.Error(w, "failed to post transfer journal", http.StatusInternalServerError)
 				return true
 			}
+			recordTransferSnapshots(r.Context(), assetRepo, next.FromAssetID, next.ToAssetID, auth.UserID, metricsCollector, "transfer_update")
 			next.FromAssetName = fromAsset.Name
 			next.ToAssetName = toAsset.Name
 			writeTransfer(http.StatusOK, next)
 			return true
 
 		case http.MethodDelete:
+			transfer, err := transferRepo.GetByID(r.Context(), id, auth.UserID)
+			if err != nil {
+				http.Error(w, "transfer not found", http.StatusNotFound)
+				return true
+			}
 			if err := transferRepo.Delete(r.Context(), id, auth.UserID); err != nil {
 				http.Error(w, "transfer not found", http.StatusNotFound)
 				return true
@@ -715,6 +739,7 @@ func serveTransfers(
 				http.Error(w, "failed to delete transfer journal", http.StatusInternalServerError)
 				return true
 			}
+			recordTransferSnapshots(r.Context(), assetRepo, transfer.FromAssetID, transfer.ToAssetID, auth.UserID, metricsCollector, "transfer_delete")
 			w.WriteHeader(http.StatusNoContent)
 			return true
 		}

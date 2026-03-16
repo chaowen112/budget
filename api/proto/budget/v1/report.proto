@@ -186,6 +186,25 @@ message GetSpendingTrendResponse {
   string trend_direction = 5;  // "increasing", "decreasing", "stable"
 }
 
+// GetCashflowTrendRequest
+message GetCashflowTrendRequest {
+  int32 months = 1;  // Number of months (default: 12)
+}
+
+message CashflowTrendPoint {
+  string month = 1;
+  Money income = 2;
+  Money expenses = 3;
+  Money net = 4;
+}
+
+message GetCashflowTrendResponse {
+  repeated CashflowTrendPoint trend = 1;
+  Money average_income = 2;
+  Money average_expenses = 3;
+  Money average_net = 4;
+}
+
 // GetNetWorthTrendRequest
 message GetNetWorthTrendRequest {
   int32 months = 1;  // Number of months (default: 12)
@@ -248,6 +267,13 @@ service ReportService {
   rpc GetSpendingTrend(GetSpendingTrendRequest) returns (GetSpendingTrendResponse) {
     option (google.api.http) = {
       get: "/api/v1/reports/spending-trend"
+    };
+  }
+
+  // Get cashflow trend (income vs expenses over time)
+  rpc GetCashflowTrend(GetCashflowTrendRequest) returns (GetCashflowTrendResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/reports/cashflow-trend"
     };
   }
 

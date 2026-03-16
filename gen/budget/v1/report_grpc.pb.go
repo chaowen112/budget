@@ -25,6 +25,7 @@ const (
 	ReportService_GetSavingGoalsReport_FullMethodName    = "/budget.v1.ReportService/GetSavingGoalsReport"
 	ReportService_GetBudgetTrackingReport_FullMethodName = "/budget.v1.ReportService/GetBudgetTrackingReport"
 	ReportService_GetSpendingTrend_FullMethodName        = "/budget.v1.ReportService/GetSpendingTrend"
+	ReportService_GetCashflowTrend_FullMethodName        = "/budget.v1.ReportService/GetCashflowTrend"
 	ReportService_GetNetWorthTrend_FullMethodName        = "/budget.v1.ReportService/GetNetWorthTrend"
 )
 
@@ -46,6 +47,8 @@ type ReportServiceClient interface {
 	GetBudgetTrackingReport(ctx context.Context, in *GetBudgetTrackingReportRequest, opts ...grpc.CallOption) (*GetBudgetTrackingReportResponse, error)
 	// Get spending trend over time
 	GetSpendingTrend(ctx context.Context, in *GetSpendingTrendRequest, opts ...grpc.CallOption) (*GetSpendingTrendResponse, error)
+	// Get cashflow trend (income vs expenses over time)
+	GetCashflowTrend(ctx context.Context, in *GetCashflowTrendRequest, opts ...grpc.CallOption) (*GetCashflowTrendResponse, error)
 	// Get net worth trend over time
 	GetNetWorthTrend(ctx context.Context, in *GetNetWorthTrendRequest, opts ...grpc.CallOption) (*GetNetWorthTrendResponse, error)
 }
@@ -118,6 +121,16 @@ func (c *reportServiceClient) GetSpendingTrend(ctx context.Context, in *GetSpend
 	return out, nil
 }
 
+func (c *reportServiceClient) GetCashflowTrend(ctx context.Context, in *GetCashflowTrendRequest, opts ...grpc.CallOption) (*GetCashflowTrendResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCashflowTrendResponse)
+	err := c.cc.Invoke(ctx, ReportService_GetCashflowTrend_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *reportServiceClient) GetNetWorthTrend(ctx context.Context, in *GetNetWorthTrendRequest, opts ...grpc.CallOption) (*GetNetWorthTrendResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetNetWorthTrendResponse)
@@ -146,6 +159,8 @@ type ReportServiceServer interface {
 	GetBudgetTrackingReport(context.Context, *GetBudgetTrackingReportRequest) (*GetBudgetTrackingReportResponse, error)
 	// Get spending trend over time
 	GetSpendingTrend(context.Context, *GetSpendingTrendRequest) (*GetSpendingTrendResponse, error)
+	// Get cashflow trend (income vs expenses over time)
+	GetCashflowTrend(context.Context, *GetCashflowTrendRequest) (*GetCashflowTrendResponse, error)
 	// Get net worth trend over time
 	GetNetWorthTrend(context.Context, *GetNetWorthTrendRequest) (*GetNetWorthTrendResponse, error)
 	mustEmbedUnimplementedReportServiceServer()
@@ -175,6 +190,9 @@ func (UnimplementedReportServiceServer) GetBudgetTrackingReport(context.Context,
 }
 func (UnimplementedReportServiceServer) GetSpendingTrend(context.Context, *GetSpendingTrendRequest) (*GetSpendingTrendResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSpendingTrend not implemented")
+}
+func (UnimplementedReportServiceServer) GetCashflowTrend(context.Context, *GetCashflowTrendRequest) (*GetCashflowTrendResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCashflowTrend not implemented")
 }
 func (UnimplementedReportServiceServer) GetNetWorthTrend(context.Context, *GetNetWorthTrendRequest) (*GetNetWorthTrendResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetNetWorthTrend not implemented")
@@ -308,6 +326,24 @@ func _ReportService_GetSpendingTrend_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ReportService_GetCashflowTrend_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCashflowTrendRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReportServiceServer).GetCashflowTrend(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReportService_GetCashflowTrend_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReportServiceServer).GetCashflowTrend(ctx, req.(*GetCashflowTrendRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ReportService_GetNetWorthTrend_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetNetWorthTrendRequest)
 	if err := dec(in); err != nil {
@@ -356,6 +392,10 @@ var ReportService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSpendingTrend",
 			Handler:    _ReportService_GetSpendingTrend_Handler,
+		},
+		{
+			MethodName: "GetCashflowTrend",
+			Handler:    _ReportService_GetCashflowTrend_Handler,
 		},
 		{
 			MethodName: "GetNetWorthTrend",

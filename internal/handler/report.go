@@ -648,6 +648,75 @@ func (h *ReportHandler) GetSpendingTrend(ctx context.Context, req *pb.GetSpendin
 	}, nil
 }
 
+// GetCashflowTrend returns income, expenses, and net cashflow per month
+func (h *ReportHandler) GetCashflowTrend(ctx context.Context, req *pb.GetCashflowTrendRequest) (*pb.GetCashflowTrendResponse, error) {
+	userID, err := middleware.GetUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	months := int(req.GetMonths())
+	if months <= 0 {
+		months = 12
+	}
+
+	user, err := h.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to load user profile")
+	}
+	baseCurrency := user.BaseCurrency
+
+	var trend []*pb.CashflowTrendPoint
+	totalIncome := decimal.Zero
+	totalExpenses := decimal.Zero
+
+	now := time.Now()
+	for i := months - 1; i >= 0; i-- {
+		monthStart, monthEnd := getMonthBounds(now.Year(), int(now.Month())-i)
+
+		rawIncome, err := h.transactionRepo.GetTotalByType(ctx, userID, monthStart, monthEnd, model.CategoryTypeIncome)
+		if err != nil {
+			continue
+		}
+		income, _ := h.sumCurrencyAmounts(ctx, rawIncome, baseCurrency)
+
+		rawExpenses, err := h.transactionRepo.GetTotalByType(ctx, userID, monthStart, monthEnd, model.CategoryTypeExpense)
+		if err != nil {
+			continue
+		}
+		expenses, _ := h.sumCurrencyAmounts(ctx, rawExpenses, baseCurrency)
+
+		net := income.Sub(expenses)
+
+		trend = append(trend, &pb.CashflowTrendPoint{
+			Month:    monthStart.Format("2006-01"),
+			Income:   reportDecimalToMoney(income, baseCurrency),
+			Expenses: reportDecimalToMoney(expenses, baseCurrency),
+			Net:      reportDecimalToMoney(net, baseCurrency),
+		})
+
+		totalIncome = totalIncome.Add(income)
+		totalExpenses = totalExpenses.Add(expenses)
+	}
+
+	count := decimal.NewFromInt(int64(len(trend)))
+	avgIncome := decimal.Zero
+	avgExpenses := decimal.Zero
+	avgNet := decimal.Zero
+	if count.IsPositive() {
+		avgIncome = totalIncome.Div(count)
+		avgExpenses = totalExpenses.Div(count)
+		avgNet = totalIncome.Sub(totalExpenses).Div(count)
+	}
+
+	return &pb.GetCashflowTrendResponse{
+		Trend:          trend,
+		AverageIncome:   reportDecimalToMoney(avgIncome, baseCurrency),
+		AverageExpenses: reportDecimalToMoney(avgExpenses, baseCurrency),
+		AverageNet:      reportDecimalToMoney(avgNet, baseCurrency),
+	}, nil
+}
+
 // GetNetWorthTrend returns net worth trend over time
 func (h *ReportHandler) GetNetWorthTrend(ctx context.Context, req *pb.GetNetWorthTrendRequest) (*pb.GetNetWorthTrendResponse, error) {
 	userID, err := middleware.GetUserID(ctx)

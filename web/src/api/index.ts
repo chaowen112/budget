@@ -32,6 +32,7 @@ import type {
   Money,
   TransactionSourceLink,
   ApiKey,
+  CashflowTrendReport,
 } from '../types'
 
 function dateInputToUTCISOString(value: string): string {
@@ -451,6 +452,11 @@ export const reportApi = {
   getGoalsReport: async (): Promise<SavingGoalReport[]> => {
     const response = await api.get('/reports/goals')
     return response.data.goals || []
+  },
+
+  getCashflowTrend: async (months = 12): Promise<CashflowTrendReport> => {
+    const response = await api.get('/reports/cashflow-trend', { params: { months } })
+    return response.data
   },
 }
 

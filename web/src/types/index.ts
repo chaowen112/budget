@@ -259,6 +259,20 @@ export interface NetWorthTrendReport {
   totalChangePercentage: number
 }
 
+export interface CashflowTrendPoint {
+  month: string
+  income: Money
+  expenses: Money
+  net: Money
+}
+
+export interface CashflowTrendReport {
+  trend: CashflowTrendPoint[]
+  averageIncome: Money
+  averageExpenses: Money
+  averageNet: Money
+}
+
 export interface LedgerAccount {
   id: string
   name: string

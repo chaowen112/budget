@@ -14,6 +14,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	pb "github.com/chaowen/budget/gen/budget/v1"
+	"github.com/chaowen/budget/internal/metrics"
 	"github.com/chaowen/budget/internal/middleware"
 	"github.com/chaowen/budget/internal/model"
 	"github.com/chaowen/budget/internal/repository"
@@ -25,14 +26,16 @@ type AssetHandler struct {
 	accountingRepo *repository.AccountingRepository
 	userRepo       *repository.UserRepository
 	currencyRepo   *repository.CurrencyRepository
+	metrics        *metrics.Collector
 }
 
-func NewAssetHandler(assetRepo *repository.AssetRepository, accountingRepo *repository.AccountingRepository, userRepo *repository.UserRepository, currencyRepo *repository.CurrencyRepository) *AssetHandler {
+func NewAssetHandler(assetRepo *repository.AssetRepository, accountingRepo *repository.AccountingRepository, userRepo *repository.UserRepository, currencyRepo *repository.CurrencyRepository, metricsCollector *metrics.Collector) *AssetHandler {
 	return &AssetHandler{
 		assetRepo:      assetRepo,
 		accountingRepo: accountingRepo,
 		userRepo:       userRepo,
 		currencyRepo:   currencyRepo,
+		metrics:        metricsCollector,
 	}
 }
 
@@ -128,10 +131,12 @@ func (h *AssetHandler) CreateAsset(ctx context.Context, req *pb.CreateAssetReque
 		return nil, status.Error(codes.Internal, "failed to create asset ledger account")
 	}
 
-	_ = h.assetRepo.RecordSnapshot(ctx, &model.AssetSnapshot{
+	if err := h.assetRepo.RecordSnapshot(ctx, &model.AssetSnapshot{
 		AssetID: asset.ID,
 		Value:   asset.CurrentValue,
-	})
+	}); err == nil && h.metrics != nil {
+		h.metrics.RecordSnapshot("asset_create")
+	}
 
 	// Refetch to get asset type info
 	asset, _ = h.assetRepo.GetByID(ctx, asset.ID, userID)
@@ -295,10 +300,12 @@ func (h *AssetHandler) UpdateAsset(ctx context.Context, req *pb.UpdateAssetReque
 		return nil, status.Error(codes.Internal, "failed to update asset ledger account")
 	}
 
-	_ = h.assetRepo.RecordSnapshot(ctx, &model.AssetSnapshot{
+	if err := h.assetRepo.RecordSnapshot(ctx, &model.AssetSnapshot{
 		AssetID: asset.ID,
 		Value:   asset.CurrentValue,
-	})
+	}); err == nil && h.metrics != nil {
+		h.metrics.RecordSnapshot("asset_update")
+	}
 
 	asset, _ = h.assetRepo.GetByID(ctx, asset.ID, userID)
 
@@ -377,6 +384,9 @@ func (h *AssetHandler) RecordAssetSnapshot(ctx context.Context, req *pb.RecordAs
 
 	if err := h.assetRepo.RecordSnapshot(ctx, snapshot); err != nil {
 		return nil, status.Error(codes.Internal, "failed to record snapshot")
+	}
+	if h.metrics != nil {
+		h.metrics.RecordSnapshot("manual")
 	}
 
 	return &pb.RecordAssetSnapshotResponse{

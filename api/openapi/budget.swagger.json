@@ -1633,6 +1633,39 @@
         ]
       }
     },
+    "/api/v1/reports/cashflow-trend": {
+      "get": {
+        "summary": "Get cashflow trend (income vs expenses over time)",
+        "operationId": "ReportService_GetCashflowTrend",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetCashflowTrendResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "months",
+            "description": "Number of months (default: 12)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "ReportService"
+        ]
+      }
+    },
     "/api/v1/reports/goals": {
       "get": {
         "summary": "Get saving goals report",
@@ -2795,6 +2828,23 @@
       },
       "title": "CPFProjection for future value estimation"
     },
+    "v1CashflowTrendPoint": {
+      "type": "object",
+      "properties": {
+        "month": {
+          "type": "string"
+        },
+        "income": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "expenses": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "net": {
+          "$ref": "#/definitions/v1Money"
+        }
+      }
+    },
     "v1Category": {
       "type": "object",
       "properties": {
@@ -3197,6 +3247,27 @@
       "properties": {
         "projection": {
           "$ref": "#/definitions/v1CPFProjection"
+        }
+      }
+    },
+    "v1GetCashflowTrendResponse": {
+      "type": "object",
+      "properties": {
+        "trend": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CashflowTrendPoint"
+          }
+        },
+        "averageIncome": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "averageExpenses": {
+          "$ref": "#/definitions/v1Money"
+        },
+        "averageNet": {
+          "$ref": "#/definitions/v1Money"
         }
       }
     },
