@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { budgetApi, categoryApi, transactionApi } from '../api'
-import { formatDate, numberToMoney, moneyToNumber } from '../lib/utils'
+import { formatDate, formatMoney, numberToMoney, moneyToNumber } from '../lib/utils'
 import { useAuth } from '../store/AuthContext'
 import { useCurrency } from '../store/CurrencyContext'
 import type { Budget, Category, PeriodType, Transaction } from '../types'
@@ -430,11 +430,10 @@ export default function Budgets() {
                   <div className="flex justify-between text-xs pt-1.5 border-t border-zinc-100 dark:border-zinc-800">
                     <span className="text-zinc-500 dark:text-zinc-400">Remaining</span>
                     <span
-                      className={`font-semibold tabular-nums ${
-                        moneyToNumber(status.remaining) < 0
-                          ? 'text-red-500 dark:text-red-400'
-                          : 'text-emerald-600 dark:text-emerald-400'
-                      }`}
+                      className={`font-semibold tabular-nums ${moneyToNumber(status.remaining) < 0
+                        ? 'text-red-500 dark:text-red-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
                     >
                       {formatConverted(status.remaining)}
                     </span>
@@ -570,21 +569,33 @@ export default function Budgets() {
             <div className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">No transactions in this budget cycle.</div>
           ) : (
             <div className="max-h-80 overflow-auto rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
-              {relatedTransactions.map((tx) => (
-                <div key={tx.id} className="px-3 py-2.5 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm text-zinc-900 dark:text-zinc-100 truncate">
-                      {tx.description || tx.categoryName}
-                    </p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                      {formatDate(tx.transactionDate)}
-                    </p>
+              {relatedTransactions.map((tx) => {
+                const budgetCurrency = activeBudgetForTransactions?.amount.currency
+                const txCurrency = tx.amount.currency
+                const isDifferentCurrency = budgetCurrency && txCurrency && txCurrency !== budgetCurrency
+                return (
+                  <div key={tx.id} className="px-3 py-2.5 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm text-zinc-900 dark:text-zinc-100 truncate">
+                        {tx.description || tx.categoryName}
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        {formatDate(tx.transactionDate)}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end flex-shrink-0">
+                      <span className="text-sm font-medium tabular-nums text-red-500 dark:text-red-400 whitespace-nowrap">
+                        {formatMoney(tx.amount)}
+                      </span>
+                      {isDifferentCurrency && (
+                        <span className="text-[11px] tabular-nums text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
+                          ≈ {formatConverted(tx.amount)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-sm font-medium tabular-nums text-red-500 dark:text-red-400 whitespace-nowrap">
-                    {formatConverted(tx.amount)}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
