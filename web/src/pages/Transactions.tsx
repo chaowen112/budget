@@ -292,13 +292,20 @@ export default function Transactions() {
   const toAssetBalance = selectedToAsset ? parseFloat(selectedToAsset.currentValue) : null
   const parsedTransferFromAmount = parseFloat(transferFromAmount || '0')
   const parsedTransferToAmount = parseFloat(transferToAmount || '0')
+  const fromIsLiability = selectedFromAsset?.isLiability ?? false
+  const toIsLiability = selectedToAsset?.isLiability ?? false
   const fromAssetBalanceAfter =
     fromAssetBalance !== null && parsedTransferFromAmount > 0
-      ? fromAssetBalance - parsedTransferFromAmount
+      ? fromIsLiability
+        ? fromAssetBalance + parsedTransferFromAmount
+        : fromAssetBalance - parsedTransferFromAmount
       : null
+  const toEffectiveAmount = parsedTransferToAmount > 0 ? parsedTransferToAmount : parsedTransferFromAmount > 0 ? parsedTransferFromAmount : 0
   const toAssetBalanceAfter =
-    toAssetBalance !== null
-      ? toAssetBalance + (parsedTransferToAmount > 0 ? parsedTransferToAmount : parsedTransferFromAmount > 0 ? parsedTransferFromAmount : 0)
+    toAssetBalance !== null && toEffectiveAmount > 0
+      ? toIsLiability
+        ? toAssetBalance - toEffectiveAmount
+        : toAssetBalance + toEffectiveAmount
       : null
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {

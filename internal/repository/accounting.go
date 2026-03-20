@@ -229,7 +229,13 @@ func (r *AccountingRepository) UpsertTransferEntry(
 		}
 	}
 
-	// Debit destination asset, credit source asset.
+	// Debit destination, credit source.
+	// For assets:      debit increases balance,  credit decreases balance.
+	// For liabilities: debit decreases balance,  credit increases balance.
+	// Effect: "FROM pays TO" — source balance reduces, destination balance
+	// increases for assets; for liabilities the inverse natural direction
+	// means paying a liability (TO) reduces its debt, while drawing from a
+	// liability (FROM) increases its debt.
 	if _, err = tx.Exec(ctx, `
 		INSERT INTO journal_lines (entry_id, account_id, debit, credit, base_debit, base_credit, description)
 		VALUES ($1, $2, $3, 0, $4, 0, 'transfer debit')
