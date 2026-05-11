@@ -10,7 +10,7 @@ FROM node:22-alpine AS frontend-builder
 
 WORKDIR /app/web
 
-RUN npm i -g pnpm
+RUN npm i -g pnpm@10.32.1
 
 # Copy package files
 COPY web/package.json web/pnpm-lock.yaml ./
