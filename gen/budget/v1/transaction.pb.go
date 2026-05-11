@@ -384,6 +384,7 @@ type ListTransactionsRequest struct {
 	Tags          []string               `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`
 	Currency      string                 `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
 	Keyword       string                 `protobuf:"bytes,7,opt,name=keyword,proto3" json:"keyword,omitempty"`
+	SourceAssetId string                 `protobuf:"bytes,8,opt,name=source_asset_id,json=sourceAssetId,proto3" json:"source_asset_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -463,6 +464,13 @@ func (x *ListTransactionsRequest) GetCurrency() string {
 func (x *ListTransactionsRequest) GetKeyword() string {
 	if x != nil {
 		return x.Keyword
+	}
+	return ""
+}
+
+func (x *ListTransactionsRequest) GetSourceAssetId() string {
+	if x != nil {
+		return x.SourceAssetId
 	}
 	return ""
 }

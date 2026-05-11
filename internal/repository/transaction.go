@@ -34,16 +34,17 @@ func NewTransactionRepository(db *DB) *TransactionRepository {
 
 // TransactionFilter for querying transactions
 type TransactionFilter struct {
-	UserID     uuid.UUID
-	CategoryID *uuid.UUID
-	Type       *model.CategoryType
-	StartDate  *time.Time
-	EndDate    *time.Time
-	Search     string
-	Tags       []string
-	Currency   string
-	Page       int
-	PageSize   int
+	UserID        uuid.UUID
+	CategoryID    *uuid.UUID
+	SourceAssetID *uuid.UUID
+	Type          *model.CategoryType
+	StartDate     *time.Time
+	EndDate       *time.Time
+	Search        string
+	Tags          []string
+	Currency      string
+	Page          int
+	PageSize      int
 }
 
 // ListResult contains paginated results
@@ -94,6 +95,11 @@ func (r *TransactionRepository) List(ctx context.Context, filter TransactionFilt
 	if filter.Currency != "" {
 		countQuery += ` AND t.currency = ` + placeholder(argIndex)
 		args = append(args, filter.Currency)
+		argIndex++
+	}
+	if filter.SourceAssetID != nil {
+		countQuery += ` AND tal.asset_id = ` + placeholder(argIndex)
+		args = append(args, *filter.SourceAssetID)
 		argIndex++
 	}
 	if filter.Search != "" {
@@ -159,6 +165,11 @@ func (r *TransactionRepository) List(ctx context.Context, filter TransactionFilt
 	if filter.Currency != "" {
 		query += ` AND t.currency = ` + placeholder(argIndex)
 		args = append(args, filter.Currency)
+		argIndex++
+	}
+	if filter.SourceAssetID != nil {
+		query += ` AND tal.asset_id = ` + placeholder(argIndex)
+		args = append(args, *filter.SourceAssetID)
 		argIndex++
 	}
 	if filter.Search != "" {

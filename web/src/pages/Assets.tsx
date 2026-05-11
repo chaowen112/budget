@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { assetApi, reportApi } from '../api'
+import { assetApi, reportApi, transactionApi, transferApi } from '../api'
 import { useAuth } from '../store/AuthContext'
 import { useCurrency, DISPLAY_CURRENCIES } from '../store/CurrencyContext'
 import { formatDate, formatMoney } from '../lib/utils'
 import type { Asset, AssetCategory, AssetSnapshot, AssetType } from '../types'
-import { Plus, Pencil, Trash2, Building, Car, Coins, CreditCard, Landmark, Wallet, Bitcoin, TrendingDown, TrendingUp, Scale, LineChart as LineChartIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, Building, Car, Coins, CreditCard, Landmark, Wallet, Bitcoin, TrendingDown, TrendingUp, Scale, LineChart as LineChartIcon, List, ArrowRightLeft } from 'lucide-react'
 import { Button, Modal, FormField, Input, Select, useConfirm } from '../components/ui'
 import {
   LineChart,
@@ -49,6 +49,7 @@ export default function Assets() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null)
   const [historyAsset, setHistoryAsset] = useState<Asset | null>(null)
+  const [transactionsAsset, setTransactionsAsset] = useState<Asset | null>(null)
   const [showLiabilities, setShowLiabilities] = useState(true)
   const [assetCurrencyInput, setAssetCurrencyInput] = useState(user?.baseCurrency || 'SGD')
   const [assetTypeInput, setAssetTypeInput] = useState('')
@@ -76,6 +77,18 @@ export default function Assets() {
     queryKey: ['assetHistory', historyAsset?.id],
     queryFn: () => assetApi.getHistory(historyAsset!.id),
     enabled: !!historyAsset,
+  })
+
+  const { data: assetTransactionsResult, isLoading: isTransactionsLoading } = useQuery({
+    queryKey: ['assetTransactions', transactionsAsset?.id],
+    queryFn: () => transactionApi.list({ sourceAssetId: transactionsAsset!.id, pageSize: 200 }),
+    enabled: !!transactionsAsset,
+  })
+
+  const { data: allTransfers } = useQuery({
+    queryKey: ['transfers'],
+    queryFn: () => transferApi.list(),
+    enabled: !!transactionsAsset,
   })
 
   const createMutation = useMutation({
@@ -221,6 +234,10 @@ export default function Assets() {
     setHistoryAsset(null)
   }
 
+  const closeTransactionsModal = () => {
+    setTransactionsAsset(null)
+  }
+
   const AssetRow = ({ asset, isLiability }: { asset: Asset; isLiability: boolean }) => {
     const Icon = getCategoryIcon(asset.category)
     const costValue = asset.cost ? Number(asset.cost) : 0
@@ -268,6 +285,13 @@ export default function Assets() {
           )}
         </div>
         <div className="flex gap-1 ml-2">
+          <button
+            onClick={() => setTransactionsAsset(asset)}
+            className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors duration-150"
+            title="View Transactions & Transfers"
+          >
+            <List className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+          </button>
           <button
             onClick={() => setHistoryAsset(asset)}
             className="h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors duration-150"
@@ -648,6 +672,128 @@ export default function Assets() {
             No history yet for this asset.
           </div>
         )}
+      </Modal>
+
+      {/* Transactions & Transfers Modal */}
+      <Modal
+        open={!!transactionsAsset}
+        onClose={closeTransactionsModal}
+        title={transactionsAsset ? `${transactionsAsset.name} — Transactions & Transfers` : ''}
+        footer={
+          <div className="flex justify-end">
+            <Button variant="secondary" onClick={closeTransactionsModal}>Close</Button>
+          </div>
+        }
+      >
+        {(() => {
+          const transactions = assetTransactionsResult?.transactions || []
+          const transfers = (allTransfers || []).filter(
+            (tr) => tr.fromAssetId === transactionsAsset?.id || tr.toAssetId === transactionsAsset?.id
+          )
+
+          type TimelineItem =
+            | { kind: 'transaction'; date: string; id: string; description?: string; categoryName?: string; amount: string; currency: string; type?: string }
+            | { kind: 'transfer'; date: string; id: string; description?: string; fromAssetName?: string; toAssetName?: string; fromAssetId: string; toAssetId: string; fromAmount: string; toAmount: string; fromCurrency: string; toCurrency: string }
+
+          const items: TimelineItem[] = [
+            ...transactions.map((t) => ({
+              kind: 'transaction' as const,
+              date: t.transactionDate,
+              id: t.id,
+              description: t.description,
+              categoryName: t.categoryName,
+              amount: t.amount.amount,
+              currency: t.amount.currency,
+              type: t.type,
+            })),
+            ...transfers.map((tr) => ({
+              kind: 'transfer' as const,
+              date: tr.transferDate,
+              id: tr.id,
+              description: tr.description,
+              fromAssetName: tr.fromAssetName,
+              toAssetName: tr.toAssetName,
+              fromAssetId: tr.fromAssetId,
+              toAssetId: tr.toAssetId,
+              fromAmount: tr.fromAmount,
+              toAmount: tr.toAmount,
+              fromCurrency: tr.fromCurrency,
+              toCurrency: tr.toCurrency,
+            })),
+          ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+          if (isTransactionsLoading) {
+            return (
+              <div className="flex items-center justify-center py-10">
+                <svg className="animate-spin h-5 w-5 text-violet-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              </div>
+            )
+          }
+
+          if (items.length === 0) {
+            return (
+              <div className="py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                No transactions or transfers for this asset yet.
+              </div>
+            )
+          }
+
+          return (
+            <div className="divide-y divide-zinc-100 dark:divide-zinc-800 max-h-[60vh] overflow-y-auto -mx-6 px-6">
+              {items.map((item) => {
+                if (item.kind === 'transaction') {
+                  const isExpense = item.type === 'TRANSACTION_TYPE_EXPENSE'
+                  return (
+                    <div key={`tx-${item.id}`} className="flex items-center gap-3 py-3">
+                      <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-zinc-100 dark:bg-zinc-800">
+                        <List className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                          {item.description || item.categoryName || 'Transaction'}
+                        </p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                          {item.categoryName && item.description ? item.categoryName + ' · ' : ''}{formatDate(item.date)}
+                        </p>
+                      </div>
+                      <span className={`text-sm font-semibold tabular-nums flex-shrink-0 ${isExpense ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {isExpense ? '-' : '+'}{formatMoney({ amount: item.amount, currency: item.currency })}
+                      </span>
+                    </div>
+                  )
+                }
+
+                const isFrom = item.fromAssetId === transactionsAsset?.id
+                return (
+                  <div key={`tr-${item.id}`} className="flex items-center gap-3 py-3">
+                    <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-sky-50 dark:bg-sky-500/10">
+                      <ArrowRightLeft className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                        {isFrom
+                          ? `To ${item.toAssetName || 'Unknown'}`
+                          : `From ${item.fromAssetName || 'Unknown'}`}
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        Transfer · {formatDate(item.date)}
+                        {item.description ? ` · ${item.description}` : ''}
+                      </p>
+                    </div>
+                    <span className={`text-sm font-semibold tabular-nums flex-shrink-0 ${isFrom ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {isFrom
+                        ? `-${formatMoney({ amount: item.fromAmount, currency: item.fromCurrency })}`
+                        : `+${formatMoney({ amount: item.toAmount, currency: item.toCurrency })}`}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
       </Modal>
     </div>
   )

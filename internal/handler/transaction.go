@@ -257,6 +257,14 @@ func (h *TransactionHandler) ListTransactions(ctx context.Context, req *pb.ListT
 		filter.Search = req.Keyword
 	}
 
+	if req.SourceAssetId != "" {
+		assetID, err := uuid.Parse(req.SourceAssetId)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid source_asset_id")
+		}
+		filter.SourceAssetID = &assetID
+	}
+
 	result, err := h.transactionRepo.List(ctx, filter)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to list transactions")

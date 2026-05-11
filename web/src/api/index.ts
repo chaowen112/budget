@@ -123,6 +123,7 @@ export const transactionApi = {
     type?: CategoryType
     currency?: string
     pageSize?: number
+    sourceAssetId?: string
   }): Promise<{
     transactions: Transaction[]
     pagination?: { page: number; pageSize: number; totalCount: number; totalPages: number }
@@ -136,8 +137,8 @@ export const transactionApi = {
     if (params?.categoryId) queryParams.categoryId = params.categoryId
     if (params?.type) queryParams.type = params.type
     if (params?.currency) queryParams.currency = params.currency
-
     if (params?.keyword) queryParams.keyword = params.keyword
+    if (params?.sourceAssetId) queryParams.sourceAssetId = params.sourceAssetId
 
     const response = await api.get('/transactions', {
       params: queryParams,

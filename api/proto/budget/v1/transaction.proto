@@ -56,6 +56,7 @@ message ListTransactionsRequest {
   repeated string tags = 5;
   string currency = 6;
   string keyword = 7;
+  string source_asset_id = 8;
 }
 
 message ListTransactionsResponse {
