@@ -59,9 +59,7 @@ export default function Transactions() {
   const [editingTransfer, setEditingTransfer] = useState<Transfer | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchParams] = useSearchParams()
-  const [filterCategory, setFilterCategory] = useState<string>(searchParams.get('categoryId') || '')
-  const [filterStartDate] = useState<string>(searchParams.get('startDate') || '')
-  const [filterEndDate] = useState<string>(searchParams.get('endDate') || '')
+  const [filterDate, setFilterDate] = useState<string>(searchParams.get('date') || '')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(100)
   const [transactionCategoryId, setTransactionCategoryId] = useState('')
@@ -81,20 +79,18 @@ export default function Transactions() {
   const [transferDateInput, setTransferDateInput] = useState(new Date().toISOString().split('T')[0])
   const [transactionTagsInput, setTransactionTagsInput] = useState('')
   const [transactionBudgetAmountInput, setTransactionBudgetAmountInput] = useState('')
-  const [filterAsset, setFilterAsset] = useState<string>('')
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'category'>('date')
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc')
 
   const { data: transactionsData, isLoading } = useQuery({
-    queryKey: ['transactions', currentPage, pageSize, filterCategory, searchTerm, filterStartDate, filterEndDate],
+    queryKey: ['transactions', currentPage, pageSize, searchTerm, filterDate],
     queryFn: () =>
       transactionApi.list({
         page: currentPage,
         pageSize,
-        categoryId: filterCategory || undefined,
         keyword: searchTerm.trim() || undefined,
-        startDate: filterStartDate || undefined,
-        endDate: filterEndDate || undefined,
+        startDate: filterDate ? `${filterDate}T00:00:00.000Z` : undefined,
+        endDate: filterDate ? `${filterDate}T23:59:59.999Z` : undefined,
       }),
   })
 
@@ -208,10 +204,7 @@ export default function Transactions() {
   })
   const hasCategories = (categories?.length || 0) > 0
   const hasAssets = (assets?.length || 0) > 0
-  const filteredTransactions = transactionsWithSource.filter((t) => {
-    if (!filterAsset) return true
-    return t.sourceAssetId === filterAsset
-  })
+  const filteredTransactions = transactionsWithSource
 
   const filteredTransfers = (transfers || []).filter((t) => {
     const q = searchTerm.toLowerCase()
@@ -220,9 +213,11 @@ export default function Transactions() {
       (t.description || '').toLowerCase().includes(q) ||
       (t.fromAssetName || '').toLowerCase().includes(q) ||
       (t.toAssetName || '').toLowerCase().includes(q)
-    const matchesCategory = !filterCategory
-    const matchesAsset = !filterAsset || t.fromAssetId === filterAsset || t.toAssetId === filterAsset
-    return matchesSearch && matchesCategory && matchesAsset
+    const matchesDate = !filterDate || (() => {
+      const d = new Date(t.transferDate)
+      return d >= new Date(`${filterDate}T00:00:00.000Z`) && d <= new Date(`${filterDate}T23:59:59.999Z`)
+    })()
+    return matchesSearch && matchesDate
   })
 
   const getItemAmount = (item: typeof timelineItems[number]): number => {
@@ -510,32 +505,27 @@ export default function Transactions() {
               className="pl-9"
             />
           </div>
-          <Select
-            value={filterCategory}
-            onChange={(e) => {
-              setFilterCategory(e.target.value)
-              setCurrentPage(1)
-            }}
-            className="sm:w-48"
-          >
-            <option value="">All Categories</option>
-            {categories?.map((cat) => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </Select>
-          <Select
-            value={filterAsset}
-            onChange={(e) => {
-              setFilterAsset(e.target.value)
-              setCurrentPage(1)
-            }}
-            className="sm:w-48"
-          >
-            <option value="">All Assets</option>
-            {assets?.map((asset) => (
-              <option key={asset.id} value={asset.id}>{asset.name}</option>
-            ))}
-          </Select>
+          <div className="relative sm:w-44">
+            <Input
+              type="date"
+              value={filterDate}
+              onChange={(e) => {
+                setFilterDate(e.target.value)
+                setCurrentPage(1)
+              }}
+              className={filterDate ? 'pr-8' : ''}
+            />
+            {filterDate && (
+              <button
+                type="button"
+                onClick={() => { setFilterDate(''); setCurrentPage(1) }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                aria-label="Clear date filter"
+              >
+                ×
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <ArrowUpDown className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500 flex-shrink-0" />
@@ -886,7 +876,7 @@ export default function Transactions() {
                       {fromAssetBalanceAfter !== null && (
                         <div className="flex justify-between text-xs">
                           <span className="text-zinc-500 dark:text-zinc-400">{selectedFromAsset.name} after</span>
-                          <span className={`font-medium tabular-nums ${fromAssetBalanceAfter < 0 ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                          <span className={`font-medium tabular-nums ${fromIsLiability || fromAssetBalanceAfter < 0 ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                             {formatMoney({ amount: fromAssetBalanceAfter.toFixed(2), currency: selectedFromAsset.currency })}
                           </span>
                         </div>
@@ -904,7 +894,7 @@ export default function Transactions() {
                       {toAssetBalanceAfter !== null && toAssetBalanceAfter !== toAssetBalance && (
                         <div className="flex justify-between text-xs">
                           <span className="text-zinc-500 dark:text-zinc-400">{selectedToAsset.name} after</span>
-                          <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+                          <span className={`font-medium tabular-nums ${toIsLiability ? (toAssetBalanceAfter < (toAssetBalance ?? 0) ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400') : 'text-emerald-600 dark:text-emerald-400'}`}>
                             {formatMoney({ amount: toAssetBalanceAfter.toFixed(2), currency: selectedToAsset.currency })}
                           </span>
                         </div>

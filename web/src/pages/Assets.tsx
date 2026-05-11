@@ -767,6 +767,11 @@ export default function Assets() {
                 }
 
                 const isFrom = item.fromAssetId === transactionsAsset?.id
+                const isLiability = transactionsAsset?.isLiability ?? false
+                // For a liability: FROM means balance went UP (drew from it = bad = red + positive sign)
+                //                  TO means balance went DOWN (paid it off = good = green + negative sign)
+                // For a regular asset: FROM = money left (red, minus), TO = money arrived (green, plus)
+                const sign = isLiability ? (isFrom ? '+' : '-') : (isFrom ? '-' : '+')
                 return (
                   <div key={`tr-${item.id}`} className="flex items-center gap-3 py-3">
                     <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-sky-50 dark:bg-sky-500/10">
@@ -784,9 +789,7 @@ export default function Assets() {
                       </p>
                     </div>
                     <span className={`text-sm font-semibold tabular-nums flex-shrink-0 ${isFrom ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                      {isFrom
-                        ? `-${formatMoney({ amount: item.fromAmount, currency: item.fromCurrency })}`
-                        : `+${formatMoney({ amount: item.toAmount, currency: item.toCurrency })}`}
+                      {sign}{formatMoney({ amount: isFrom ? item.fromAmount : item.toAmount, currency: isFrom ? item.fromCurrency : item.toCurrency })}
                     </span>
                   </div>
                 )
