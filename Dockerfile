@@ -35,6 +35,10 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Copy generated protobuf/gateway code from the same proto generation stage used
+# for the embedded OpenAPI spec, so the runtime and docs cannot drift apart.
+COPY --from=proto-builder /app/gen ./gen
+
 # Copy frontend build from previous stage
 COPY --from=frontend-builder /app/cmd/server/static ./cmd/server/static
 
