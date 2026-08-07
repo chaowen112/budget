@@ -510,12 +510,15 @@ export default function Transactions() {
 
       {/* Filters & Sort */}
       <div className="flex items-center gap-3 overflow-x-auto pb-1">
-        <div className="relative flex-1 min-w-[14rem]">
+        <div className="flex flex-col gap-1.5 flex-1 min-w-[14rem]">
+          <label htmlFor="transaction-filter-keyword" className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+            關鍵字
+          </label>
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 dark:text-zinc-500 pointer-events-none" />
             <Input
+              id="transaction-filter-keyword"
               type="text"
-              placeholder="關鍵字"
-              aria-label="關鍵字"
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value)
@@ -524,6 +527,7 @@ export default function Transactions() {
               className="pl-9"
             />
           </div>
+        </div>
         <div className="flex flex-col gap-1.5 w-44 flex-shrink-0">
           <label htmlFor="transaction-filter-asset" className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
             Asset
@@ -600,25 +604,31 @@ export default function Transactions() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <ArrowUpDown className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500 flex-shrink-0" />
-          <Select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'date' | 'amount' | 'category' | 'asset')}
-            className="w-36"
-          >
-            <option value="date">Sort by Date</option>
-            <option value="amount">Sort by Amount</option>
-            <option value="category">Sort by Category</option>
-            <option value="asset">Sort by Asset</option>
-          </Select>
-          <button
-            type="button"
-            onClick={() => setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
-            className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            {sortDirection === 'desc' ? '↓ Newest / Highest' : '↑ Oldest / Lowest'}
-          </button>
+        <div className="flex flex-col gap-1.5 min-w-[16rem] flex-shrink-0">
+          <label htmlFor="transaction-filter-sort" className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+            Sort
+          </label>
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500 flex-shrink-0" />
+            <Select
+              id="transaction-filter-sort"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'date' | 'amount' | 'category' | 'asset')}
+              className="w-36"
+            >
+              <option value="date">Sort by Date</option>
+              <option value="amount">Sort by Amount</option>
+              <option value="category">Sort by Category</option>
+              <option value="asset">Sort by Asset</option>
+            </Select>
+            <button
+              type="button"
+              onClick={() => setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+              className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              {sortDirection === 'desc' ? '↓ Newest / Highest' : '↑ Oldest / Lowest'}
+            </button>
+          </div>
         </div>
       </div>
 
