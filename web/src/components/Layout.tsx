@@ -75,7 +75,7 @@ export default function Layout() {
               <TrendingUp className="h-4 w-4 text-white" />
             </div>
             <span className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Wealthly
+              Budget
             </span>
           </div>
           <button

@@ -38,7 +38,7 @@ export default function Login() {
             <TrendingUp className="h-5 w-5 text-white" />
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Wealthly
+            Budget
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Sign in to your account</p>
         </div>

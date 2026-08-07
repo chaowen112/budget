@@ -59,7 +59,9 @@ export default function Transactions() {
   const [editingTransfer, setEditingTransfer] = useState<Transfer | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchParams] = useSearchParams()
-  const [filterDate, setFilterDate] = useState<string>(searchParams.get('date') || '')
+  const initialDate = searchParams.get('date') || ''
+  const [filterStartDate, setFilterStartDate] = useState(initialDate)
+  const [filterEndDate, setFilterEndDate] = useState(initialDate)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(100)
   const [transactionCategoryId, setTransactionCategoryId] = useState('')
@@ -79,18 +81,18 @@ export default function Transactions() {
   const [transferDateInput, setTransferDateInput] = useState(new Date().toISOString().split('T')[0])
   const [transactionTagsInput, setTransactionTagsInput] = useState('')
   const [transactionBudgetAmountInput, setTransactionBudgetAmountInput] = useState('')
-  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'category'>('date')
+  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'category' | 'asset'>('date')
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc')
 
   const { data: transactionsData, isLoading } = useQuery({
-    queryKey: ['transactions', currentPage, pageSize, searchTerm, filterDate],
+    queryKey: ['transactions', currentPage, pageSize, searchTerm, filterStartDate, filterEndDate],
     queryFn: () =>
       transactionApi.list({
         page: currentPage,
         pageSize,
         keyword: searchTerm.trim() || undefined,
-        startDate: filterDate ? `${filterDate}T00:00:00.000Z` : undefined,
-        endDate: filterDate ? `${filterDate}T23:59:59.999Z` : undefined,
+        startDate: filterStartDate ? `${filterStartDate}T00:00:00.000Z` : undefined,
+        endDate: filterEndDate ? `${filterEndDate}T23:59:59.999Z` : undefined,
       }),
   })
 
@@ -213,9 +215,11 @@ export default function Transactions() {
       (t.description || '').toLowerCase().includes(q) ||
       (t.fromAssetName || '').toLowerCase().includes(q) ||
       (t.toAssetName || '').toLowerCase().includes(q)
-    const matchesDate = !filterDate || (() => {
+    const matchesDate = (!filterStartDate && !filterEndDate) || (() => {
       const d = new Date(t.transferDate)
-      return d >= new Date(`${filterDate}T00:00:00.000Z`) && d <= new Date(`${filterDate}T23:59:59.999Z`)
+      const startsAfter = !filterStartDate || d >= new Date(`${filterStartDate}T00:00:00.000Z`)
+      const endsBefore = !filterEndDate || d <= new Date(`${filterEndDate}T23:59:59.999Z`)
+      return startsAfter && endsBefore
     })()
     return matchesSearch && matchesDate
   })
@@ -230,6 +234,11 @@ export default function Transactions() {
     return 'Transfer'
   }
 
+  const getItemAsset = (item: typeof timelineItems[number]): string => {
+    if (item.kind === 'transaction') return item.transaction.sourceAssetName || ''
+    return `${item.transfer.fromAssetName || ''} ${item.transfer.toAssetName || ''}`.trim()
+  }
+
   const timelineItems = [
     ...filteredTransactions.map((transaction) => ({ kind: 'transaction' as const, date: transaction.transactionDate, transaction })),
     ...filteredTransfers.map((transfer) => ({ kind: 'transfer' as const, date: transfer.transferDate, transfer })),
@@ -241,6 +250,10 @@ export default function Transactions() {
     }
     if (sortBy === 'category') {
       const cmp = getItemCategory(a).localeCompare(getItemCategory(b))
+      if (cmp !== 0) return cmp * dir
+    }
+    if (sortBy === 'asset') {
+      const cmp = getItemAsset(a).localeCompare(getItemAsset(b))
       if (cmp !== 0) return cmp * dir
     }
     // Default / fallback: sort by date
@@ -490,13 +503,13 @@ export default function Transactions() {
       )}
 
       {/* Filters & Sort */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
+      <div className="flex items-center gap-3 overflow-x-auto pb-1">
+          <div className="relative flex-1 min-w-[14rem]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 dark:text-zinc-500 pointer-events-none" />
             <Input
               type="text"
-              placeholder="Search transactions..."
+              placeholder="關鍵字"
+              aria-label="關鍵字"
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value)
@@ -505,38 +518,61 @@ export default function Transactions() {
               className="pl-9"
             />
           </div>
-          <div className="relative sm:w-44">
+          <div className="relative w-44 flex-shrink-0">
             <Input
               type="date"
-              value={filterDate}
+              value={filterStartDate}
               onChange={(e) => {
-                setFilterDate(e.target.value)
+                setFilterStartDate(e.target.value)
                 setCurrentPage(1)
               }}
-              className={filterDate ? 'pr-8' : ''}
+              className={filterStartDate ? 'pr-8' : ''}
+              aria-label="Start date"
             />
-            {filterDate && (
+            {filterStartDate && (
               <button
                 type="button"
-                onClick={() => { setFilterDate(''); setCurrentPage(1) }}
+                onClick={() => { setFilterStartDate(''); setCurrentPage(1) }}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-                aria-label="Clear date filter"
+                aria-label="Clear start date filter"
               >
                 ×
               </button>
             )}
           </div>
-        </div>
-        <div className="flex items-center gap-2">
+          <div className="relative w-44 flex-shrink-0">
+            <Input
+              type="date"
+              value={filterEndDate}
+              onChange={(e) => {
+                setFilterEndDate(e.target.value)
+                setCurrentPage(1)
+              }}
+              className={filterEndDate ? 'pr-8' : ''}
+              aria-label="End date"
+            />
+            {filterEndDate && (
+              <button
+                type="button"
+                onClick={() => { setFilterEndDate(''); setCurrentPage(1) }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                aria-label="Clear end date filter"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
           <ArrowUpDown className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500 flex-shrink-0" />
           <Select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'date' | 'amount' | 'category')}
+            onChange={(e) => setSortBy(e.target.value as 'date' | 'amount' | 'category' | 'asset')}
             className="w-36"
           >
             <option value="date">Sort by Date</option>
             <option value="amount">Sort by Amount</option>
             <option value="category">Sort by Category</option>
+            <option value="asset">Sort by Asset</option>
           </Select>
           <button
             type="button"
